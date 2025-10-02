@@ -1,6 +1,6 @@
 # Verbindung zu HausKI
 
-HausKI ist die lokale Orchestrator-KI.  
+HausKI ist die lokale Orchestrator-KI.
 semantAH wird dort als **Gedächtnis-Modul** eingebunden:
 - API-Mount unter `/index/*`
 - Prometheus-Metriken und Budget-Gates
