@@ -1,4 +1,3 @@
----
 
 ## Beziehung zu WGX
 
