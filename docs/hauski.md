@@ -50,7 +50,7 @@ Implementierungen greifen auf `reqwest::Client` zurück. Cloud-Varianten müssen
 
 ```rust
 fn plugin_routes() -> Router<AppState> {
-    let embedder = embeddings::Ollama::new(/* url, model, dim */);
+    let embedder = embeddings::Ollama::new("http://127.0.0.1:11434", "nomic-embed-text", 768);
     let store = indexd::store::hnsw(/* state_path */);
     Router::new().nest("/index", indexd::Indexd::new(embedder, store).router())
 }
