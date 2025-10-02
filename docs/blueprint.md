@@ -313,7 +313,7 @@ After=default.target
 [Service]
 Type=oneshot
 WorkingDirectory=%h/path/to/your/vault
-ExecStart=%h/path/to/your/vault/.venv/bin/make all
+ExecStart=make all
 ```
 
 `~/.config/systemd/user/vault-gewebe.timer`
