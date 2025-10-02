@@ -278,11 +278,13 @@ PY=$(VENV)/bin/python
 
 .PHONY: venv index graph related all clean
 
-venv:
-@test -d $(VENV) || python3 -m venv $(VENV)
-@$(PY) -m pip install --upgrade pip
-@$(PY) -m pip install pandas numpy pyarrow pyyaml sentence_transformers scikit-learn networkx rich
+venv: $(VENV)/.deps_installed
 
+$(VENV)/.deps_installed: 
+	@test -d $(VENV) || python3 -m venv $(VENV)
+	@$(PY) -m pip install --upgrade pip
+	@$(PY) -m pip install pandas numpy pyarrow pyyaml sentence_transformers scikit-learn networkx rich
+	@touch $(VENV)/.deps_installed
 index: venv
 @$(PY) tools/build_index.py
 
