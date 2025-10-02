@@ -1,5 +1,16 @@
 # semantAH
 
+**semantAH** ist der semantische Index- und Graph-Ableger von [HausKI](https://github.com/alexdermohr/hauski).  
+Es zerlegt Notizen (z. B. aus Obsidian), erstellt **Embeddings**, baut daraus einen **Index und Wissensgraphen** und schreibt „Related“-Blöcke direkt in die Markdown-Dateien zurück.
+
+- **Einbettung in HausKI:** dient dort als semantische Gedächtnis-Schicht (Memory Layer).
+- **Eigenständig nutzbar:** Skript-Pipeline (`tools/`, `Makefile`) oder Rust-Dienst (`/index/upsert`, `/index/search`).
+- **Artefakte:** `.gewebe/embeddings.parquet`, `nodes.jsonl`, `edges.jsonl`, Reports.
+- **KPIs:** Index-Suche top-k=20 in < 60 ms (p95).
+- **Integrationen:** Obsidian Canvas (Auto-Links), systemd-Timer, WGX-Recipes.
+
+Mehr zur Integration: [docs/hauski.md](docs/hauski.md).
+
 SemantAH ist eine lokal laufende Wissensgraph- und Semantik-Pipeline für Obsidian-Vaults. Das Projekt adaptiert die Blaupausen aus `semantAH.md` und `semantAH brainstorm.md` und zielt darauf ab, eine modulare, reproduzierbare Infrastruktur aufzubauen:
 
 - **Rust Workspace** mit eigenständigen Crates für Embeddings-Provider (`embeddings`) und Vektorindex/HTTP-Service (`indexd`).
