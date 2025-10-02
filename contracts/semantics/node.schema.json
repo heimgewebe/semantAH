@@ -2,33 +2,22 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "SemNode",
   "type": "object",
-  "required": [
-    "id",
-    "type",
-    "title"
-  ],
+  "required": ["id", "type", "title"],
+  "additionalProperties": false,
   "properties": {
-    "id": {
-      "type": "string"
-    },
-    "type": {
-      "type": "string"
-    },
-    "title": {
-      "type": "string"
-    },
+    "id": { "type": "string" },
+    "type": { "type": "string" },
+    "title": { "type": "string" },
     "tags": {
       "type": "array",
-      "items": {
-        "type": "string"
-      }
+      "items": { "type": "string" }
     },
-    "source": {
-      "type": "string"
+    "topics": {
+      "type": "array",
+      "items": { "type": "string" }
     },
-    "updated_at": {
-      "type": "string",
-      "format": "date-time"
-    }
+    "cluster": { "type": "integer" },
+    "source": { "type": "string" },
+    "updated_at": { "type": "string", "format": "date-time" }
   }
 }
