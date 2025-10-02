@@ -14,4 +14,3 @@
 
 - **Empfehlung:** In der Praxis werden beide Projekte **komplementär** genutzt: WGX als Universal-Fernbedienung für Repos, semantAH als Gehirn für semantische Bezüge.
 
----
