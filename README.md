@@ -49,6 +49,10 @@ SemantAH ist eine lokal laufende Wissensgraph- und Semantik-Pipeline für Obsidi
 3. Erzeuge die Artefakte in `.gewebe/` (Stub) mit `make all`.
 4. Starte den Rust-Dienst zum Testen: `cargo run -p indexd`.
 
+## Export
+- Contracts: `contracts/semantics/*.schema.json`
+- Daten-Dumps (optional): `.gewebe/out/{nodes.jsonl,edges.jsonl,reports.json}` (JSONL pro Zeile).
+
 ## Status
 
 - [x] Workspace scaffolded

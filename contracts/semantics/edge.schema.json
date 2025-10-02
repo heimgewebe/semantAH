@@ -1,0 +1,5 @@
+{ "$schema":"http://json-schema.org/draft-07/schema#", "title":"SemEdge","type":"object",
+  "required":["src","dst","rel"],
+  "properties":{"src":{"type":"string"},"dst":{"type":"string"},"rel":{"type":"string"},
+    "weight":{"type":"number"},"why":{"type":"string"},"updated_at":{"type":"string","format":"date-time"}}
+}
