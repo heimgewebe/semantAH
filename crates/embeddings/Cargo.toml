@@ -1,0 +1,17 @@
+[package]
+name = "embeddings"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Abstractions and clients for semantic embedding providers"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
