@@ -3,12 +3,16 @@
   "title": "SemEdge",
   "type": "object",
   "required": ["src", "dst", "rel"],
+  "additionalProperties": false,
   "properties": {
     "src": { "type": "string" },
     "dst": { "type": "string" },
     "rel": { "type": "string" },
     "weight": { "type": "number" },
-    "why": { "type": "string" },
+    "why": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
     "updated_at": { "type": "string", "format": "date-time" }
   }
 }

@@ -83,8 +83,8 @@ persons:
 **Edges (`edges.jsonl`)**
 
 ```json
-{"s":"md:gfk.md","p":"about","o":"topic:Gewaltfreie Kommunikation","w":0.92,"why":["shared:keyphrase:GFK","same:cluster"]}
-{"s":"md:verena.md","p":"similar","o":"md:tatjana.md","w":0.81,"why":["cluster:7","quote:'…'"]}
+{"src":"md:gfk.md","rel":"about","dst":"topic:Gewaltfreie Kommunikation","weight":0.92,"why":["shared:keyphrase:GFK","same:cluster"]}
+{"src":"md:verena.md","rel":"similar","dst":"md:tatjana.md","weight":0.81,"why":["cluster:7","quote:'…'"]}
 ```
 
 Das Feld `why` speichert die Top-Rationales (Keyphrases, Cluster, Anker-Sätze) und ermöglicht Explainability.
