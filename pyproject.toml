@@ -1,0 +1,18 @@
+[project]
+name = "semantah"
+version = "0.1.0"
+description = "Vault-Gewebe Toolkit (Indexing, Graph, Related)"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas",
+    "numpy",
+    "pyarrow",
+    "pyyaml",
+    "sentence-transformers",
+    "scikit-learn",
+    "networkx",
+    "rich",
+]
+
+[tool.uv]
+python = "3.12"
