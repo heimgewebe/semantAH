@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 
 use axum::{routing::post, Json, Router};
 use serde::{Deserialize, Serialize};
-use tokio::signal;
+use tokio::{net::TcpListener, signal};
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
@@ -69,8 +69,9 @@ async fn main() -> anyhow::Result<()> {
     let addr: SocketAddr = "0.0.0.0:8081".parse()?;
     info!(%addr, "starting indexd stub");
 
-    axum::Server::bind(&addr)
-        .serve(router.into_make_service())
+    let listener = TcpListener::bind(addr).await?;
+
+    axum::serve(listener, router)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 
