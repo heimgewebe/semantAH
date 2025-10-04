@@ -1,4 +1,4 @@
-.PHONY: uv-sync sync index graph related all clean py-freeze
+.PHONY: uv-sync venv sync index graph related all demo clean py-freeze
 
 UV := $(shell command -v uv 2>/dev/null)
 ifeq ($(UV),)
@@ -7,6 +7,8 @@ endif
 
 uv-sync:
 	uv sync
+
+venv: uv-sync
 
 sync: uv-sync
 
@@ -20,6 +22,12 @@ related:
 	uv run scripts/update_related.py
 
 all: uv-sync index graph related
+
+.PHONY: demo
+demo:
+	@echo ">> Demo-Lauf mit examples/semantah.example.yml"
+	@test -f semantah.yml || cp examples/semantah.example.yml semantah.yml
+	$(MAKE) all
 
 clean:
 	rm -f .gewebe/embeddings.parquet
