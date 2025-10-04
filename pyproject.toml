@@ -2,7 +2,7 @@
 name = "semantah"
 version = "0.1.0"
 description = "Vault-Gewebe Toolkit (Indexing, Graph, Related)"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 dependencies = [
     "pandas>=2.0,<3.0",
     "numpy>=1.25,<2.0",
@@ -13,6 +13,3 @@ dependencies = [
     "networkx>=3.0,<4.0",
     "rich>=13.0,<14.0",
 ]
-
-[tool.uv]
-python = "3.10"
