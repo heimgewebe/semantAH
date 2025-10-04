@@ -2,7 +2,7 @@ vault_path: "/path/to/your/obsidian-vault"
 out_dir: ".gewebe"
 embedder:
   provider: "ollama"   # oder "openai"
-  model: "nomic-embed-text"  # beispielhaft
+  model: "nomic-embed-text"  # beispielsweise
 index:
   top_k: 20
 graph:
