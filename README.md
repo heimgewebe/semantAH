@@ -113,7 +113,12 @@ cargo run -p indexd
 
 ## FAQ
 - **Wie starte ich ohne Obsidian?** → Einfach einen Ordner mit Markdown-Dateien nutzen.
-- **Kann ich Remote-LLMs verwenden?** → Ja, `embedder.provider` auf `openai`, Key via Env-Var `OPENAI_API_KEY`.
+- **Kann ich Remote-LLMs verwenden?**  
+  Ja, setze `embedder.provider` auf `openai` und hinterlege deinen Key via Env-Var `OPENAI_API_KEY`.  
+  Beispiel-Konfiguration:
+  ```yaml
+  embedder:
+    provider: openai
 - **Wie baue ich nur den Graphen neu?** → `make graph` nach vorhandenem `.gewebe/embeddings.parquet`.
 
 ## WGX-Integration (Stub)
