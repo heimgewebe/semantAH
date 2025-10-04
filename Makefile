@@ -2,7 +2,7 @@
 
 UV := $(shell command -v uv 2>/dev/null)
 ifeq ($(UV),)
-$(error "uv ist nicht installiert. Install: https://docs.astral.sh/uv/getting-started/")
+$(error "uv is not installed. Install: https://docs.astral.sh/uv/getting-started/")
 endif
 
 uv-sync:
