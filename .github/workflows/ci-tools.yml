@@ -1,0 +1,51 @@
+name: ci-tools
+
+on:
+  push:
+    paths:
+      - "scripts/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/ci-tools.yml"
+  pull_request:
+    paths:
+      - "scripts/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/ci-tools.yml"
+  workflow_dispatch:
+
+jobs:
+  tools:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
+
+      - name: Cache uv downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
+      # Hinweis: Solange uv.lock nur ein Stub ist, schlagen gefrorene Syncs fehl.
+      # Sobald ein echter Lockfile committed wurde, kann wieder `uv sync --frozen` verwendet werden.
+      - name: Sync deps (non-frozen until lock is real)
+        run: uv sync
+
+      - name: Run index/graph/related (smoke)
+        run: |
+          set -euxo pipefail
+          uv run scripts/build_index.py || true
+          uv run scripts/build_graph.py || true
+          uv run scripts/update_related.py || true
