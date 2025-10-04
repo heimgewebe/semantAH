@@ -1,0 +1,12 @@
+name: Bug report
+description: Problem melden
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Was ist passiert?
+      description: Schritte, erwartetes Ergebnis, tatsächliches Ergebnis
+    validations:
+      required: true

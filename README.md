@@ -44,22 +44,35 @@ SemantAH ist eine lokal laufende Wissensgraph- und Semantik-Pipeline für Obsidi
 
 ## Quickstart
 
-1. Installiere Rust (>=1.75) und Python (>=3.10).
-2. Richte ein virtuelles Python-ENV mit `make venv` ein.
-3. Erzeuge die Artefakte in `.gewebe/` (Stub) mit `make all`.
-4. Starte den Rust-Dienst zum Testen: `cargo run -p indexd`.
+Für ein ausführliches Step-by-Step siehe **docs/quickstart.md**. Kurzform:
+
+1. **Rust & Python bereitstellen**
+   - Rust ≥ 1.75 (rustup), Python ≥ 3.10
+   - Optional: `uv` für schnelles Python-Lock/Env
+2. **Python-Env & Tools**
+   - `make venv` (oder `uv sync`)
+3. **Beispielkonfiguration**
+   - `cp examples/semantah.example.yml semantah.yml` → Pfade anpassen
+4. **Pipeline laufen lassen**
+   - `make all` (erstellt `.gewebe/`-Artefakte)
+   - `make demo` (Mini-Demo auf Basis der Example-Konfig)
+5. **Service testen**
+   - `cargo run -p indexd`
 
 ## Export
+
 - Contracts: `contracts/semantics/*.schema.json`
 - Daten-Dumps (optional): `.gewebe/out/{nodes.jsonl,edges.jsonl,reports.json}` (JSONL pro Zeile).
 
 ## Status
 
-- [x] Workspace scaffolded
-- [ ] Embeddings-Berechnung implementiert
-- [ ] Vektorindex & Persistenz
-- [ ] Obsidian-Plugin/Adapter
-- [ ] Tests & Benchmarks
+Aktuell implementiert/geplant (beweglich):
+
+- Workspace scaffolded ✅
+- Embeddings-Berechnung (Python, Provider-wahl) ✅
+- Vektorindex & Persistenz (Rust-Dienst) 🚧
+- Obsidian-Adapter / Related-Writer 🚧
+- Tests & Benchmarks 🚧 (siehe „Roadmap“)
 
 ## Veröffentlichungs-Workflow
 
@@ -71,3 +84,42 @@ SemantAH ist eine lokal laufende Wissensgraph- und Semantik-Pipeline für Obsidi
 
 MIT – passe gerne an, falls du restriktivere Policies brauchst.
 
+---
+
+## Konfiguration
+
+Eine minimale Beispiel-Konfiguration findest du in `examples/semantah.example.yml`. Wichtige Felder:
+
+- `vault_path`: Pfad zum Obsidian-Vault
+- `out_dir`: Zielverzeichnis für Artefakte (`.gewebe/`)
+- `embedder.provider`: z. B. `ollama` (lokal) oder `openai` (remote)
+- `index.top_k`: Anzahl Rückgabekandidaten pro Suche
+- `graph.cutoffs`: Grenzwerte für Kantenbildung
+- `related.write_back`: Related-Blöcke in MD-Dateien aktualisieren (true/false)
+
+## Beispiel-Workflow
+
+```bash
+cp examples/semantah.example.yml semantah.yml
+make venv        # oder: uv sync
+make all         # embeddings → index → graph → related
+cargo run -p indexd
+```
+
+## Troubleshooting (kurz)
+- **Leere Notizen / Binärdateien** → werden übersprungen, Logs prüfen (`.gewebe/logs`)
+- **Keine Embeddings** → Provider/Key prüfen, Netz oder lokales Modell
+- **Langsame Läufe** → `index.top_k` reduzieren, Batch-Größen erhöhen, nur geänderte Dateien pro Lauf verarbeiten
+
+## FAQ
+- **Wie starte ich ohne Obsidian?** → Einfach einen Ordner mit Markdown-Dateien nutzen.
+- **Kann ich Remote-LLMs verwenden?**  
+  Ja, setze `embedder.provider` auf `openai` und hinterlege deinen Key via Env-Var `OPENAI_API_KEY`.  
+  Beispiel-Konfiguration:
+  ```yaml
+  embedder:
+    provider: openai
+- **Wie baue ich nur den Graphen neu?** → `make graph` nach vorhandenem `.gewebe/embeddings.parquet`.
+
+## WGX-Integration (Stub)
+Siehe `docs/wgx-konzept.md` und `.wgx/profile.yml`. Ziel: reproduzierbare Orchestrierung (devcontainer/Devbox/mise/direnv bevorzugt).

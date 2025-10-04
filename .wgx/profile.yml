@@ -1,0 +1,8 @@
+name: semantAH
+version: 0.1.0
+env_priority: [devcontainer, devbox, mise, direnv, termux]
+recipes:
+  - name: index
+    cmd: "make all"
+  - name: serve
+    cmd: "cargo run -p indexd"
