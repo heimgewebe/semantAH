@@ -53,6 +53,7 @@ jobs:
         with:
           timeout_minutes: 10
           max_attempts: 4
+          retry_wait_seconds: 30
           command: cargo audit
 
   python-pipeline:
