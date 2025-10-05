@@ -18,13 +18,14 @@ jobs:
     env:
       CARGO_TERM_COLOR: always
       RUST_BACKTRACE: 1
+      RUST_TOOLCHAIN: stable
     steps:
       - uses: actions/checkout@v4
       # Maintained Toolchain-Aktion (Actions-RS ist de facto unmaintained)
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@1.77.0
         with:
-          toolchain: stable
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
           components: clippy rustfmt
       - name: Rust cache
         uses: swatinem/rust-cache@v2
