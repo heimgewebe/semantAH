@@ -1,0 +1,8 @@
+{
+  "src": "note:example",
+  "dst": "note:other",
+  "rel": "references",
+  "weight": 0.75,
+  "why": ["Linked from example.md"],
+  "updated_at": "2024-01-05T10:05:00Z"
+}

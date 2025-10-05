@@ -1,5 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://semantah.com/contracts/semantics/edge.schema.json",
   "title": "SemEdge",
   "type": "object",
   "required": ["src", "dst", "rel"],
@@ -10,8 +11,13 @@
     "rel": { "type": "string" },
     "weight": { "type": "number" },
     "why": {
-      "type": "array",
-      "items": { "type": "string" }
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      ]
     },
     "updated_at": { "type": "string", "format": "date-time" }
   }

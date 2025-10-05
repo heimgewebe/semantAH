@@ -1,5 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://semantah.com/contracts/semantics/node.schema.json",
   "title": "SemNode",
   "type": "object",
   "required": ["id", "type", "title"],
