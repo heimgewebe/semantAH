@@ -35,11 +35,20 @@ jobs:
       - name: Install cargo-audit
         run: cargo install cargo-audit --force
       - name: Security audit
-        uses: actions/retry@v3
-        with:
-          timeout_minutes: 2
-          max_attempts: 4
-          command: cargo audit
+        run: |
+          for attempt in 1 2 3 4; do
+            if cargo audit; then
+              break
+            fi
+
+            if [ "$attempt" -eq 4 ]; then
+              echo "cargo audit failed after $attempt attempts" >&2
+              exit 1
+            fi
+
+            echo "cargo audit failed on attempt $attempt; retrying in 30 seconds..."
+            sleep 30
+          done
 
   python-pipeline:
     runs-on: ubuntu-latest
