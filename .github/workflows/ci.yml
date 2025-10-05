@@ -66,8 +66,9 @@ jobs:
       - name: Sync env
         run: uv sync
       - name: Demo run (no network)
+        continue-on-error: true
         env:
           PYTHONWARNINGS: ignore
         run: |
-          make -n all || true
-          make demo || true
+          make -n all
+          make demo
