@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://semantah/contracts/semantics/report.schema.json",
+  "$id": "https://semantah.com/contracts/semantics/report.schema.json",
   "title": "SemReport",
   "type": "object",
   "required": [
