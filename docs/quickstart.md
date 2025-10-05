@@ -1,22 +1,31 @@
-# Quickstart für semantAH
+# semantAH · Quickstart
 
 ## Voraussetzungen
-- **Rust** ≥ 1.75 (`rustup`), **Python** ≥ 3.10
-- Optional: **uv** (schnelles Lock/Env), `make`
+- Rust (stable), Python ≥ 3.10
+- Optional: `uv` (für schnelle Envs)
 
-## Setup
+## Installation (lokal)
 ```bash
-make venv        # oder: uv sync
+uv sync            # oder: make venv
+```
+
+## Konfiguration
+```bash
 cp examples/semantah.example.yml semantah.yml
+# passe vault_path und out_dir an
 ```
 
-## Lauf
+## Pipeline laufen lassen
 ```bash
-make all         # erstellt .gewebe/ Artefakte
+make all           # embeddings → index → graph → related
 cargo run -p indexd
+curl -fsS localhost:8080/healthz || true
 ```
 
-## Hinweise
-- Logs: `.gewebe/logs`
-- Artefakte: `.gewebe/embeddings.parquet`, `.gewebe/out/*`
-- Related-Blöcke in Markdown: nur wenn `related.write_back: true`
+## Artefakte
+- `.gewebe/embeddings.parquet`
+- `.gewebe/out/{nodes.jsonl,edges.jsonl,reports.json}`
+
+## Troubleshooting
+- Leere/zu große Dateien werden übersprungen → Logs in `.gewebe/logs` prüfen.
+- Bei fehlenden Modellen: Provider in `semantah.yml` anpassen.

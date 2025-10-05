@@ -1,0 +1,69 @@
+name: ci
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"   # Montags 04:17 UTC: wöchentlicher Audit/Smoke
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    concurrency:
+      group: ci-rust-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      # Maintained Toolchain-Aktion (Actions-RS ist de facto unmaintained)
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+      - name: Cargo fmt
+        run: cargo fmt --all -- --check
+      - name: Cargo clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Build
+        run: cargo build --workspace --all-features --locked
+      - name: Test
+        run: cargo test --workspace --all-features --locked -- --nocapture
+      - name: Security audit
+        run: |
+          cargo install cargo-audit --force
+          cargo audit || (sleep 3 && cargo audit)
+
+  python-pipeline:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    concurrency:
+      group: ci-py-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup uv (Python)
+        uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.11"
+      - name: uv cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/uv
+            .venv
+          key: uv-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-
+      - name: Sync env
+        run: uv sync
+      - name: Demo run (no network)
+        env:
+          PYTHONWARNINGS: ignore
+        run: |
+          make -n all || true
+          make demo || true
