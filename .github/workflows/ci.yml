@@ -13,8 +13,11 @@ jobs:
     permissions:
       contents: read
     concurrency:
-      group: ci-rust-${{ github.ref }}
+      group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
+    env:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
     steps:
       - uses: actions/checkout@v4
       # Maintained Toolchain-Aktion (Actions-RS ist de facto unmaintained)
@@ -29,11 +32,22 @@ jobs:
       - name: Cargo clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
       - name: Build
+        env:
+          RUSTFLAGS: -D warnings
         run: cargo build --workspace --all-features --locked
       - name: Test
+        env:
+          RUSTFLAGS: -D warnings
         run: cargo test --workspace --all-features --locked -- --nocapture
+      - name: Cache cargo advisory DB
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/advisory-db
+          key: advisory-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
       - name: Install cargo-audit
-        run: cargo install cargo-audit --force
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
       - name: Security audit
         run: |
           for attempt in 1 2 3 4; do
@@ -55,7 +69,7 @@ jobs:
     permissions:
       contents: read
     concurrency:
-      group: ci-py-${{ github.ref }}
+      group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
@@ -73,8 +87,16 @@ jobs:
           restore-keys: |
             uv-${{ runner.os }}-
       - name: Sync env
-        run: uv sync
+        run: uv sync --frozen
       - name: Demo run (no network)
+        if: github.event_name != 'schedule'
+        env:
+          PYTHONWARNINGS: ignore
+        run: |
+          make -n all
+          make demo
+      - name: Scheduled demo run (best effort)
+        if: github.event_name == 'schedule'
         continue-on-error: true
         env:
           PYTHONWARNINGS: ignore
