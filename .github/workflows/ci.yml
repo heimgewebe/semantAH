@@ -50,7 +50,7 @@ jobs:
         with:
           tool: cargo-audit
       - name: Security audit
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@7152eba30c6575329ac0576536151aea5a72ede3
         with:
           timeout_minutes: 10
           max_attempts: 4
