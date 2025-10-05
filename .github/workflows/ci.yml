@@ -20,37 +20,45 @@ jobs:
       RUST_BACKTRACE: 1
     steps:
       - uses: actions/checkout@v4
-      # Maintained Toolchain-Aktion (Actions-RS ist de facto unmaintained)
+
+      # Maintained toolchain action
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@1.77.0
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          components: clippy rustfmt
+          components: clippy,rustfmt
+
       - name: Rust cache
         uses: swatinem/rust-cache@v2
+
       - name: Cargo fmt
         run: cargo fmt --all -- --check
+
       - name: Cargo clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
+
       - name: Build
         env:
           RUSTFLAGS: -D warnings
         run: cargo build --workspace --all-features --locked
+
       - name: Test
         env:
           RUSTFLAGS: -D warnings
         run: cargo test --workspace --all-features --locked -- --nocapture
+
       - name: Cache cargo advisory DB
         uses: actions/cache@v4
         with:
           path: ~/.cargo/advisory-db
           key: advisory-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Install cargo-audit
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-audit
-      - name: Security audit
-        uses: nick-fields/retry@7152eba30c6575329ac0576536151aea5a72ede3
+
+      - name: Security audit (with retry)
+        uses: nick-fields/retry@v3
         with:
           timeout_minutes: 10
           max_attempts: 4
@@ -66,10 +74,12 @@ jobs:
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup uv (Python)
         uses: astral-sh/setup-uv@v4
         with:
           python-version: "3.11"
+
       - name: uv cache
         uses: actions/cache@v4
         with:
@@ -79,8 +89,10 @@ jobs:
           key: uv-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}
           restore-keys: |
             uv-${{ runner.os }}-
+
       - name: Sync env
         run: uv sync --frozen
+
       - name: Demo run (no network)
         if: github.event_name != 'schedule'
         env:
@@ -88,6 +100,7 @@ jobs:
         run: |
           make -n all
           make demo
+
       - name: Scheduled demo run (best effort)
         if: github.event_name == 'schedule'
         continue-on-error: true
