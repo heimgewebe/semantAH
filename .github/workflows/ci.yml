@@ -32,10 +32,14 @@ jobs:
         run: cargo build --workspace --all-features --locked
       - name: Test
         run: cargo test --workspace --all-features --locked -- --nocapture
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --force
       - name: Security audit
-        run: |
-          cargo install cargo-audit --force
-          cargo audit || (sleep 3 && cargo audit)
+        uses: actions/retry@v3
+        with:
+          timeout_minutes: 2
+          max_attempts: 4
+          command: cargo audit
 
   python-pipeline:
     runs-on: ubuntu-latest
