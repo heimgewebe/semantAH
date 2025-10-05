@@ -49,20 +49,11 @@ jobs:
         with:
           tool: cargo-audit
       - name: Security audit
-        run: |
-          for attempt in 1 2 3 4; do
-            if cargo audit; then
-              break
-            fi
-
-            if [ "$attempt" -eq 4 ]; then
-              echo "cargo audit failed after $attempt attempts" >&2
-              exit 1
-            fi
-
-            echo "cargo audit failed on attempt $attempt; retrying in 30 seconds..."
-            sleep 30
-          done
+        uses: ashley-taylor/RetryStep@v1
+        with:
+          timeout_minutes: 10
+          max_attempts: 4
+          command: cargo audit
 
   python-pipeline:
     runs-on: ubuntu-latest
