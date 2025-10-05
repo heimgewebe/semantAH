@@ -1,0 +1,6 @@
+{
+  "src": "md:example.md",
+  "dst": "topic:example",
+  "rel": "about",
+  "why": ["valid", 42]
+}

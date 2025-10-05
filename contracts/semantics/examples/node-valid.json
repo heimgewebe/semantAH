@@ -1,0 +1,10 @@
+{
+  "id": "note:example",
+  "type": "note",
+  "title": "Example Note",
+  "tags": ["demo", "example"],
+  "topics": ["workflow"],
+  "cluster": 1,
+  "source": "vault/example.md",
+  "updated_at": "2024-01-05T10:00:00Z"
+}
