@@ -83,6 +83,26 @@ impl OllamaResponse {
     }
 }
 
+fn validate_embeddings(
+    expected_count: usize,
+    embeddings: &[Vec<f32>],
+    expected_dim: usize,
+) -> Result<()> {
+    if embeddings.len() != expected_count {
+        return Err(anyhow!(
+            "ollama returned {} embeddings for {} input texts",
+            embeddings.len(),
+            expected_count
+        ));
+    }
+
+    if embeddings.iter().any(|row| row.len() != expected_dim) {
+        return Err(anyhow!("unexpected embedding dimensionality"));
+    }
+
+    Ok(())
+}
+
 #[async_trait]
 impl Embedder for OllamaEmbedder {
     async fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
@@ -110,9 +130,7 @@ impl Embedder for OllamaEmbedder {
         let body: OllamaResponse = response.json().await?;
         let embeddings = body.into_embeddings()?;
 
-        if embeddings.iter().any(|row| row.len() != self.dim) {
-            return Err(anyhow!("unexpected embedding dimensionality"));
-        }
+        validate_embeddings(texts.len(), &embeddings, self.dim)?;
 
         Ok(embeddings)
     }
@@ -169,5 +187,29 @@ mod tests {
 
         let result = embedder.embed(&[]).await.unwrap();
         assert!(result.is_empty());
+    }
+
+    #[test]
+    fn validate_embeddings_rejects_count_mismatch() {
+        let embeddings = vec![vec![1.0, 2.0]];
+        let err = validate_embeddings(2, &embeddings, 2).expect_err("expected count mismatch");
+        assert!(
+            err.to_string()
+                .contains("ollama returned 1 embeddings for 2 input texts"),
+            "unexpected error message: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn validate_embeddings_rejects_dim_mismatch() {
+        let embeddings = vec![vec![1.0, 2.0], vec![3.0]];
+        let err = validate_embeddings(2, &embeddings, 2).expect_err("expected dim mismatch");
+        assert!(
+            err.to_string()
+                .contains("unexpected embedding dimensionality"),
+            "unexpected error message: {}",
+            err
+        );
     }
 }
