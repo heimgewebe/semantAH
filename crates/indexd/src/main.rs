@@ -113,22 +113,46 @@ async fn shutdown_signal() {
 
 async fn handle_upsert(Json(payload): Json<UpsertRequest>) -> Json<serde_json::Value> {
     // TODO: wire up embeddings + HNSW persistence.
-    info!(doc_id = %payload.doc_id, chunks = payload.chunks.len(), "received upsert");
+    let chunk_count = payload.chunks.len();
+    info!(
+        doc_id = %payload.doc_id,
+        namespace = %payload.namespace,
+        chunks = chunk_count,
+        "received upsert"
+    );
+    for chunk in &payload.chunks {
+        tracing::debug!(
+            chunk_id = %chunk.id,
+            text_len = chunk.text.chars().count(),
+            has_meta = !chunk.meta.is_null(),
+            "upsert chunk received"
+        );
+    }
     Json(serde_json::json!({
         "status": "accepted",
-        "chunks": payload.chunks.len(),
+        "chunks": chunk_count,
     }))
 }
 
 async fn handle_delete(Json(payload): Json<DeleteRequest>) -> Json<serde_json::Value> {
-    info!(doc_id = %payload.doc_id, "received delete");
+    info!(
+        doc_id = %payload.doc_id,
+        namespace = %payload.namespace,
+        "received delete"
+    );
     Json(serde_json::json!({
         "status": "accepted"
     }))
 }
 
 async fn handle_search(Json(payload): Json<SearchRequest>) -> Json<SearchResponse> {
-    info!(query = %payload.query, k = payload.k, "received search");
+    info!(
+        query = %payload.query,
+        k = payload.k,
+        namespace = %payload.namespace,
+        filters = ?payload.filters,
+        "received search"
+    );
     // Placeholder: return empty result list until index implementation lands.
     Json(SearchResponse {
         results: Vec::new(),
