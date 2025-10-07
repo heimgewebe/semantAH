@@ -60,7 +60,22 @@ struct OllamaRequest<'a> {
 
 #[derive(Debug, Deserialize)]
 struct OllamaResponse {
-    embeddings: Vec<Vec<f32>>,
+    embedding: Option<Vec<f32>>,
+    embeddings: Option<Vec<Vec<f32>>>,
+}
+
+impl OllamaResponse {
+    fn into_embeddings(self) -> Result<Vec<Vec<f32>>> {
+        if let Some(embeddings) = self.embeddings {
+            return Ok(embeddings);
+        }
+
+        if let Some(embedding) = self.embedding {
+            return Ok(vec![embedding]);
+        }
+
+        Err(anyhow!("ollama response did not contain embeddings"))
+    }
 }
 
 #[async_trait]
@@ -81,16 +96,20 @@ impl Embedder for OllamaEmbedder {
             .await?;
 
         if !response.status().is_success() {
-            return Err(anyhow!("ollama responded with status {}", response.status()));
+            return Err(anyhow!(
+                "ollama responded with status {}",
+                response.status()
+            ));
         }
 
         let body: OllamaResponse = response.json().await?;
+        let embeddings = body.into_embeddings()?;
 
-        if body.embeddings.iter().any(|row| row.len() != self.dim) {
+        if embeddings.iter().any(|row| row.len() != self.dim) {
             return Err(anyhow!("unexpected embedding dimensionality"));
         }
 
-        Ok(body.embeddings)
+        Ok(embeddings)
     }
 
     fn dim(&self) -> usize {
@@ -105,6 +124,32 @@ impl Embedder for OllamaEmbedder {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_single_embedding_response() {
+        let json = serde_json::json!({
+            "embedding": [0.1, 0.2, 0.3],
+            "model": "nomic-embed-text",
+        });
+
+        let response: OllamaResponse = serde_json::from_value(json).unwrap();
+        let embeddings = response.into_embeddings().unwrap();
+
+        assert_eq!(embeddings.len(), 1);
+        assert_eq!(embeddings[0], vec![0.1, 0.2, 0.3]);
+    }
+
+    #[test]
+    fn parses_batch_embedding_response() {
+        let json = serde_json::json!({
+            "embeddings": [[1.0, 2.0], [3.0, 4.0]],
+        });
+
+        let response: OllamaResponse = serde_json::from_value(json).unwrap();
+        let embeddings = response.into_embeddings().unwrap();
+
+        assert_eq!(embeddings, vec![vec![1.0, 2.0], vec![3.0, 4.0]]);
+    }
 
     #[tokio::test]
     async fn empty_batch_returns_empty() {
