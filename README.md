@@ -1,6 +1,6 @@
 # semantAH
 
-**semantAH** ist der semantische Index- und Graph-Ableger von [HausKI](https://github.com/alexdermohr/hauski).
+**semantAH** ist der semantische Index- und Graph-Ableger von [HausKI](https://github.com/heimgewebe/hausKI).
 Es zerlegt Notizen (z. B. aus Obsidian), erstellt **Embeddings**, baut daraus einen **Index und Wissensgraphen** und schreibt „Related“-Blöcke direkt in die Markdown-Dateien zurück.
 
 - **Einbettung in HausKI:** dient dort als semantische Gedächtnis-Schicht (Memory Layer).
@@ -76,8 +76,8 @@ Aktuell implementiert/geplant (beweglich):
 
 ## Veröffentlichungs-Workflow
 
-1. Erstelle ein neues GitHub-Repo: `gh repo create alex/semantAH --public`.
-2. Verbinde dein lokales Repo: `git init`, `git remote add origin git@github.com:alex/semantAH.git`.
+1. Erstelle ein neues GitHub-Repo: `gh repo create heimgewebe/semantAH --public`.
+2. Verbinde dein lokales Repo: `git init`, `git remote add origin git@github.com:heimgewebe/semantAH.git`.
 3. Commit & push: `git add . && git commit -m "Initial commit" && git push -u origin main`.
 
 ## Lizenz
