@@ -47,6 +47,10 @@ impl VectorStore {
         let prefix = format!("{doc_id}{KEY_SEPARATOR}");
         self.items
             .retain(|(ns, key), _| !(ns == namespace && key.starts_with(&prefix)));
+
+        if self.items.is_empty() {
+            self.dims = None;
+        }
     }
 
     pub fn all_in_namespace<'a>(
@@ -89,5 +93,9 @@ mod tests {
         store.delete_doc("namespace", "doc");
 
         assert!(store.items.is_empty(), "store should be empty after delete");
+        assert!(
+            store.dims.is_none(),
+            "dims should reset after deleting all items"
+        );
     }
 }
