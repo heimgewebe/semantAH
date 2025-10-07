@@ -1,6 +1,6 @@
 # semantAH
 
-**semantAH** ist der semantische Index- und Graph-Ableger von [HausKI](https://github.com/alexdermohr/hauski).
+**semantAH** ist der semantische Index- und Graph-Ableger von [HausKI](https://github.com/heimgewebe/hausKI).
 Es zerlegt Notizen (z. B. aus Obsidian), erstellt **Embeddings**, baut daraus einen **Index und Wissensgraphen** und schreibt „Related“-Blöcke direkt in die Markdown-Dateien zurück.
 
 - **Einbettung in HausKI:** dient dort als semantische Gedächtnis-Schicht (Memory Layer).
