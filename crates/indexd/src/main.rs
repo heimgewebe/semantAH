@@ -1,91 +1,150 @@
 //! Minimal HTTP server stub for the semantic index daemon (indexd).
 
+use std::sync::Arc;
+
+use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
+use indexd::AppState;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use tracing::info;
+
+#[derive(Debug, Deserialize)]
+struct UpsertRequest {
+    doc_id: String,
+    namespace: String,
+    chunks: Vec<ChunkPayload>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ChunkPayload {
+    id: String,
+    /// Text wird aktuell nicht genutzt (Embedding wird über `meta.embedding` erwartet),
+    /// daher per Rename stillgelegt, um Warnungen zu vermeiden.
+    #[serde(rename = "text")]
+    _text: String,
+    #[serde(default)]
+    meta: Value,
+}
+
+#[derive(Debug, Deserialize)]
+struct DeleteRequest {
+    doc_id: String,
+    namespace: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct SearchRequest {
+    query: String,
+    #[serde(default = "default_k")]
+    k: u32,
+    namespace: String,
+    #[serde(default)]
+    filters: Value,
+}
+
+#[derive(Debug, Serialize)]
+struct SearchResponse {
+    results: Vec<SearchHit>,
+}
+
+#[derive(Debug, Serialize)]
+struct SearchHit {
+    doc_id: String,
+    chunk_id: String,
+    score: f32,
+    snippet: String,
+    rationale: Vec<String>,
+}
+
+fn default_k() -> u32 {
+    10
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    init_tracing();
-
-    let router = Router::new()
-        .route("/index/upsert", post(handle_upsert))
-        .route("/index/delete", post(handle_delete))
-        .route("/index/search", post(handle_search));
-
-    let addr: SocketAddr = "0.0.0.0:8081".parse()?;
-    info!(%addr, "starting indexd stub");
-
-    let listener = TcpListener::bind(addr).await?;
-
-    axum::serve(listener, router)
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
-
-    info!("indexd stopped");
-    Ok(())
+    indexd::run(|state| {
+        Router::new()
+            .route("/index/upsert", post(handle_upsert))
+            .route("/index/delete", post(handle_delete))
+            .route("/index/search", post(handle_search))
+            .with_state(state)
+    })
+    .await
 }
 
-fn init_tracing() {
-    let subscriber = FmtSubscriber::builder()
-        .with_max_level(Level::INFO)
-        .with_target(false)
-        .finish();
-    let _ = tracing::subscriber::set_global_default(subscriber);
-}
-
-async fn shutdown_signal() {
-    let ctrl_c = async {
-        signal::ctrl_c()
-            .await
-            .expect("failed to install CTRL+C handler");
-    };
-
-    #[cfg(unix)]
-    let terminate = async {
-        signal::unix::signal(signal::unix::SignalKind::terminate())
-            .expect("failed to install signal handler")
-            .recv()
-            .await;
-    };
-
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
-
-    tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
-    }
-}
-
-async fn handle_upsert(Json(payload): Json<UpsertRequest>) -> Json<serde_json::Value> {
-    // TODO: wire up embeddings + HNSW persistence.
+async fn handle_upsert(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<UpsertRequest>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let chunk_count = payload.chunks.len();
-    info!(
-        doc_id = %payload.doc_id,
-        namespace = %payload.namespace,
-        chunks = chunk_count,
-        "received upsert"
-    );
-    for chunk in &payload.chunks {
-        tracing::debug!(
-            chunk_id = %chunk.id,
-            text_len = chunk.text.chars().count(),
-            has_meta = !chunk.meta.is_null(),
-            "upsert chunk received"
-        );
+    info!(doc_id = %payload.doc_id, namespace = %payload.namespace, chunks = chunk_count, "received upsert");
+
+    let UpsertRequest {
+        doc_id,
+        namespace,
+        chunks,
+    } = payload;
+
+    let mut store = state.store.write().await;
+
+    for chunk in chunks {
+        let ChunkPayload { id, _text: _, meta } = chunk;
+
+        let mut meta = match meta {
+            Value::Object(map) => map,
+            _ => return Err(bad_request("chunk meta must be an object")),
+        };
+
+        let embedding_value = meta
+            .remove("embedding")
+            .ok_or_else(|| bad_request("chunk meta must contain an embedding array"))?;
+
+        let vector = parse_embedding(embedding_value).map_err(bad_request)?;
+
+        store
+            .upsert(&namespace, &doc_id, &id, vector, Value::Object(meta))
+            .map_err(|err| bad_request(err.to_string()))?;
     }
-    Json(serde_json::json!({
+
+    Ok(Json(json!({
         "status": "accepted",
         "chunks": chunk_count,
+    })))
+}
+
+async fn handle_delete(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<DeleteRequest>,
+) -> Json<Value> {
+    info!(doc_id = %payload.doc_id, namespace = %payload.namespace, "received delete");
+
+    let mut store = state.store.write().await;
+    store.delete_doc(&payload.namespace, &payload.doc_id);
+
+    Json(json!({
+        "status": "accepted"
     }))
 }
 
-async fn handle_delete(Json(payload): Json<DeleteRequest>) -> Json<serde_json::Value> {
-    info!(
-        doc_id = %payload.doc_id,
-        namespace = %payload.namespace,
-        "received delete"
-    );
-    Json(serde_json::json!({
-        "status": "accepted"
-    }))
+fn parse_embedding(value: Value) -> Result<Vec<f32>, String> {
+    match value {
+        Value::Array(values) => values
+            .into_iter()
+            .map(|v| {
+                v.as_f64()
+                    .map(|num| num as f32)
+                    .ok_or_else(|| "embedding must be an array of numbers".to_string())
+            })
+            .collect(),
+        _ => Err("embedding must be an array of numbers".to_string()),
+    }
+}
+
+fn bad_request(message: impl Into<String>) -> (StatusCode, Json<Value>) {
+    let body = json!({
+        "error": message.into(),
+    });
+    (StatusCode::BAD_REQUEST, Json(body))
 }
 
 async fn handle_search(Json(payload): Json<SearchRequest>) -> Json<SearchResponse> {
@@ -96,7 +155,8 @@ async fn handle_search(Json(payload): Json<SearchRequest>) -> Json<SearchRespons
         filters = ?payload.filters,
         "received search"
     );
-    // Placeholder: return empty result list until index implementation lands.
+
+    // Placeholder: Noch keine Ähnlichkeitssuche – leere Trefferliste.
     Json(SearchResponse {
         results: Vec::new(),
     })
