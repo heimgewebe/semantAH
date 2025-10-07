@@ -59,15 +59,20 @@ struct OllamaRequest<'a> {
 }
 
 #[derive(Debug, Deserialize)]
+struct OllamaEmbeddingRow {
+    embedding: Vec<f32>,
+}
+
+#[derive(Debug, Deserialize)]
 struct OllamaResponse {
     embedding: Option<Vec<f32>>,
-    embeddings: Option<Vec<Vec<f32>>>,
+    embeddings: Option<Vec<OllamaEmbeddingRow>>,
 }
 
 impl OllamaResponse {
     fn into_embeddings(self) -> Result<Vec<Vec<f32>>> {
         if let Some(embeddings) = self.embeddings {
-            return Ok(embeddings);
+            return Ok(embeddings.into_iter().map(|row| row.embedding).collect());
         }
 
         if let Some(embedding) = self.embedding {
@@ -142,7 +147,10 @@ mod tests {
     #[test]
     fn parses_batch_embedding_response() {
         let json = serde_json::json!({
-            "embeddings": [[1.0, 2.0], [3.0, 4.0]],
+            "embeddings": [
+                { "embedding": [1.0, 2.0], "text": "first" },
+                { "embedding": [3.0, 4.0], "text": "second" }
+            ],
         });
 
         let response: OllamaResponse = serde_json::from_value(json).unwrap();
