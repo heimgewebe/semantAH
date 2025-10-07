@@ -32,12 +32,14 @@ pub use store::{VectorStore, VectorStoreError};
 #[derive(Clone, Default)]
 pub struct App;
 
+/// Basis-Router (Healthcheck). Zusätzliche Routen werden in `run` via `build_routes` ergänzt.
 pub fn router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/healthz", get(healthz))
         .with_state(state)
 }
 
+/// Startet den Server auf 0.0.0.0:8080 und merged die vom Caller gelieferten Routen.
 pub async fn run(
     build_routes: impl FnOnce(Arc<AppState>) -> Router + Send + 'static,
 ) -> anyhow::Result<()> {

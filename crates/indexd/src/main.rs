@@ -18,6 +18,8 @@ struct UpsertRequest {
 #[derive(Debug, Deserialize)]
 struct ChunkPayload {
     id: String,
+    /// Text wird aktuell nicht genutzt (Embedding wird über `meta.embedding` erwartet),
+    /// daher per Rename stillgelegt, um Warnungen zu vermeiden.
     #[serde(rename = "text")]
     _text: String,
     #[serde(default)]
@@ -35,10 +37,9 @@ struct SearchRequest {
     query: String,
     #[serde(default = "default_k")]
     k: u32,
-    #[serde(rename = "namespace")]
-    _namespace: String,
-    #[serde(default, rename = "filters")]
-    _filters: Value,
+    namespace: String,
+    #[serde(default)]
+    filters: Value,
 }
 
 #[derive(Debug, Serialize)]
@@ -76,7 +77,7 @@ async fn handle_upsert(
     Json(payload): Json<UpsertRequest>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let chunk_count = payload.chunks.len();
-    info!(doc_id = %payload.doc_id, chunks = chunk_count, "received upsert");
+    info!(doc_id = %payload.doc_id, namespace = %payload.namespace, chunks = chunk_count, "received upsert");
 
     let UpsertRequest {
         doc_id,
@@ -115,7 +116,7 @@ async fn handle_delete(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<DeleteRequest>,
 ) -> Json<Value> {
-    info!(doc_id = %payload.doc_id, "received delete");
+    info!(doc_id = %payload.doc_id, namespace = %payload.namespace, "received delete");
 
     let mut store = state.store.write().await;
     store.delete_doc(&payload.namespace, &payload.doc_id);
@@ -147,8 +148,15 @@ fn bad_request(message: impl Into<String>) -> (StatusCode, Json<Value>) {
 }
 
 async fn handle_search(Json(payload): Json<SearchRequest>) -> Json<SearchResponse> {
-    info!(query = %payload.query, k = payload.k, "received search");
-    // Placeholder: return empty result list until index implementation lands.
+    info!(
+        query = %payload.query,
+        k = payload.k,
+        namespace = %payload.namespace,
+        filters = ?payload.filters,
+        "received search"
+    );
+
+    // Placeholder: Noch keine Ähnlichkeitssuche – leere Trefferliste.
     Json(SearchResponse {
         results: Vec::new(),
     })
