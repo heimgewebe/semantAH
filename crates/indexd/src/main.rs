@@ -130,6 +130,7 @@ async fn handle_delete(Json(payload): Json<DeleteRequest>) -> Json<serde_json::V
 async fn handle_search(Json(payload): Json<SearchRequest>) -> Json<SearchResponse> {
     info!(query = %payload.query, k = payload.k, "received search");
     // Placeholder: return empty result list until index implementation lands.
-    Json(SearchResponse { results: Vec::new() })
+    Json(SearchResponse {
+        results: Vec::new(),
+    })
 }
-
