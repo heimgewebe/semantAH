@@ -20,3 +20,6 @@ futures.workspace = true
 [dependencies.embeddings]
 path = "../embeddings"
 
+[dev-dependencies]
+tower = "0.5"
+
