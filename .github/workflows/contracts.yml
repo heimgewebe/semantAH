@@ -11,13 +11,13 @@ jobs:
           set -euo pipefail
           npm install -g ajv-cli@5 ajv-formats@^3
           for schema in node edge report; do
-            ajv validate --extend=ajv-formats \
+            ajv validate -c ajv-formats \
               -s contracts/semantics/${schema}.schema.json \
               -d @contracts/semantics/examples/${schema}-valid.json
           done
 
           for schema in node edge report; do
-            if ajv validate --extend=ajv-formats \
+            if ajv validate -c ajv-formats \
               -s contracts/semantics/${schema}.schema.json \
               -d @contracts/semantics/examples/${schema}-invalid.json; then
               echo "Expected ${schema}-invalid.json to fail validation" >&2
