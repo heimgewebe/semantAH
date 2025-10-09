@@ -1,4 +1,9 @@
 # uv / Python
 .venv/
 .uv/
+
+# Rust
+/target
+target/
+.gewebe/
 *.egg-info/

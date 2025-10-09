@@ -1,11 +1,22 @@
 name: contracts
-on: { pull_request: {}, push: { branches:[main] }, workflow_dispatch: {} }
-permissions: { contents: read }
+
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
 jobs:
   json-schemas:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
       - name: Validate JSON schemas
         run: |
           set -euo pipefail
@@ -13,13 +24,13 @@ jobs:
           for schema in node edge report; do
             ajv validate --extend=ajv-formats \
               -s contracts/semantics/${schema}.schema.json \
-              -d @contracts/semantics/examples/${schema}-valid.json
+              -d contracts/semantics/examples/${schema}-valid.json
           done
 
           for schema in node edge report; do
             if ajv validate --extend=ajv-formats \
               -s contracts/semantics/${schema}.schema.json \
-              -d @contracts/semantics/examples/${schema}-invalid.json; then
+              -d contracts/semantics/examples/${schema}-invalid.json; then
               echo "Expected ${schema}-invalid.json to fail validation" >&2
               exit 1
             fi
@@ -28,4 +39,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: echo "Docs present"; test -d docs || mkdir -p docs
+      - run: |
+          echo "Docs present"
+          test -d docs || mkdir -p docs
