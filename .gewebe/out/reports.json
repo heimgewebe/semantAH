@@ -1,4 +1,0 @@
-[
-  {"kind":"summary","created_at":"2024-01-05T10:10:00Z","notes":["Demo-Daten","3 Nodes","3 Edges"],"stats":{"nodes":3,"edges":3}},
-  {"kind":"ingest","created_at":"2024-01-05T10:11:00Z","notes":["Quelle: Demo-Vault"],"stats":{"duration_ms":1200}}
-]
