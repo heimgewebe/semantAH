@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
-use indexd::AppState;
+use indexd::{AppState, VectorStoreError};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tracing::info;
@@ -87,6 +87,9 @@ async fn handle_upsert(
 
     let mut store = state.store.write().await;
 
+    let mut staged = Vec::with_capacity(chunk_count);
+    let mut expected_dim = store.dims;
+
     for chunk in chunks {
         let ChunkPayload { id, _text: _, meta } = chunk;
 
@@ -101,8 +104,24 @@ async fn handle_upsert(
 
         let vector = parse_embedding(embedding_value).map_err(bad_request)?;
 
+        if let Some(expected) = expected_dim {
+            if expected != vector.len() {
+                let err = VectorStoreError::DimensionalityMismatch {
+                    expected,
+                    actual: vector.len(),
+                };
+                return Err(bad_request(err.to_string()));
+            }
+        } else {
+            expected_dim = Some(vector.len());
+        }
+
+        staged.push((id, vector, Value::Object(meta)));
+    }
+
+    for (id, vector, meta) in staged {
         store
-            .upsert(&namespace, &doc_id, &id, vector, Value::Object(meta))
+            .upsert(&namespace, &doc_id, &id, vector, meta)
             .map_err(|err| bad_request(err.to_string()))?;
     }
 
@@ -160,4 +179,47 @@ async fn handle_search(Json(payload): Json<SearchRequest>) -> Json<SearchRespons
     Json(SearchResponse {
         results: Vec::new(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use axum::{extract::State, Json};
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn upsert_is_atomic_on_failure() {
+        let state = Arc::new(AppState::new());
+
+        let payload = UpsertRequest {
+            doc_id: "doc".into(),
+            namespace: "ns".into(),
+            chunks: vec![
+                ChunkPayload {
+                    id: "chunk-1".into(),
+                    _text: "ignored".into(),
+                    meta: json!({ "embedding": [0.1, 0.2] }),
+                },
+                ChunkPayload {
+                    id: "chunk-2".into(),
+                    _text: "ignored".into(),
+                    meta: json!({ "embedding": [0.3] }),
+                },
+            ],
+        };
+
+        let result = handle_upsert(State(state.clone()), Json(payload)).await;
+        assert!(
+            result.is_err(),
+            "upsert should fail on mismatched dimensions"
+        );
+
+        let store = state.store.read().await;
+        assert!(
+            store.items.is_empty(),
+            "store should remain empty when a chunk fails"
+        );
+        assert!(store.dims.is_none(), "dims should not be set on failure");
+    }
 }
