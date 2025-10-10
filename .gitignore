@@ -1,9 +1,21 @@
-# uv / Python
+# Build artefacts & caches
+/target/
+.gewebe/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+__pycache__/
+*.egg-info/
+
+# Python/uv
 .venv/
 .uv/
 
-# Rust
-/target
-target/
-.gewebe/
-*.egg-info/
+# Local env
+.env
+.envrc
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
