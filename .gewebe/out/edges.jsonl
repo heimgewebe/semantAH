@@ -1,3 +1,0 @@
-{"src":"note:001","dst":"note:002","rel":"references","weight":0.8,"why":"Link im Text","updated_at":"2024-01-05T10:05:00Z"}
-{"src":"note:002","dst":"note:003","rel":"mentions","weight":0.6,"why":"Abschnitt 'Historie'","updated_at":"2024-01-05T10:06:00Z"}
-{"src":"note:003","dst":"note:001","rel":"inspired","weight":0.4,"why":"Biografie-Zitat","updated_at":"2024-01-05T10:07:00Z"}
