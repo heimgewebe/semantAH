@@ -1,44 +1,7 @@
-name: contracts
-
-on:
-  push:
-    branches: [main]
-  pull_request: {}
-  workflow_dispatch: {}
-
+name: contracts-validate
 permissions:
   contents: read
-
+on: [push, pull_request]
 jobs:
-  json-schemas:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Validate JSON schemas
-        run: |
-          set -euo pipefail
-          npm install -g ajv-cli@5 ajv-formats@^3
-          for schema in node edge report; do
-            ajv validate -c ajv-formats \
-              -s contracts/semantics/${schema}.schema.json \
-              -d contracts/semantics/examples/${schema}-valid.json
-          done
-
-          for schema in node edge report; do
-            if ajv validate -c ajv-formats \
-              -s contracts/semantics/${schema}.schema.json \
-              -d contracts/semantics/examples/${schema}-invalid.json; then
-              echo "Expected ${schema}-invalid.json to fail validation" >&2
-              exit 1
-            fi
-          done
-  docs-style:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: |
-          echo "Docs present"
-          test -d docs || mkdir -p docs
+  validate:
+    uses: heimgewebe/metarepo/.github/workflows/contracts-validate.yml@contracts-v1
