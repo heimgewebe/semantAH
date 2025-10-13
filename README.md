@@ -77,7 +77,7 @@ Für ein ausführliches Step-by-Step siehe **docs/quickstart.md**. Kurzform:
 Aktuell implementiert/geplant (beweglich):
 
 - Workspace scaffolded ✅
-- Embeddings-Berechnung (Python, Provider-wahl) ✅
+- Embeddings-Berechnung (Python, Provider-wahl) 🚧
 - Vektorindex & Persistenz (Rust-Dienst) 🚧
 - Obsidian-Adapter / Related-Writer 🚧
 - Tests & Benchmarks 🚧 (siehe „Roadmap“)
