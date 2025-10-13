@@ -22,6 +22,11 @@ cargo run -p indexd
 curl -fsS localhost:8080/healthz || true
 ```
 
+Weitere Details:
+- API-Beispiele: [indexd-api.md](indexd-api.md)
+- Pipeline-Skripte: [scripts/README.md](../scripts/README.md)
+- Operative Schritte: [Runbooks](runbooks/)
+
 ## Artefakte
 - `.gewebe/embeddings.parquet`
 - `.gewebe/out/{nodes.jsonl,edges.jsonl,reports.json}`
