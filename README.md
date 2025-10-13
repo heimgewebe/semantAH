@@ -4,7 +4,7 @@
 Es zerlegt Notizen (z. B. aus Obsidian), erstellt **Embeddings**, baut daraus einen **Index und Wissensgraphen** und schreibt „Related“-Blöcke direkt in die Markdown-Dateien zurück.
 
 - **Einbettung in HausKI:** dient dort als semantische Gedächtnis-Schicht (Memory Layer).
-- **Eigenständig nutzbar:** Skript-Pipeline (`tools/`, `Makefile`) oder Rust-Dienst (`/index/upsert`, `/index/search`).
+- **Eigenständig nutzbar:** Skript-Pipeline (`scripts/`, `Makefile`) oder Rust-Dienst (`/index/*`).
 - **Artefakte:** `.gewebe/embeddings.parquet`, `nodes.jsonl`, `edges.jsonl`, Reports.
 - **KPIs:** Index-Suche top-k=20 in < 60 ms (p95).
 - **Integrationen:** Obsidian Canvas (Auto-Links), systemd-Timer, WGX-Recipes.
@@ -14,11 +14,16 @@ Mehr zur Integration: [docs/hauski.md](docs/hauski.md).
 SemantAH ist eine lokal laufende Wissensgraph- und Semantik-Pipeline für Obsidian-Vaults. Das Projekt adaptiert die Blaupausen aus `semantAH.md` und `semantAH brainstorm.md` und zielt darauf ab, eine modulare, reproduzierbare Infrastruktur aufzubauen:
 
 - **Rust Workspace** mit eigenständigen Crates für Embeddings-Provider (`embeddings`) und Vektorindex/HTTP-Service (`indexd`).
-- **Python-Tooling (aktuell Stubs)** zum Erzeugen von Embeddings, Graph-Knoten/Kanten und automatischen Related-Blöcken in Markdown-Notizen.
+- **Python-Tooling** zum Erzeugen von Embeddings, Graph-Knoten/Kanten und automatischen Related-Blöcken in Markdown-Notizen (siehe [`scripts/README.md`](scripts/README.md)).
 - **Konfigurierbare Policies** (Cutoffs, Boosts, Safe Mode) sowie Persistenz in `.gewebe/`.
 - **Automatisierung** via Makefile, `wgx`-Recipes und optional systemd-Timer.
 
-> ⚠️ **Dies ist ein Initialzustand.** Die Python-Skripte sind aktuell nur Platzhalter (Stubs), die leere Artefakte erzeugen. Die Kernlogik wird schrittweise in Rust implementiert. Die README dokumentiert den Ziel-Aufbau und die nächsten Schritte.
+> ⚠️ Dies ist ein Initialzustand. Viele Komponenten sind noch Platzhalter, damit der Code schrittweise erweitert werden kann. Die README dokumentiert den Aufbau, die Verzeichnisse und nächsten Arbeitsschritte.
+> Eine Übersicht zu Config, API und Betrieb findest du ergänzend in:
+> - [`docs/config-reference.md`](docs/config-reference.md)
+> - [`docs/indexd-api.md`](docs/indexd-api.md)
+> - [`docs/runbook.observability.md`](docs/runbook.observability.md)
+> - [`docs/runbooks/semantics-intake.md`](docs/runbooks/semantics-intake.md)
 
 ## Repository-Layout
 
@@ -31,10 +36,13 @@ SemantAH ist eine lokal laufende Wissensgraph- und Semantik-Pipeline für Obsidi
 │   └── indexd/          # HTTP-Service + Vektorindex-Fassade
 ├── docs/
 │   ├── blueprint.md     # Vollständiges Konzept (kopiert aus Vault-Notizen)
+│   ├── config-reference.md # Parametertabelle für semantah.yml
+│   ├── indexd-api.md    # HTTP-Referenz für den Rust-Dienst
 │   └── roadmap.md       # Umsetzungsschritte & Fortschritt
 ├── scripts/
 │   ├── build_index.py   # Stub für Index-Lauf
 │   ├── build_graph.py   # Stub für Graph-Aufbau
+│   ├── export_insights.py # Stub für Tages-Insights
 │   └── update_related.py# Stub für Related-Blöcke
 ├── Makefile             # Tasks (venv, index, graph, related)
 └── systemd/
@@ -88,23 +96,18 @@ MIT – passe gerne an, falls du restriktivere Policies brauchst.
 
 ## Konfiguration
 
-Eine minimale Beispiel-Konfiguration findest du in `examples/semantah.example.yml`. Wichtige Felder:
-
-- `vault_path`: Pfad zum Obsidian-Vault
-- `out_dir`: Zielverzeichnis für Artefakte (`.gewebe/`)
-- `embedder.provider`: z. B. `ollama` (lokal) oder `openai` (remote)
-- `index.top_k`: Anzahl Rückgabekandidaten pro Suche
-- `graph.cutoffs`: Grenzwerte für Kantenbildung
-- `related.write_back`: Related-Blöcke in MD-Dateien aktualisieren (true/false)
+Eine minimale Beispiel-Konfiguration findest du in `examples/semantah.example.yml`. Alle Felder sowie ihren Status (aktiv vs. geplant) beschreibt [docs/config-reference.md](docs/config-reference.md).
 
 ## Beispiel-Workflow
 
 ```bash
 cp examples/semantah.example.yml semantah.yml
 make venv        # oder: uv sync
-make all         # embeddings → index → graph → related
+make all         # embeddings → index → graph → related (Stub-Skripte)
 cargo run -p indexd
 ```
+
+Der Dienst dokumentiert seine Routen in [docs/indexd-api.md](docs/indexd-api.md); die Python-Schritte sind in [scripts/README.md](scripts/README.md) beschrieben.
 
 ## Troubleshooting (kurz)
 - **Leere Notizen / Binärdateien** → werden übersprungen, Logs prüfen (`.gewebe/logs`)

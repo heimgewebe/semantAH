@@ -1,24 +1,40 @@
 #!/usr/bin/env python3
-import json, os, datetime, sys
+"""
+Stub: exportiert Tages-Insights als JSON.
+Ziel: $VAULT_ROOT/.gewebe/insights/today.json
+"""
+from __future__ import annotations
+import json
+import os
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
 
-# VAULT_ROOT muss gesetzt sein (z.B. ~/Vaults/main)
-vault_root = os.path.expanduser(os.environ.get("VAULT_ROOT",""))
-if not vault_root:
-    print("ERROR: set VAULT_ROOT to your vault path", file=sys.stderr); sys.exit(2)
+def main() -> int:
+    vault_root = os.environ.get("VAULT_ROOT", os.path.expanduser("~/Vaults/main"))
+    out_dir = Path(vault_root) / ".gewebe" / "insights"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_file = out_dir / "today.json"
 
-out_dir = os.path.join(vault_root, ".gewebe", "insights")
-os.makedirs(out_dir, exist_ok=True)
+    now = datetime.now(timezone.utc).astimezone()
+    payload = {
+        "date": now.date().isoformat(),
+        "generated_at": now.isoformat(),
+        "version": 1,
+        "summary": {
+            "notes_processed": 0,
+            "embeddings_added": 0,
+            "graph_edges_new": 0,
+            "top_tags": [],
+        },
+        "meta": {
+            "hostname": os.uname().nodename if hasattr(os, "uname") else "unknown",
+            "vault_root": vault_root,
+        },
+    }
+    out_file.write_text(json.dumps(payload, ensure_ascii=False, indent=2))
+    print(f"Wrote insights → {out_file}")
+    return 0
 
-today = datetime.date.today().isoformat()
-# TODO: echte Aggregation aus Index/Graph; dies ist ein kontraktkonformer Stub ≤10KB
-payload = {
-  "ts": today,
-  "topics": [["Heimgewebe-Architektur", 0.88], ["Backup-Policy", 0.76]],
-  "questions": ["Wie definieren wir Reward X?"],
-  "deltas": [{"topic":"Backup-Policy","trend":"+1"}]
-}
-
-out_file = os.path.join(out_dir, "today.json")
-with open(out_file, "w", encoding="utf-8") as f:
-    json.dump(payload, f, ensure_ascii=False)
-print(out_file)
+if __name__ == "__main__":
+    sys.exit(main())
