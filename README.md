@@ -14,11 +14,11 @@ Mehr zur Integration: [docs/hauski.md](docs/hauski.md).
 SemantAH ist eine lokal laufende Wissensgraph- und Semantik-Pipeline für Obsidian-Vaults. Das Projekt adaptiert die Blaupausen aus `semantAH.md` und `semantAH brainstorm.md` und zielt darauf ab, eine modulare, reproduzierbare Infrastruktur aufzubauen:
 
 - **Rust Workspace** mit eigenständigen Crates für Embeddings-Provider (`embeddings`) und Vektorindex/HTTP-Service (`indexd`).
-- **Python-Tooling** zum Erzeugen von Embeddings, Graph-Knoten/Kanten und automatischen Related-Blöcken in Markdown-Notizen.
+- **Python-Tooling (aktuell Stubs)** zum Erzeugen von Embeddings, Graph-Knoten/Kanten und automatischen Related-Blöcken in Markdown-Notizen.
 - **Konfigurierbare Policies** (Cutoffs, Boosts, Safe Mode) sowie Persistenz in `.gewebe/`.
 - **Automatisierung** via Makefile, `wgx`-Recipes und optional systemd-Timer.
 
-> ⚠️ Dies ist ein Initialzustand. Viele Komponenten sind noch Platzhalter, damit der Code schrittweise erweitert werden kann. Die README dokumentiert den Aufbau, die Verzeichnisse und nächsten Arbeitsschritte.
+> ⚠️ **Dies ist ein Initialzustand.** Die Python-Skripte sind aktuell nur Platzhalter (Stubs), die leere Artefakte erzeugen. Die Kernlogik wird schrittweise in Rust implementiert. Die README dokumentiert den Ziel-Aufbau und die nächsten Schritte.
 
 ## Repository-Layout
 
@@ -69,7 +69,7 @@ Für ein ausführliches Step-by-Step siehe **docs/quickstart.md**. Kurzform:
 Aktuell implementiert/geplant (beweglich):
 
 - Workspace scaffolded ✅
-- Embeddings-Berechnung (Python, Provider-wahl) ✅
+- Embeddings-Berechnung (Python, Provider-wahl) 🚧
 - Vektorindex & Persistenz (Rust-Dienst) 🚧
 - Obsidian-Adapter / Related-Writer 🚧
 - Tests & Benchmarks 🚧 (siehe „Roadmap“)
