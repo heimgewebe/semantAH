@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Stub script for building embeddings and chunk index artifacts."""
+"""Stub script for building embeddings and chunk index artifacts.
+
+This is a placeholder for the full implementation.
+See `docs/blueprint.md` for the full concept.
+"""
 
 from pathlib import Path
 
