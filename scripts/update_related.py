@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Stub script to inject related blocks into Markdown files."""
+"""Stub script to inject related blocks into Markdown files.
+
+This is a placeholder for the full implementation.
+See `docs/blueprint.md` for the full concept.
+"""
 
 from pathlib import Path
 
@@ -14,7 +18,7 @@ def inject_related(note: Path) -> None:
 
 
 def main() -> None:
-    notes_dir = Path("notes_stub")
+    notes_dir = Path(".gewebe/notes_stub")
     notes_dir.mkdir(exist_ok=True)
     note = notes_dir / "example.md"
     note.write_text("# Example Note\n", encoding="utf-8")

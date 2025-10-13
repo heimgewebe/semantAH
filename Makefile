@@ -37,5 +37,5 @@ clean:
 
 py-freeze:
 	mkdir -p .gewebe/reports
-	uv export --frozen --format=requirements-txt > .gewebe/reports/requirements-frozen.txt
+	uv export --format=requirements-txt > .gewebe/reports/requirements-frozen.txt
 	@echo "Lock-Metadaten → .gewebe/reports/requirements-frozen.txt"

@@ -14,6 +14,7 @@ __pycache__/
 # Local env
 .env
 .envrc
+semantah.yml
 
 # OS-specific
 .DS_Store
