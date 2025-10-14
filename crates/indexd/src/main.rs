@@ -22,7 +22,7 @@ struct ChunkPayload {
     /// daher per Rename stillgelegt, um Warnungen zu vermeiden.
     #[serde(rename = "text")]
     _text: String,
-    #[serde(default)]
+    #[serde(default = "default_meta")]
     meta: Value,
 }
 
@@ -58,6 +58,10 @@ struct SearchHit {
 
 fn default_k() -> u32 {
     10
+}
+
+fn default_meta() -> Value {
+    Value::Object(Default::default())
 }
 
 #[tokio::main]
@@ -221,5 +225,19 @@ mod tests {
             "store should remain empty when a chunk fails"
         );
         assert!(store.dims.is_none(), "dims should not be set on failure");
+    }
+
+    #[test]
+    fn chunk_payload_defaults_meta_to_object() {
+        let payload: ChunkPayload = serde_json::from_value(json!({
+            "id": "chunk-1",
+            "text": "ignored",
+        }))
+        .expect("payload should deserialize");
+
+        match payload.meta {
+            Value::Object(map) => assert!(map.is_empty(), "meta should default to empty object"),
+            other => panic!("unexpected meta value: {other:?}"),
+        }
     }
 }
