@@ -1,4 +1,4 @@
-.PHONY: uv-sync venv sync index graph related all demo clean py-freeze
+.PHONY: uv-sync venv sync index graph related all demo clean py-freeze insights-today
 
 UV := $(shell command -v uv 2>/dev/null)
 ifeq ($(UV),)
@@ -22,6 +22,13 @@ related:
 	uv run scripts/update_related.py
 
 all: uv-sync index graph related
+
+.PHONY: insights-today
+insights-today:
+	@test -f leitstand/data/aussen.jsonl || { echo "fehlend: leitstand/data/aussen.jsonl"; exit 1; }
+	uv run cli/ingest_leitstand.py leitstand/data/aussen.jsonl
+	@command -v npx >/dev/null 2>&1 || { echo "Node/npx fehlt (für ajv-cli)"; exit 1; }
+	npx -y ajv-cli@5 validate -s contracts/insights.schema.json -d vault/.gewebe/insights/today.json
 
 .PHONY: demo
 demo:

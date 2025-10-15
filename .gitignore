@@ -1,6 +1,7 @@
 # Build artefacts & caches
 /target/
 .gewebe/
+vault/.gewebe/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/

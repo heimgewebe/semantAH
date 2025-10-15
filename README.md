@@ -64,12 +64,17 @@ Für ein ausführliches Step-by-Step siehe **docs/quickstart.md**. Kurzform:
 4. **Pipeline laufen lassen**
    - `make all` (erstellt `.gewebe/`-Artefakte)
    - `make demo` (Mini-Demo auf Basis der Example-Konfig)
-5. **Service testen**
+5. **Leitstand-Insights exportieren (read-only)**
+   - `uv run cli/ingest_leitstand.py leitstand/data/aussen.jsonl`
+   - Ergebnis: `vault/.gewebe/insights/today.json` (≤ 10 KB)
+   - Validierung: `npx -y ajv-cli@5 validate -s contracts/insights.schema.json -d vault/.gewebe/insights/today.json`
+   - Shortcut: `make insights-today`
+6. **Service testen**
    - `cargo run -p indexd`
 
 ## Export
 
-- Contracts: `contracts/semantics/*.schema.json`
+- Contracts: `contracts/semantics/*.schema.json`, `contracts/insights.schema.json`
 - Daten-Dumps (optional): `.gewebe/out/{nodes.jsonl,edges.jsonl,reports.json}` (JSONL pro Zeile).
 
 ## Status
