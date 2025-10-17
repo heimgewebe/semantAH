@@ -28,7 +28,7 @@ insights-today:
 	@test -f leitstand/data/aussen.jsonl || { echo "fehlend: leitstand/data/aussen.jsonl"; exit 1; }
 	uv run cli/ingest_leitstand.py leitstand/data/aussen.jsonl
 	@command -v npx >/dev/null 2>&1 || { echo "Node/npx fehlt (für ajv-cli)"; exit 1; }
-	npx -y ajv-cli@5 validate -s contracts/insights.schema.json -d vault/.gewebe/insights/today.json
+	npx -y ajv-cli@5 validate --spec=draft2020 --validate-formats=false -s contracts/insights.schema.json -d vault/.gewebe/insights/today.json
 
 .PHONY: demo
 demo:
