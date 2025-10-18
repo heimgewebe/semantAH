@@ -94,6 +94,15 @@ curl -sS localhost:8080/index/search \
   -d '{"query":"hello","k":5,"namespace":"vault","embedding":[0.1,0.2,0.3]}'
 ```
 
+### Persistenz (optional)
+
+indexd kann den In-Memory-Index als JSONL persistieren:
+
+```bash
+export INDEXD_DB_PATH=".gewebe/indexd/store.jsonl"
+cargo run -p indexd
+```
+
 ## Export
 
 - Contracts: `contracts/semantics/*.schema.json`, `contracts/insights.schema.json`
