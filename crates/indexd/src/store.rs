@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use serde_json::Value;
@@ -61,6 +62,52 @@ impl VectorStore {
             .iter()
             .filter(move |((ns, _), _)| ns == namespace)
     }
+
+    /// Executes a cosine-similarity search over all items in the namespace and
+    /// returns the top-k matches sorted descending by score.
+    pub fn search(
+        &self,
+        namespace: &str,
+        query: &[f32],
+        k: usize,
+    ) -> Result<Vec<(String, String, f32, Value)>, VectorStoreError> {
+        let Some(expected) = self.dims else {
+            return Ok(Vec::new());
+        };
+
+        if expected != query.len() {
+            return Err(VectorStoreError::DimensionalityMismatch {
+                expected,
+                actual: query.len(),
+            });
+        }
+
+        let q_norm = l2_norm(query);
+        if q_norm == 0.0 {
+            return Ok(Vec::new());
+        }
+
+        let mut scored: Vec<(String, String, f32, Value)> = self
+            .all_in_namespace(namespace)
+            .filter_map(|((_, key), (embedding, meta))| {
+                let denom = q_norm * l2_norm(embedding);
+                if denom == 0.0 {
+                    return None;
+                }
+
+                let score = dot(query, embedding) / denom;
+                let (doc_id, chunk_id) = split_chunk_key(key);
+                Some((doc_id, chunk_id, score, meta.clone()))
+            })
+            .collect();
+
+        scored.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(Ordering::Equal));
+        if scored.len() > k {
+            scored.truncate(k);
+        }
+
+        Ok(scored)
+    }
 }
 
 #[derive(Debug, Error)]
@@ -71,6 +118,21 @@ pub enum VectorStoreError {
 
 fn make_chunk_key(doc_id: &str, chunk_id: &str) -> String {
     format!("{doc_id}{KEY_SEPARATOR}{chunk_id}")
+}
+
+fn split_chunk_key(key: &str) -> (String, String) {
+    match key.split_once(KEY_SEPARATOR) {
+        Some((doc_id, chunk_id)) => (doc_id.to_string(), chunk_id.to_string()),
+        None => (key.to_string(), String::new()),
+    }
+}
+
+fn dot(a: &[f32], b: &[f32]) -> f32 {
+    a.iter().zip(b.iter()).map(|(x, y)| x * y).sum()
+}
+
+fn l2_norm(vector: &[f32]) -> f32 {
+    vector.iter().map(|x| x * x).sum::<f32>().sqrt()
 }
 
 #[cfg(test)]
@@ -97,5 +159,22 @@ mod tests {
             store.dims.is_none(),
             "dims should reset after deleting all items"
         );
+    }
+
+    #[test]
+    fn search_returns_ordered_hits() {
+        let mut store = VectorStore::new();
+        store
+            .upsert("ns", "doc-a", "c1", vec![1.0, 0.0], Value::Null)
+            .unwrap();
+        store
+            .upsert("ns", "doc-b", "c2", vec![0.0, 1.0], Value::Null)
+            .unwrap();
+
+        let results = store.search("ns", &[1.0, 0.0], 2).unwrap();
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].0, "doc-a");
+        assert_eq!(results[0].1, "c1");
+        assert!(results[0].2 > results[1].2);
     }
 }

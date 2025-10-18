@@ -1,3 +1,4 @@
+pub mod api;
 pub mod store;
 
 use std::{net::SocketAddr, sync::Arc};
