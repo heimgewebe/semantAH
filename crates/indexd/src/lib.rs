@@ -1,4 +1,5 @@
 pub mod api;
+mod persist;
 pub mod store;
 
 use std::{net::SocketAddr, sync::Arc};
@@ -6,7 +7,7 @@ use std::{net::SocketAddr, sync::Arc};
 use axum::{routing::get, Router};
 use tokio::sync::RwLock;
 use tokio::{net::TcpListener, signal};
-use tracing::{info, Level};
+use tracing::{info, warn, Level};
 use tracing_subscriber::FmtSubscriber;
 
 #[derive(Debug)]
@@ -47,7 +48,9 @@ pub async fn run(
     init_tracing();
 
     let state = Arc::new(AppState::new());
-    let router = build_routes(state.clone()).merge(router(state));
+    persist::maybe_load_from_env(&state).await?;
+
+    let router = build_routes(state.clone()).merge(router(state.clone()));
 
     let addr: SocketAddr = "0.0.0.0:8080".parse()?;
     info!(%addr, "starting indexd");
@@ -56,6 +59,10 @@ pub async fn run(
     axum::serve(listener, router)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
+
+    if let Err(err) = persist::maybe_save_from_env(&state).await {
+        warn!(error = %err, "failed to persist vector store on shutdown");
+    }
 
     info!("indexd stopped");
     Ok(())
