@@ -78,9 +78,14 @@ def read_last_records(path: Path, limit: int) -> list[dict]:
     records: list[dict] = []
     for line in lines:
         try:
-            records.append(json.loads(line))
+            record = json.loads(line)
         except json.JSONDecodeError as exc:
             raise ValueError(f"Cannot parse line as JSON: {line[:80]}...") from exc
+        if not isinstance(record, dict):
+            raise ValueError(
+                "Each JSONL record must be an object with insight fields"
+            )
+        records.append(record)
     return records
 
 
