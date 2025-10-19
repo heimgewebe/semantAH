@@ -19,7 +19,7 @@ def inject_related(note: Path) -> None:
 
 def main() -> None:
     notes_dir = Path(".gewebe/notes_stub")
-    notes_dir.mkdir(exist_ok=True)
+    notes_dir.mkdir(parents=True, exist_ok=True)
     note = notes_dir / "example.md"
     note.write_text("# Example Note\n", encoding="utf-8")
     inject_related(note)
