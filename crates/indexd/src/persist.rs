@@ -95,10 +95,11 @@ pub async fn maybe_save_from_env(state: &Arc<AppState>) -> anyhow::Result<()> {
         });
     }
 
+    let row_count = rows.len();
     let path_clone = path.clone();
     task::spawn_blocking(move || write_jsonl_atomic(&path_clone, &rows)).await??;
 
-    info!(path = %path.display(), count = rows.len(), "saved vector store");
+    info!(path = %path.display(), count = row_count, "saved vector store");
     Ok(())
 }
 
