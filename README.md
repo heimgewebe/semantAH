@@ -40,10 +40,7 @@ SemantAH ist eine lokal laufende Wissensgraph- und Semantik-Pipeline für Obsidi
 │   ├── indexd-api.md    # HTTP-Referenz für den Rust-Dienst
 │   └── roadmap.md       # Umsetzungsschritte & Fortschritt
 ├── scripts/
-│   ├── build_index.py   # Stub für Index-Lauf
-│   ├── build_graph.py   # Stub für Graph-Aufbau
-│   ├── export_insights.py # Stub für Tages-Insights
-│   └── update_related.py# Stub für Related-Blöcke
+│   └── ingest_leitstand.py # Leitstand-JSONL zu Insights verarbeiten
 ├── Makefile             # Tasks (venv, index, graph, related)
 └── systemd/
     ├── vault-gewebe.service
@@ -65,7 +62,7 @@ Für ein ausführliches Step-by-Step siehe **docs/quickstart.md**. Kurzform:
    - `make all` (erstellt `.gewebe/`-Artefakte)
    - `make demo` (Mini-Demo auf Basis der Example-Konfig)
 5. **Leitstand-Insights exportieren (read-only)**
-   - `uv run cli/ingest_leitstand.py leitstand/data/aussen.jsonl`
+   - `uv run scripts/ingest_leitstand.py leitstand/data/aussen.jsonl`
    - Ergebnis: `vault/.gewebe/insights/today.json` (≤ 10 KB)
    - Validierung: `npx -y ajv-cli@5 validate -s contracts/insights.schema.json -d vault/.gewebe/insights/today.json`
    - Shortcut: `make insights-today`

@@ -16,11 +16,11 @@ tracing-subscriber.workspace = true
 config.workspace = true
 thiserror.workspace = true
 futures.workspace = true
+tempfile = "3"
 
 [dependencies.embeddings]
 path = "../embeddings"
 
 [dev-dependencies]
 tower = "0.5"
-tempfile = "3"
 
