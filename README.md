@@ -9,7 +9,9 @@ Es zerlegt Notizen (z. B. aus Obsidian), erstellt **Embeddings**, baut daraus ei
 - **KPIs:** Index-Suche top-k=20 in < 60 ms (p95).
 - **Integrationen:** Obsidian Canvas (Auto-Links), systemd-Timer, WGX-Recipes.
 
-Mehr zur Integration: [docs/hauski.md](docs/hauski.md).
+Mehr zur Integration: [docs/hauski.md](docs/hauski.md). Ergänzend:
+- Embeddings: siehe [`docs/embeddings.md`](docs/embeddings.md)
+- Namespaces: siehe [`docs/namespaces.md`](docs/namespaces.md)
 
 SemantAH ist eine lokal laufende Wissensgraph- und Semantik-Pipeline für Obsidian-Vaults. Das Projekt adaptiert die Blaupausen aus `semantAH.md` und `semantAH brainstorm.md` und zielt darauf ab, eine modulare, reproduzierbare Infrastruktur aufzubauen:
 
