@@ -1,4 +1,6 @@
 name: ci-tools
+permissions:
+  contents: read
 
 on:
   push:
