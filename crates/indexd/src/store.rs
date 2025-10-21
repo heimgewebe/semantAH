@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use serde_json::Value;
 use thiserror::Error;
 
-const KEY_SEPARATOR: &str = "\u{241F}";
+use crate::key::{make_chunk_key, split_chunk_key, KEY_SEPARATOR};
 
 #[derive(Debug, Default)]
 pub struct VectorStore {
@@ -114,17 +114,6 @@ impl VectorStore {
 pub enum VectorStoreError {
     #[error("embedding dimensionality mismatch: expected {expected}, got {actual}")]
     DimensionalityMismatch { expected: usize, actual: usize },
-}
-
-fn make_chunk_key(doc_id: &str, chunk_id: &str) -> String {
-    format!("{doc_id}{KEY_SEPARATOR}{chunk_id}")
-}
-
-fn split_chunk_key(key: &str) -> (String, String) {
-    match key.split_once(KEY_SEPARATOR) {
-        Some((doc_id, chunk_id)) => (doc_id.to_string(), chunk_id.to_string()),
-        None => (key.to_string(), String::new()),
-    }
 }
 
 fn dot(a: &[f32], b: &[f32]) -> f32 {
