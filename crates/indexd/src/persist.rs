@@ -9,7 +9,7 @@ use serde_json::Value;
 use tokio::task;
 use tracing::{info, warn};
 
-use crate::AppState;
+use crate::{key::split_chunk_key, AppState};
 
 const ENV_DB_PATH: &str = "INDEXD_DB_PATH";
 
@@ -146,14 +146,6 @@ fn write_jsonl_atomic(path: &Path, rows: &[RowOwned]) -> anyhow::Result<()> {
 
     fs::rename(tmp, path)?;
     Ok(())
-}
-
-fn split_chunk_key(key: &str) -> (String, String) {
-    const SEP: char = '\u{241F}';
-    match key.split_once(SEP) {
-        Some((doc, chunk)) => (doc.to_string(), chunk.to_string()),
-        None => (key.to_string(), String::new()),
-    }
 }
 
 #[cfg(test)]
