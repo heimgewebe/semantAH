@@ -1,6 +1,8 @@
 name: ci-tools
 permissions:
+  # Allow cache usage (requires actions: write)
   contents: read
+  actions: write
 
 on:
   push:
