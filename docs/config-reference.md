@@ -1,6 +1,8 @@
 # Konfigurationsreferenz (`semantah.yml`)
 
-`semantah.yml` dient als zentrale Drehscheibe für die Pipeline-Konfiguration. Aktuell sind die meisten Felder noch als Stub vorgesehen – die Python-Skripte nutzen feste Defaults, und der HTTP-Dienst dokumentiert bereits das erwartete Schema. Die folgende Tabelle kennzeichnet deshalb, welche Felder heute nur dokumentiert werden und welche bereits aktiv ausgewertet werden.
+`semantah.yml` dient als zentrale Drehscheibe für die Pipeline-Konfiguration. Die Datei ist aktuell ein **Platzhalter** – die angebundenen Skripte und Dienste nutzen die Konfiguration noch nicht, sondern arbeiten mit fest kodierten Pfaden und Standardwerten.
+
+Die folgende Tabelle dokumentiert das Zielschema und den aktuellen Implementierungsstatus.
 
 | Feld | Typ | Beschreibung | Standard | Status |
 | --- | --- | --- | --- | --- |

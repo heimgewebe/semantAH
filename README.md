@@ -134,7 +134,9 @@ MIT – passe gerne an, falls du restriktivere Policies brauchst.
 
 ## Konfiguration
 
-Eine minimale Beispiel-Konfiguration findest du in `examples/semantah.example.yml`. Alle Felder sowie ihren Status (aktiv vs. geplant) beschreibt [docs/config-reference.md](docs/config-reference.md).
+Eine minimale Beispiel-Konfiguration findest du in `examples/semantah.example.yml`. Die Datei ist aktuell ein **Platzhalter** – die angebundenen Skripte und Dienste nutzen die Konfiguration noch nicht, sondern arbeiten mit fest kodierten Pfaden und Standardwerten.
+
+Alle Felder sowie ihren Status (aktiv vs. geplant) beschreibt [docs/config-reference.md](docs/config-reference.md).
 
 ## Beispiel-Workflow
 

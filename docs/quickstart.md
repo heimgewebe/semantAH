@@ -12,7 +12,7 @@ uv sync            # oder: make venv
 ## Konfiguration
 ```bash
 cp examples/semantah.example.yml semantah.yml
-# passe vault_path und out_dir an
+# passe vault_path und out_dir an (aktuell noch nicht ausgewertet)
 ```
 
 ## Pipeline laufen lassen
