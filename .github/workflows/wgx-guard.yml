@@ -1,7 +1,8 @@
 name: wgx-guard
+permissions:
+  contents: read
 
 on:
-  push:
     paths:
       - ".wgx/**"
       - ".github/workflows/wgx-guard.yml"
