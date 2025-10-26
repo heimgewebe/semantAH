@@ -111,6 +111,9 @@ jobs:
       - name: Sync env
         run: uv sync --frozen
 
+      - name: Tests
+        run: uv run pytest -q
+
       - name: Demo run (no network)
         if: github.event_name != 'schedule'
         env:
