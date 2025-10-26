@@ -1,5 +1,11 @@
 # semantAH
 
+[![CI](https://github.com/heimgewebe/semantAH/actions/workflows/ci.yml/badge.svg)](https://github.com/heimgewebe/semantAH/actions/workflows/ci.yml)
+[![codecov](https://img.shields.io/codecov/c/github/heimgewebe/semantAH/main?style=flat-square)](https://codecov.io/gh/heimgewebe/semantAH)
+
+> Automatisierte Coverage- und Testintegration:
+> Der Badge aktualisiert sich nach jedem Merge-Job (Codecov Upload). Mindest-Thresholds siehe `codecov.yml`; Uploads sind nur aktiv, wenn `CODECOV_UPLOAD=true` gesetzt ist.
+
 **semantAH** ist der semantische Index- und Graph-Ableger von [HausKI](https://github.com/heimgewebe/hausKI).
 Es zerlegt Notizen (z. B. aus Obsidian), erstellt **Embeddings**, baut daraus einen **Index und Wissensgraphen** und schreibt „Related“-Blöcke direkt in die Markdown-Dateien zurück.
 
