@@ -32,7 +32,7 @@ pub struct DeleteRequest {
 #[derive(Debug, Deserialize)]
 pub struct SearchRequest {
     /// TODO(server-side-embeddings): replace client-provided vectors with generated embeddings.
-    pub query: String,
+    pub query: QueryPayload,
     #[serde(default = "default_k")]
     pub k: u32,
     pub namespace: String,
@@ -41,9 +41,30 @@ pub struct SearchRequest {
     /// Optional top-level embedding payload until server-side embeddings are available.
     #[serde(default)]
     pub embedding: Option<Value>,
-    /// Temporarily required until server-side embeddings are wired in.
-    #[serde(default = "default_meta")]
-    pub meta: Value,
+    /// Legacy fallback: support former top-level `meta.embedding`
+    /// (kept optional to remain backward compatible).
+    #[serde(default)]
+    pub meta: Option<Value>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum QueryPayload {
+    Text(String),
+    WithMeta {
+        text: String,
+        #[serde(default = "default_meta")]
+        meta: Value,
+    },
+}
+
+impl QueryPayload {
+    fn text(&self) -> &str {
+        match self {
+            QueryPayload::Text(text) => text,
+            QueryPayload::WithMeta { text, .. } => text,
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -152,8 +173,10 @@ async fn handle_search(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<SearchRequest>,
 ) -> Result<Json<SearchResponse>, (StatusCode, Json<Value>)> {
+    let query_text = payload.query.text().to_string();
+
     info!(
-        query = %payload.query,
+        query = %query_text,
         k = payload.k,
         namespace = %payload.namespace,
         filters = payload
@@ -165,36 +188,51 @@ async fn handle_search(
     );
 
     let SearchRequest {
+        query,
         k,
         namespace,
         filters,
-        meta,
         embedding,
-        ..
+        meta,
     } = payload;
 
-    let k = k as usize;
-
-    let embedding = if let Some(value) = embedding {
-        parse_embedding(value).map_err(bad_request)?
-    } else {
-        let mut meta = match meta {
-            Value::Object(map) => map,
-            _ => {
-                return Err(bad_request(
-                    "search meta must be an object containing an embedding array",
-                ))
-            }
-        };
-
-        let embedding_value = meta
-            .remove("embedding")
-            .ok_or_else(|| bad_request("search meta must contain an embedding array"))?;
-
-        parse_embedding(embedding_value).map_err(bad_request)?
+    let query_embedding_value = match query {
+        QueryPayload::Text(_) => None,
+        QueryPayload::WithMeta { meta, .. } => {
+            let mut meta_map = match meta {
+                Value::Object(map) => map,
+                _ => return Err(bad_request("query meta must be an object")),
+            };
+            meta_map.remove("embedding")
+        }
     };
 
+    let k = k as usize;
     let filter_value = filters.unwrap_or(Value::Null);
+
+    // Priority: query.meta.embedding > top-level embedding > legacy meta.embedding
+    let embedding: Vec<f32> = if let Some(value) = query_embedding_value {
+        parse_embedding(value).map_err(bad_request)?
+    } else if let Some(value) = embedding {
+        parse_embedding(value).map_err(bad_request)?
+    } else if let Some(meta) = meta {
+        let mut legacy_meta = match meta {
+            Value::Object(map) => map,
+            _ => return Err(bad_request("legacy meta must be an object")),
+        };
+
+        let Some(value) = legacy_meta.remove("embedding") else {
+            return Err(bad_request(
+                "embedding is required (provide query.meta.embedding, top-level embedding, or legacy meta.embedding)",
+            ));
+        };
+
+        parse_embedding(value).map_err(bad_request)?
+    } else {
+        return Err(bad_request(
+            "embedding is required (provide query.meta.embedding, top-level embedding, or legacy meta.embedding)",
+        ));
+    };
 
     let store = state.store.read().await;
     let scored = store.search(&namespace, &embedding, k, &filter_value);
@@ -284,12 +322,12 @@ mod tests {
     async fn search_requires_embedding() {
         let state = Arc::new(AppState::new());
         let payload = SearchRequest {
-            query: "hello".into(),
+            query: QueryPayload::Text("hello".into()),
             k: 5,
             namespace: "ns".into(),
             filters: None,
             embedding: None,
-            meta: Value::Null,
+            meta: None,
         };
 
         let result = handle_search(State(state), Json(payload)).await;
@@ -314,15 +352,78 @@ mod tests {
         assert!(upsert_result.is_ok(), "upsert should succeed");
 
         let payload = SearchRequest {
-            query: "hello".into(),
+            query: QueryPayload::Text("hello".into()),
             k: 1,
             namespace: "ns".into(),
             filters: None,
             embedding: Some(json!([0.1, 0.2])),
-            meta: Value::Null,
+            meta: None,
         };
 
         let result = handle_search(State(state), Json(payload)).await;
         assert!(result.is_ok(), "search should accept top-level embedding");
+    }
+
+    #[tokio::test]
+    async fn search_accepts_query_meta_embedding() {
+        let state = Arc::new(AppState::new());
+
+        let upsert_payload = UpsertRequest {
+            doc_id: "doc".into(),
+            namespace: "ns".into(),
+            chunks: vec![ChunkPayload {
+                id: "chunk-1".into(),
+                _text: "ignored".into(),
+                meta: json!({ "embedding": [0.1, 0.2] }),
+            }],
+        };
+
+        let upsert_result = handle_upsert(State(state.clone()), Json(upsert_payload)).await;
+        assert!(upsert_result.is_ok(), "upsert should succeed");
+
+        let payload = SearchRequest {
+            query: QueryPayload::WithMeta {
+                text: "hello".into(),
+                meta: json!({ "embedding": [0.1, 0.2] }),
+            },
+            k: 1,
+            namespace: "ns".into(),
+            filters: None,
+            embedding: None,
+            meta: None,
+        };
+
+        let result = handle_search(State(state), Json(payload)).await;
+        assert!(result.is_ok(), "search should accept query.meta.embedding");
+    }
+
+    #[tokio::test]
+    async fn search_accepts_legacy_meta_embedding() {
+        let state = Arc::new(AppState::new());
+
+        let upsert_payload = UpsertRequest {
+            doc_id: "doc".into(),
+            namespace: "ns".into(),
+            chunks: vec![ChunkPayload {
+                id: "chunk-1".into(),
+                _text: "ignored".into(),
+                meta: json!({ "embedding": [0.1, 0.2] }),
+            }],
+        };
+
+        let upsert_result = handle_upsert(State(state.clone()), Json(upsert_payload)).await;
+        assert!(upsert_result.is_ok(), "upsert should succeed");
+
+        let payload = SearchRequest {
+            query: QueryPayload::Text("hello".into()),
+            k: 1,
+            namespace: "ns".into(),
+            filters: None,
+            embedding: None,
+            meta: Some(json!({ "embedding": [0.1, 0.2] })),
+        };
+
+        let result = handle_search(State(state), Json(payload)).await;
+        assert!(result.is_ok(), "search should accept legacy meta.embedding");
     }
 }

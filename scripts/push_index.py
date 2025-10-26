@@ -73,7 +73,8 @@ def to_batches(df: pd.DataFrame, default_namespace: str) -> Iterable[Dict[str, A
 
     for record in records:
         doc_id = _derive_doc_id(record)
-        namespace = str(record.get("namespace") or default_namespace)
+        ns_value = record.get("namespace")
+        namespace = default_namespace if _is_missing(ns_value) else str(ns_value)
         key = (namespace, doc_id)
         batch = grouped.setdefault(
             key,
@@ -89,9 +90,13 @@ def to_batches(df: pd.DataFrame, default_namespace: str) -> Iterable[Dict[str, A
 
 
 def _derive_doc_id(record: Dict[str, Any]) -> str:
+    """Derive a stable document identifier from a record."""
+
     for key in ("doc_id", "path", "id"):
         value = record.get(key)
-        if value:
+        if _is_missing(value):
+            continue
+        if value is not None:
             return str(value)
     raise ValueError("Record without doc identifier")
 
