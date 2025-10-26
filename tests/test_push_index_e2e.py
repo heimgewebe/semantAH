@@ -3,6 +3,7 @@ import os
 import signal
 import subprocess
 import sys
+import shlex
 import time
 import urllib.error
 import urllib.request
@@ -11,6 +12,32 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+
+
+def _prebuild_indexd(timeout_s: float = 300.0) -> None:
+    """
+    Baut das 'indexd'-Binary vor dem Start des Servers.
+    Verhindert, dass der Health-Check wegen kalter Builds in CI zu früh ausfällt.
+    """
+    try:
+        # Schneller Check: Wenn das Release/Debug-Binary schon existiert, überspringen wir den Build nicht,
+        # sondern verlassen uns trotzdem auf cargo's inkrementellen Build (schnell, no-op).
+        cmd = ["cargo", "build", "-q", "-p", "indexd"]
+        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout_s)
+    except subprocess.CalledProcessError as e:
+        out = e.stdout.decode("utf-8", "replace") if e.stdout else ""
+        pytest.fail(f"Prebuild of indexd failed (rc={e.returncode}). Output:\n{out}")
+    except subprocess.TimeoutExpired as e:
+        pytest.fail(
+            "Prebuild of indexd timed out after "
+            f"{timeout_s:.0f}s. Command: {shlex.join(e.cmd) if isinstance(e.cmd, (list, tuple)) else e.cmd}"
+        )
+
+
+def _healthz_deadline_from_env(default: float = 120.0) -> float:
+    """Erlaubt Override der Health-Check-Deadline via ENV (INDEXD_E2E_HEALTHZ_DEADLINE)."""
+    val = os.environ.get("INDEXD_E2E_HEALTHZ_DEADLINE")
+    return float(val) if val else default
 
 
 def _http_json(url: str, payload: dict | None = None, timeout: float = 5.0):
@@ -46,9 +73,11 @@ def _wait_for_healthz(base: str, deadline_s: float = 15.0):
 @contextmanager
 def run_indexd():
     """
-    Startet 'cargo run -p indexd' im Hintergrund auf Port 8080,
-    wartet auf /healthz und räumt beim Verlassen auf.
+    Baut 'indexd' vorab, startet dann 'cargo run -p indexd' im Hintergrund auf Port 8080,
+    wartet auf /healthz (mit großzügiger Deadline) und räumt beim Verlassen auf.
     """
+    # 0) Vorab-Build (kann auf kalten CI-Runnern mehrere Minuten dauern)
+    _prebuild_indexd()
     env = os.environ.copy()
     # persistenz in tmp, damit Tests nichts in echte Arbeitsverzeichnisse schreiben
     tmp_state = Path.cwd() / ".test-indexd-state"
@@ -62,7 +91,11 @@ def run_indexd():
         env=env,
     )
     try:
-        _wait_for_healthz("http://127.0.0.1:8080", deadline_s=20.0)
+        # 1) Auf Health warten – großzügige Default-Deadline, via ENV überschreibbar
+        _wait_for_healthz(
+            "http://127.0.0.1:8080",
+            deadline_s=_healthz_deadline_from_env(default=120.0),
+        )
         yield proc
     finally:
         # Sauber beenden
