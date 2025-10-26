@@ -76,12 +76,13 @@ def to_batches(df: pd.DataFrame, default_namespace: str) -> Iterable[Dict[str, A
 
     for record in records:
         doc_id = _derive_doc_id(record)
-        # Treat NaN/None/empty/whitespace namespaces as missing before defaulting
-        _ns_value = record.get("namespace")
-        if _is_missing(_ns_value):
-            namespace = str(default_namespace)
+        ns_value = record.get("namespace")
+        if _is_missing(ns_value):
+            namespace = default_namespace
         else:
-            namespace = str(_ns_value).strip() or str(default_namespace)
+            namespace = str(ns_value).strip()
+            if not namespace:
+                namespace = default_namespace
         key = (namespace, doc_id)
         batch = grouped.setdefault(
             key,
@@ -110,17 +111,19 @@ def to_batches(df: pd.DataFrame, default_namespace: str) -> Iterable[Dict[str, A
 
 
 def _derive_doc_id(record: Dict[str, Any]) -> str:
+    """Derive a stable document identifier from a record."""
+
     for key in ("doc_id", "path", "id"):
         value = record.get(key)
-        # Skip NaN/None/empty values reported by pandas before accepting
         if _is_missing(value):
             continue
-        if isinstance(value, str):
-            stripped = value.strip()
-            if stripped:
-                return stripped
+        if isinstance(value, (str, int)):
+            candidate = str(value).strip()
+            if candidate:
+                return candidate
             continue
-        return str(value)
+        if value is not None:
+            return str(value)
     raise ValueError("Record without doc identifier")
 
 

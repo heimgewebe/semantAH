@@ -130,7 +130,22 @@ Search (Embedding vorerst Pflicht)
 ```bash
 curl -sS localhost:8080/index/search \
   -H 'content-type: application/json' \
-  -d '{"query":"hello","k":5,"namespace":"vault","embedding":[0.1,0.2,0.3]}'
+  -d '{
+    "query":{
+      "text":"hello",
+      "meta":{
+        "embedding":[0.1,0.2,0.3]
+      }
+    },
+    "k":5,
+    "namespace":"vault"
+  }'
+
+# Legacy-Unterstützung:
+# Alternativ darf `embedding` auf Top-Level oder (rückwärtskompatibel)
+# im Top-Level `meta.embedding` stehen. Falls mehrere vorhanden sind, gewinnt
+# der Wert aus `query.meta.embedding`.
+# Embeddings werden als Liste von Floats (`f32`) erwartet.
 ```
 
 ### Persistenz (optional)

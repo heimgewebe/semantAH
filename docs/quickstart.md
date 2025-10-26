@@ -20,6 +20,34 @@ cp examples/semantah.example.yml semantah.yml
 make all           # embeddings → index → graph → related
 cargo run -p indexd
 curl -fsS localhost:8080/healthz || true
+
+# Index-Stubs registrieren (Embeddings im Meta-Objekt)
+curl -sS localhost:8080/index/upsert \
+  -H 'content-type: application/json' \
+  -d '{
+    "doc_id": "demo-note",
+    "namespace": "vault",
+    "chunks": [{
+      "id": "demo-note#0",
+      "text": "Hello demo",
+      "meta": {
+        "embedding": [0.1, 0.2, 0.3],
+        "snippet": "Hello demo"
+      }
+    }]
+  }'
+
+# Smoke-Test: Suche mit query.meta.embedding (liefert ggf. leere Treffer)
+curl -sS localhost:8080/index/search \
+  -H 'content-type: application/json' \
+  -d '{
+    "query": {
+      "text": "hello",
+      "meta": { "embedding": [0.1, 0.2, 0.3] }
+    },
+    "namespace": "vault",
+    "k": 5
+  }'
 ```
 
 Weitere Details:

@@ -42,8 +42,20 @@ Lokale Entwicklungsumgebungen laufen ohne Authentifizierung. Für produktive Set
 
 ### `POST /index/search`
 - **Zweck:** Führt eine vektorbasierte Suche aus.
-- **Body:** Standardmäßig `{ "query": "backup policy", "namespace": "vault", "k": 10, "filters": { "tags": ["policy"] } }`.
-  Zusätzlich kann der Query-Vektor entweder als `embedding` auf Top-Level **oder** innerhalb von `meta.embedding` angegeben werden (zur Wahrung der Kompatibilität mit älteren Clients).
+- **Body:**
+  ```json
+  {
+    "query": {
+      "text": "backup policy",
+      "meta": {
+        "embedding": [0.12, 0.98]
+      }
+    },
+    "namespace": "vault",
+    "k": 10,
+    "filters": { "tags": ["policy"] }
+  }
+  ```
 - **Antwort:**
   ```json
   {
@@ -58,6 +70,10 @@ Lokale Entwicklungsumgebungen laufen ohne Authentifizierung. Für produktive Set
     ]
   }
   ```
+  **Kompatibilität:** Clients können das Feld `embedding` auf Top-Level senden;
+  legacy-Clients dürfen außerdem `meta.embedding` (Top-Level) verwenden.
+  Priorität: `query.meta.embedding` > `embedding` > `meta.embedding`.
+  Ein `embedding` ist eine Liste von Gleitkommazahlen (`f32`).
   Aktuell liefert der Stub eine leere Trefferliste; das Schema ist dennoch stabil und kann für Clients genutzt werden.
 
 ### `GET /healthz`
@@ -80,7 +96,34 @@ curl -X POST http://localhost:8080/index/upsert \
 
 curl -X POST http://localhost:8080/index/search \
   -H 'Content-Type: application/json' \
-  -d '{"query":"backup","namespace":"vault","k":5}'
+  -d '{
+        "query": {
+          "text": "backup",
+          "meta": {"embedding": [0.1, 0.2]}
+        },
+        "namespace": "vault",
+        "k": 5
+      }'
+
+# Top-Level `embedding`
+curl -X POST http://localhost:8080/index/search \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "query": "backup",
+        "namespace": "vault",
+        "embedding": [0.1, 0.2],
+        "k": 5
+      }'
+
+# Legacy `meta.embedding` (Top-Level)
+curl -X POST http://localhost:8080/index/search \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "query": "backup",
+        "namespace": "vault",
+        "meta": {"embedding": [0.1, 0.2]},
+        "k": 5
+      }'
 ```
 
 ## Logging & Observability
