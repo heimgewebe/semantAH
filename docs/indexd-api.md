@@ -42,7 +42,8 @@ Lokale Entwicklungsumgebungen laufen ohne Authentifizierung. Für produktive Set
 
 ### `POST /index/search`
 - **Zweck:** Führt eine vektorbasierte Suche aus.
-- **Body:** `{ "query": "backup policy", "namespace": "vault", "k": 10, "filters": { "tags": ["policy"] } }`
+- **Body:** Standardmäßig `{ "query": "backup policy", "namespace": "vault", "k": 10, "filters": { "tags": ["policy"] } }`.
+  Zusätzlich kann der Query-Vektor entweder als `embedding` auf Top-Level **oder** innerhalb von `meta.embedding` angegeben werden (zur Wahrung der Kompatibilität mit älteren Clients).
 - **Antwort:**
   ```json
   {
