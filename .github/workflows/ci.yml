@@ -111,7 +111,22 @@ jobs:
       - name: Sync env
         run: uv sync --frozen
 
+      - name: Ensure pytest-cov available (bootstrap-in-CI only)
+        run: |
+          uv run python - <<'PY'
+          import sys, subprocess
+          try:
+              import pytest_cov, coverage  # noqa: F401
+              import hypothesis  # noqa: F401
+              print("pytest-cov, coverage & hypothesis already present")
+          except Exception:
+              print("Installing pytest-cov, coverage & hypothesis just for CI…")
+              subprocess.check_call([sys.executable, "-m", "pip", "install", "pytest-cov", "coverage", "hypothesis"])
+          PY
+
       - name: Tests
+        env:
+          HYPOTHESIS_PROFILE: ci
         run: uv run pytest -q
 
       - name: Demo run (no network)

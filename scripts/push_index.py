@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import sys
@@ -155,11 +156,10 @@ def _derive_chunk_id(record: Dict[str, Any], doc_id: str) -> str:
     """Leite eine kollisionssichere Chunk-ID ab.
 
     Regeln:
-    - Wenn ein Kandidat bereits wie "<doc>#<suffix>" aussieht oder ein '#' enthält,
+    - Wenn ein Kandidat bereits wie ``<doc_id>#<suffix>`` aussieht oder ein ``#`` enthält,
       wird er direkt verwendet (global eindeutig angenommen).
-    - Andernfalls wird der Kandidat als Suffix interpretiert und mit dem doc_id
-      per "<doc_id>#<suffix>" kombiniert.
-    - Fallback (keine Kandidaten): nutze nur doc_id (entspricht Single-Chunk-Dokument).
+    - Ansonsten wird der Kandidat als Suffix interpretiert und mit dem ``doc_id`` kombiniert.
+    - Fallbacks (keine Kandidaten): nutze Text-Hash oder Row-Hints, dann erst generisches ``#chunk``.
     """
 
     candidates = [
@@ -174,6 +174,10 @@ def _derive_chunk_id(record: Dict[str, Any], doc_id: str) -> str:
         if _is_missing(value):
             continue
 
+        # Verhindere True/False als numerische Suffixe (#1/#0)
+        if isinstance(value, bool):
+            continue
+
         if isinstance(value, str):
             v = value.strip()
             if not v:
@@ -182,15 +186,25 @@ def _derive_chunk_id(record: Dict[str, Any], doc_id: str) -> str:
                 return v
             return f"{doc_id}#{v}"
 
-        # Verhindere True/False als numerische Suffixe (#1/#0)
-        if isinstance(value, bool):
-            continue
-        if isinstance(value, (int, float)) and not math.isnan(float(value)):
-            return f"{doc_id}#{int(value)}"
+        try:
+            if isinstance(value, (int, float)) and not math.isnan(float(value)):
+                return f"{doc_id}#{int(value)}"
+        except Exception:
+            pass
 
-        return f"{doc_id}#{value}"
+        return f"{doc_id}#{str(value)}"
 
-    return str(doc_id)
+    text = record.get("text")
+    if not _is_missing(text):
+        digest = hashlib.blake2b(str(text).encode("utf-8"), digest_size=8).hexdigest()
+        return f"{doc_id}#t{digest}"
+
+    for hint_key in ("__row", "_row", "row_index", "_i", "i"):
+        hint = record.get(hint_key)
+        if not _is_missing(hint):
+            return f"{doc_id}#r{hint}"
+
+    return f"{doc_id}#chunk"
 
 
 def _to_embedding(value: Any) -> List[float]:
