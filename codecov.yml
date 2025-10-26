@@ -1,0 +1,32 @@
+codecov:
+  require_ci_to_pass: true
+
+coverage:
+  precision: 2
+  round: down
+  range: "0...1"
+
+  status:
+    project:
+      default:
+        target: 0.80
+        threshold: 0.01
+        base: auto
+        informational: false
+    patch:
+      default:
+        target: 0.80
+        threshold: 0.01
+        informational: false
+
+comment:
+  layout: "flags, files"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: false
+  after_n_builds: 1
+
+ignore:
+  # Hier ggf. Pfade eintragen, die von der Coverage ausgeschlossen werden sollen
+  # - "docs/*"
