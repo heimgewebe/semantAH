@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tracing::info;
 
-use crate::{AppState, VectorStoreError};
+use crate::AppState;
 
 #[derive(Debug, Deserialize)]
 pub struct UpsertRequest {
@@ -37,9 +37,10 @@ pub struct SearchRequest {
     pub k: u32,
     pub namespace: String,
     #[serde(default)]
-    pub filters: Value,
+    pub filters: Option<Value>,
     /// Temporarily required until server-side embeddings are wired in.
-    pub embedding: Option<Vec<f32>>,
+    #[serde(default = "default_meta")]
+    pub meta: Value,
 }
 
 #[derive(Debug, Serialize)]
@@ -106,11 +107,10 @@ async fn handle_upsert(
 
         if let Some(expected) = expected_dim {
             if expected != vector.len() {
-                let err = VectorStoreError::DimensionalityMismatch {
-                    expected,
-                    actual: vector.len(),
-                };
-                return Err(bad_request(err.to_string()));
+                return Err(bad_request(format!(
+                    "chunk embedding dimensionality mismatch: expected {expected}, got {}",
+                    vector.len()
+                )));
             }
         } else {
             expected_dim = Some(vector.len());
@@ -153,25 +153,50 @@ async fn handle_search(
         query = %payload.query,
         k = payload.k,
         namespace = %payload.namespace,
-        filters = ?payload.filters,
+        filters = payload
+            .filters
+            .as_ref()
+            .map(|_| "provided")
+            .unwrap_or("none"),
         "received search"
     );
 
-    let k = payload.k as usize;
-    let embedding = payload.embedding.ok_or_else(|| {
-        bad_request("embedding is required until server-side embeddings are available")
+    let SearchRequest {
+        k,
+        namespace,
+        filters,
+        meta,
+        ..
+    } = payload;
+
+    let k = k as usize;
+
+    let mut meta = match meta {
+        Value::Object(map) => map,
+        _ => {
+            return Err(bad_request(
+                "search meta must be an object containing an embedding array",
+            ))
+        }
+    };
+
+    let embedding_value = meta.remove("embedding").ok_or_else(|| {
+        bad_request("search meta must contain an embedding array")
     })?;
 
+    let embedding = parse_embedding(embedding_value).map_err(bad_request)?;
+
+    let filters = filters.unwrap_or(Value::Null);
+
     let store = state.store.read().await;
-    let scored = store
-        .search(&payload.namespace, &embedding, k)
-        .map_err(|err| bad_request(err.to_string()))?;
+    let scored = store.search(&namespace, &embedding, k, &filters);
 
     let results = scored
         .into_iter()
-        .map(|(doc_id, chunk_id, score, meta)| {
-            let snippet = meta
-                .get("snippet")
+        .map(|(doc_id, chunk_id, score)| {
+            let snippet = store
+                .chunk_meta(&namespace, &doc_id, &chunk_id)
+                .and_then(|meta| meta.get("snippet"))
                 .and_then(|value| value.as_str())
                 .unwrap_or_default()
                 .to_string();
@@ -254,8 +279,8 @@ mod tests {
             query: "hello".into(),
             k: 5,
             namespace: "ns".into(),
-            filters: Value::Null,
-            embedding: None,
+            filters: None,
+            meta: Value::Null,
         };
 
         let result = handle_search(State(state), Json(payload)).await;
