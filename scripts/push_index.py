@@ -7,6 +7,7 @@ import argparse
 import json
 import math
 import sys
+import hashlib
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
 from urllib import error, request
@@ -73,7 +74,12 @@ def to_batches(df: pd.DataFrame, default_namespace: str) -> Iterable[Dict[str, A
 
     for record in records:
         doc_id = _derive_doc_id(record)
-        namespace = str(record.get("namespace") or default_namespace)
+        # Treat NaN/None/empty/whitespace namespaces as missing before defaulting
+        _ns_value = record.get("namespace")
+        if _is_missing(_ns_value):
+            namespace = str(default_namespace)
+        else:
+            namespace = str(_ns_value).strip() or str(default_namespace)
         key = (namespace, doc_id)
         batch = grouped.setdefault(
             key,
@@ -91,13 +97,20 @@ def to_batches(df: pd.DataFrame, default_namespace: str) -> Iterable[Dict[str, A
 def _derive_doc_id(record: Dict[str, Any]) -> str:
     for key in ("doc_id", "path", "id"):
         value = record.get(key)
-        if value:
-            return str(value)
+        # Skip NaN/None/empty values reported by pandas before accepting
+        if _is_missing(value):
+            continue
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped:
+                return stripped
+            continue
+        return str(value)
     raise ValueError("Record without doc identifier")
 
 
 def _record_to_chunk(record: Dict[str, Any], doc_id: str) -> Dict[str, Any]:
-    chunk_id = record.get("id") or _compose_chunk_id(doc_id, record.get("chunk_id"))
+    chunk_id = _derive_chunk_id(record, doc_id)
     text = str(record.get("text") or "")
     embedding = _to_embedding(record.get("embedding"))
 
@@ -123,14 +136,40 @@ def _record_to_chunk(record: Dict[str, Any], doc_id: str) -> Dict[str, Any]:
     return {"id": str(chunk_id), "text": text, "meta": meta}
 
 
-def _compose_chunk_id(doc_id: str, chunk_suffix: Any) -> str:
-    if _is_missing(chunk_suffix):
-        return str(doc_id)
-    if isinstance(chunk_suffix, (int, float)) and not math.isnan(float(chunk_suffix)):
-        suffix = int(chunk_suffix)
-    else:
-        suffix = chunk_suffix
-    return f"{doc_id}#{suffix}"
+def _derive_chunk_id(record: Dict[str, Any], doc_id: str) -> str:
+    """Robustly derive a chunk identifier with graceful fallbacks."""
+
+    candidates = [
+        record.get("chunk_id"),
+        record.get("id"),
+        record.get("chunk_index"),
+        record.get("i"),
+        record.get("offset"),
+    ]
+
+    for value in candidates:
+        if _is_missing(value):
+            continue
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped:
+                return stripped
+            continue
+        return str(value)
+
+    # Last resort: collision-resistant fallback using text hash or row hints
+    text = record.get("text")
+    if not _is_missing(text):
+        # Use BLAKE2b with a compact digest to stay deterministic while minimizing collisions.
+        digest = hashlib.blake2b(str(text).encode("utf-8"), digest_size=8).hexdigest()
+        return f"{doc_id}#t{digest}"
+
+    for hint_key in ("__row", "_row", "row_index", "_i", "i"):
+        hint = record.get(hint_key)
+        if not _is_missing(hint):
+            return f"{doc_id}#r{hint}"
+
+    return f"{doc_id}#chunk"
 
 
 def _to_embedding(value: Any) -> List[float]:
@@ -150,6 +189,8 @@ def _is_missing(value: Any) -> bool:
         return True
     if isinstance(value, float) and math.isnan(value):
         return True
+    if isinstance(value, str):
+        return not value.strip()
     try:
         result = pd.isna(value)
     except Exception:
