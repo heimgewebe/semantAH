@@ -70,34 +70,31 @@ impl VectorStore {
         namespace: &str,
         query: &[f32],
         k: usize,
-    ) -> Result<Vec<(String, String, f32, Value)>, VectorStoreError> {
+        _filters: &Value,
+    ) -> Vec<(String, String, f32)> {
         let Some(expected) = self.dims else {
-            return Ok(Vec::new());
+            return Vec::new();
         };
 
         if expected != query.len() {
-            return Err(VectorStoreError::DimensionalityMismatch {
-                expected,
-                actual: query.len(),
-            });
+            tracing::warn!(
+                expected = expected,
+                actual = query.len(),
+                "vector dimensionality mismatch in search; returning no results"
+            );
+            return Vec::new();
         }
 
-        let q_norm = l2_norm(query);
-        if q_norm == 0.0 {
-            return Ok(Vec::new());
-        }
-
-        let mut scored: Vec<(String, String, f32, Value)> = self
+        let mut scored: Vec<(String, String, f32)> = self
             .all_in_namespace(namespace)
-            .filter_map(|((_, key), (embedding, meta))| {
-                let denom = q_norm * l2_norm(embedding);
-                if denom == 0.0 {
+            .filter_map(|((_, key), (embedding, _meta))| {
+                if embedding.len() != query.len() {
                     return None;
                 }
 
-                let score = dot(query, embedding) / denom;
+                let score = cosine(query, embedding);
                 let (doc_id, chunk_id) = split_chunk_key(key);
-                Some((doc_id, chunk_id, score, meta.clone()))
+                Some((doc_id, chunk_id, score))
             })
             .collect();
 
@@ -106,7 +103,12 @@ impl VectorStore {
             scored.truncate(k);
         }
 
-        Ok(scored)
+        scored
+    }
+
+    pub fn chunk_meta(&self, namespace: &str, doc_id: &str, chunk_id: &str) -> Option<&Value> {
+        let key = (namespace.to_string(), make_chunk_key(doc_id, chunk_id));
+        self.items.get(&key).map(|(_, meta)| meta)
     }
 }
 
@@ -122,6 +124,14 @@ fn dot(a: &[f32], b: &[f32]) -> f32 {
 
 fn l2_norm(vector: &[f32]) -> f32 {
     vector.iter().map(|x| x * x).sum::<f32>().sqrt()
+}
+
+fn cosine(a: &[f32], b: &[f32]) -> f32 {
+    let denom = l2_norm(a) * l2_norm(b);
+    if denom == 0.0 {
+        return 0.0;
+    }
+    dot(a, b) / denom
 }
 
 #[cfg(test)]
@@ -160,7 +170,7 @@ mod tests {
             .upsert("ns", "doc-b", "c2", vec![0.0, 1.0], Value::Null)
             .unwrap();
 
-        let results = store.search("ns", &[1.0, 0.0], 2).unwrap();
+        let results = store.search("ns", &[1.0, 0.0], 2, &Value::Null);
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].0, "doc-a");
         assert_eq!(results[0].1, "c1");

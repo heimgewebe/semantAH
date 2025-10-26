@@ -39,7 +39,7 @@ async fn upsert_then_search_returns_hit() {
         "query": "hello",
         "k": 5,
         "namespace": "ns",
-        "embedding": [1.0, 0.0]
+        "meta": {"embedding": [1.0, 0.0]}
     });
 
     let response = app
