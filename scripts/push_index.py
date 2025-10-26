@@ -7,9 +7,8 @@ import argparse
 import json
 import math
 import sys
-import hashlib
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Set, Tuple
 from urllib import error, request
 
 import pandas as pd
@@ -71,6 +70,8 @@ def to_batches(df: pd.DataFrame, default_namespace: str) -> Iterable[Dict[str, A
 
     records = df.to_dict(orient="records")
     grouped: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    # Für Kollisionsfreiheit pro (namespace, doc_id)
+    used_ids: Dict[Tuple[str, str], Set[str]] = {}
 
     for record in records:
         doc_id = _derive_doc_id(record)
@@ -89,7 +90,20 @@ def to_batches(df: pd.DataFrame, default_namespace: str) -> Iterable[Dict[str, A
                 "chunks": [],
             },
         )
-        batch["chunks"].append(_record_to_chunk(record, doc_id))
+        chunk = _record_to_chunk(record, doc_id)
+
+        # Sicherstellen, dass die Chunk-ID innerhalb desselben Dokuments eindeutig ist
+        seen = used_ids.setdefault(key, set())
+        original_id = str(chunk["id"])
+        candidate = original_id
+        disambig = 1
+        while candidate in seen:
+            disambig += 1
+            candidate = f"{original_id}~{disambig}"
+        chunk["id"] = candidate
+        seen.add(candidate)
+
+        batch["chunks"].append(chunk)
 
     return grouped.values()
 
@@ -110,6 +124,7 @@ def _derive_doc_id(record: Dict[str, Any]) -> str:
 
 
 def _record_to_chunk(record: Dict[str, Any], doc_id: str) -> Dict[str, Any]:
+    # robust & kollisionssicher: ggf. mit doc_id präfixieren
     chunk_id = _derive_chunk_id(record, doc_id)
     text = str(record.get("text") or "")
     embedding = _to_embedding(record.get("embedding"))
@@ -137,39 +152,45 @@ def _record_to_chunk(record: Dict[str, Any], doc_id: str) -> Dict[str, Any]:
 
 
 def _derive_chunk_id(record: Dict[str, Any], doc_id: str) -> str:
-    """Robustly derive a chunk identifier with graceful fallbacks."""
+    """Leite eine kollisionssichere Chunk-ID ab.
+
+    Regeln:
+    - Wenn ein Kandidat bereits wie "<doc>#<suffix>" aussieht oder ein '#' enthält,
+      wird er direkt verwendet (global eindeutig angenommen).
+    - Andernfalls wird der Kandidat als Suffix interpretiert und mit dem doc_id
+      per "<doc_id>#<suffix>" kombiniert.
+    - Fallback (keine Kandidaten): nutze nur doc_id (entspricht Single-Chunk-Dokument).
+    """
 
     candidates = [
         record.get("chunk_id"),
-        record.get("id"),
         record.get("chunk_index"),
         record.get("i"),
         record.get("offset"),
+        record.get("id"),
     ]
 
     for value in candidates:
         if _is_missing(value):
             continue
+
         if isinstance(value, str):
-            stripped = value.strip()
-            if stripped:
-                return stripped
+            v = value.strip()
+            if not v:
+                continue
+            if v.startswith(f"{doc_id}#") or "#" in v:
+                return v
+            return f"{doc_id}#{v}"
+
+        # Verhindere True/False als numerische Suffixe (#1/#0)
+        if isinstance(value, bool):
             continue
-        return str(value)
+        if isinstance(value, (int, float)) and not math.isnan(float(value)):
+            return f"{doc_id}#{int(value)}"
 
-    # Last resort: collision-resistant fallback using text hash or row hints
-    text = record.get("text")
-    if not _is_missing(text):
-        # Use BLAKE2b with a compact digest to stay deterministic while minimizing collisions.
-        digest = hashlib.blake2b(str(text).encode("utf-8"), digest_size=8).hexdigest()
-        return f"{doc_id}#t{digest}"
+        return f"{doc_id}#{value}"
 
-    for hint_key in ("__row", "_row", "row_index", "_i", "i"):
-        hint = record.get(hint_key)
-        if not _is_missing(hint):
-            return f"{doc_id}#r{hint}"
-
-    return f"{doc_id}#chunk"
+    return str(doc_id)
 
 
 def _to_embedding(value: Any) -> List[float]:
