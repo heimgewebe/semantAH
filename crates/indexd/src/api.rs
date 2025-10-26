@@ -38,6 +38,9 @@ pub struct SearchRequest {
     pub namespace: String,
     #[serde(default)]
     pub filters: Option<Value>,
+    /// Optional top-level embedding payload until server-side embeddings are available.
+    #[serde(default)]
+    pub embedding: Option<Value>,
     /// Temporarily required until server-side embeddings are wired in.
     #[serde(default = "default_meta")]
     pub meta: Value,
@@ -166,30 +169,35 @@ async fn handle_search(
         namespace,
         filters,
         meta,
+        embedding,
         ..
     } = payload;
 
     let k = k as usize;
 
-    let mut meta = match meta {
-        Value::Object(map) => map,
-        _ => {
-            return Err(bad_request(
-                "search meta must be an object containing an embedding array",
-            ))
-        }
+    let embedding = if let Some(value) = embedding {
+        parse_embedding(value).map_err(bad_request)?
+    } else {
+        let mut meta = match meta {
+            Value::Object(map) => map,
+            _ => {
+                return Err(bad_request(
+                    "search meta must be an object containing an embedding array",
+                ))
+            }
+        };
+
+        let embedding_value = meta
+            .remove("embedding")
+            .ok_or_else(|| bad_request("search meta must contain an embedding array"))?;
+
+        parse_embedding(embedding_value).map_err(bad_request)?
     };
 
-    let embedding_value = meta.remove("embedding").ok_or_else(|| {
-        bad_request("search meta must contain an embedding array")
-    })?;
-
-    let embedding = parse_embedding(embedding_value).map_err(bad_request)?;
-
-    let filters = filters.unwrap_or(Value::Null);
+    let filter_value = filters.unwrap_or(Value::Null);
 
     let store = state.store.read().await;
-    let scored = store.search(&namespace, &embedding, k, &filters);
+    let scored = store.search(&namespace, &embedding, k, &filter_value);
 
     let results = scored
         .into_iter()
@@ -280,10 +288,41 @@ mod tests {
             k: 5,
             namespace: "ns".into(),
             filters: None,
+            embedding: None,
             meta: Value::Null,
         };
 
         let result = handle_search(State(state), Json(payload)).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn search_accepts_top_level_embedding() {
+        let state = Arc::new(AppState::new());
+
+        let upsert_payload = UpsertRequest {
+            doc_id: "doc".into(),
+            namespace: "ns".into(),
+            chunks: vec![ChunkPayload {
+                id: "chunk-1".into(),
+                _text: "ignored".into(),
+                meta: json!({ "embedding": [0.1, 0.2] }),
+            }],
+        };
+
+        let upsert_result = handle_upsert(State(state.clone()), Json(upsert_payload)).await;
+        assert!(upsert_result.is_ok(), "upsert should succeed");
+
+        let payload = SearchRequest {
+            query: "hello".into(),
+            k: 1,
+            namespace: "ns".into(),
+            filters: None,
+            embedding: Some(json!([0.1, 0.2])),
+            meta: Value::Null,
+        };
+
+        let result = handle_search(State(state), Json(payload)).await;
+        assert!(result.is_ok(), "search should accept top-level embedding");
     }
 }
