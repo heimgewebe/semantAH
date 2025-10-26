@@ -93,7 +93,6 @@ jobs:
       contents: read
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-rustcov
-      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
 
@@ -124,8 +123,7 @@ jobs:
       - name: Build & run coverage
         env:
           RUSTFLAGS: ""
-        run: |
-          cargo llvm-cov --workspace --lcov --output-path lcov.info
+        run: cargo llvm-cov --workspace --lcov --output-path lcov.info
 
       - name: Upload Rust coverage to Codecov
         if: vars.CODECOV_UPLOAD == 'true'
@@ -174,10 +172,7 @@ jobs:
       - name: Ensure pyarrow available (CI bootstrap)
         run: |
           uv run python - <<'PY'
-          import importlib
-          import subprocess
-          import sys
-
+          import importlib, subprocess, sys
           try:
               importlib.import_module("pyarrow")
               print("pyarrow already present")
@@ -201,8 +196,10 @@ jobs:
               subprocess.check_call([sys.executable, "-m", "pip", "install", "pytest-cov", "coverage"])
           PY
 
-      # --- Unit-Tests (immer) + JUnit + Coverage ---
+      # --- Unit-Tests + JUnit + Coverage ---
       - name: Unit tests (exclude integration)
+        env:
+          HYPOTHESIS_PROFILE: ci
         run: >
           uv run pytest -q -m "not integration"
           --junitxml=reports/unit-junit.xml
@@ -289,10 +286,7 @@ jobs:
       - name: Ensure pyarrow available (CI bootstrap)
         run: |
           uv run python - <<'PY'
-          import importlib
-          import subprocess
-          import sys
-
+          import importlib, subprocess, sys
           try:
               importlib.import_module("pyarrow")
               print("pyarrow already present")

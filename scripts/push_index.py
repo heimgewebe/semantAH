@@ -4,12 +4,12 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import sys
-import hashlib
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Set, Tuple
 from urllib import error, request
 
 import pandas as pd
@@ -71,15 +71,18 @@ def to_batches(df: pd.DataFrame, default_namespace: str) -> Iterable[Dict[str, A
 
     records = df.to_dict(orient="records")
     grouped: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    # Für Kollisionsfreiheit pro (namespace, doc_id)
+    used_ids: Dict[Tuple[str, str], Set[str]] = {}
 
     for record in records:
         doc_id = _derive_doc_id(record)
-        # Treat NaN/None/empty/whitespace namespaces as missing before defaulting
-        _ns_value = record.get("namespace")
-        if _is_missing(_ns_value):
-            namespace = str(default_namespace)
+        ns_value = record.get("namespace")
+        if _is_missing(ns_value):
+            namespace = default_namespace
         else:
-            namespace = str(_ns_value).strip() or str(default_namespace)
+            namespace = str(ns_value).strip()
+            if not namespace:
+                namespace = default_namespace
         key = (namespace, doc_id)
         batch = grouped.setdefault(
             key,
@@ -89,27 +92,43 @@ def to_batches(df: pd.DataFrame, default_namespace: str) -> Iterable[Dict[str, A
                 "chunks": [],
             },
         )
-        batch["chunks"].append(_record_to_chunk(record, doc_id))
+        chunk = _record_to_chunk(record, doc_id)
+
+        # Sicherstellen, dass die Chunk-ID innerhalb desselben Dokuments eindeutig ist
+        seen = used_ids.setdefault(key, set())
+        original_id = str(chunk["id"])
+        candidate = original_id
+        disambig = 1
+        while candidate in seen:
+            disambig += 1
+            candidate = f"{original_id}~{disambig}"
+        chunk["id"] = candidate
+        seen.add(candidate)
+
+        batch["chunks"].append(chunk)
 
     return grouped.values()
 
 
 def _derive_doc_id(record: Dict[str, Any]) -> str:
+    """Derive a stable document identifier from a record."""
+
     for key in ("doc_id", "path", "id"):
         value = record.get(key)
-        # Skip NaN/None/empty values reported by pandas before accepting
         if _is_missing(value):
             continue
-        if isinstance(value, str):
-            stripped = value.strip()
-            if stripped:
-                return stripped
+        if isinstance(value, (str, int)):
+            candidate = str(value).strip()
+            if candidate:
+                return candidate
             continue
-        return str(value)
+        if value is not None:
+            return str(value)
     raise ValueError("Record without doc identifier")
 
 
 def _record_to_chunk(record: Dict[str, Any], doc_id: str) -> Dict[str, Any]:
+    # robust & kollisionssicher: ggf. mit doc_id präfixieren
     chunk_id = _derive_chunk_id(record, doc_id)
     text = str(record.get("text") or "")
     embedding = _to_embedding(record.get("embedding"))
@@ -137,30 +156,49 @@ def _record_to_chunk(record: Dict[str, Any], doc_id: str) -> Dict[str, Any]:
 
 
 def _derive_chunk_id(record: Dict[str, Any], doc_id: str) -> str:
-    """Robustly derive a chunk identifier with graceful fallbacks."""
+    """Leite eine kollisionssichere Chunk-ID ab.
+
+    Regeln:
+    - Wenn ein Kandidat bereits wie ``<doc_id>#<suffix>`` aussieht oder ein ``#`` enthält,
+      wird er direkt verwendet (global eindeutig angenommen).
+    - Ansonsten wird der Kandidat als Suffix interpretiert und mit dem ``doc_id`` kombiniert.
+    - Fallbacks (keine Kandidaten): nutze Text-Hash oder Row-Hints, dann erst generisches ``#chunk``.
+    """
 
     candidates = [
         record.get("chunk_id"),
-        record.get("id"),
         record.get("chunk_index"),
         record.get("i"),
         record.get("offset"),
+        record.get("id"),
     ]
 
     for value in candidates:
         if _is_missing(value):
             continue
-        if isinstance(value, str):
-            stripped = value.strip()
-            if stripped:
-                return stripped
-            continue
-        return str(value)
 
-    # Last resort: collision-resistant fallback using text hash or row hints
+        # Verhindere True/False als numerische Suffixe (#1/#0)
+        if isinstance(value, bool):
+            continue
+
+        if isinstance(value, str):
+            v = value.strip()
+            if not v:
+                continue
+            if v.startswith(f"{doc_id}#") or "#" in v:
+                return v
+            return f"{doc_id}#{v}"
+
+        try:
+            if isinstance(value, (int, float)) and not math.isnan(float(value)):
+                return f"{doc_id}#{int(value)}"
+        except Exception:
+            pass
+
+        return f"{doc_id}#{str(value)}"
+
     text = record.get("text")
     if not _is_missing(text):
-        # Use BLAKE2b with a compact digest to stay deterministic while minimizing collisions.
         digest = hashlib.blake2b(str(text).encode("utf-8"), digest_size=8).hexdigest()
         return f"{doc_id}#t{digest}"
 

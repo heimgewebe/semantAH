@@ -1,6 +1,7 @@
 import pandas as pd
 import pytest
 
+from itertools import permutations
 from scripts.push_index import (
     to_batches,
     _derive_doc_id,
@@ -49,6 +50,37 @@ def test_chunk_id_hash_fallback_is_stable_and_collision_resistant():
     record3 = {"embedding": [1.0, 0.0]}
     cid4 = _derive_chunk_id(record3, doc_id="D")
     assert cid4 == "D#chunk"
+
+
+def test_chunk_id_fallback_stable_across_reordering():
+    """Fallback per Text-Hash bleibt über beliebige Reihenfolgen stabil."""
+
+    rows = [
+        {"doc_id": "D", "text": "one", "embedding": [1.0, 0.0]},
+        {"doc_id": "D", "text": "two", "embedding": [0.0, 1.0]},
+        {"doc_id": "D", "text": "three", "embedding": [0.7, 0.7]},
+    ]
+
+    baseline = None
+    for perm in permutations(rows):
+        df = pd.DataFrame(list(perm))
+        batches = list(to_batches(df, default_namespace="ns"))
+        assert len(batches) == 1
+        batch = batches[0]
+        mapping = {c["text"]: c["id"] for c in batch["chunks"]}
+        for cid in mapping.values():
+            assert str(cid).startswith("D#")
+            assert "nan" not in str(cid).lower()
+        if baseline is None:
+            baseline = mapping
+        else:
+            assert mapping == baseline
+
+
+def test_chunk_id_global_ids_and_bool_skip():
+    assert _derive_chunk_id({"chunk_id": "G#abc", "embedding": [1, 0]}, doc_id="D") == "G#abc"
+    cid = _derive_chunk_id({"chunk_id": True, "text": "X", "embedding": [1, 0]}, doc_id="D")
+    assert cid.startswith("D#t")
 
 
 def test_is_missing_covers_nan_none_and_whitespace():

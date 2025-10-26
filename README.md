@@ -81,6 +81,42 @@ Für ein ausführliches Step-by-Step siehe **docs/quickstart.md**. Kurzform:
 6. **Service testen**
    - `cargo run -p indexd`
 
+### Tests & Coverage (Python)
+
+Lokal kannst du die Test-Extras mit `uv` aktivieren:
+
+```bash
+uv sync -E test
+uv run pytest
+```
+
+Oder bequem per `make`:
+
+```bash
+# Unit-Tests (ohne @integration)
+make test
+# Coverage-Report unter ./reports/
+make coverage
+# Integration-Tests (mit @integration)
+make test-integration
+```
+
+> ℹ️ Setze `HYPOTHESIS_PROFILE=ci`, um lokal das deterministische Hypothesis-Profil der CI zu nutzen.
+
+Rust-Shortcuts:
+
+```bash
+# Tests (alle Crates)
+make test-rust
+
+# Lint (Clippy, bricht bei Warnungen ab)
+make lint-rust
+
+# Coverage (cargo llvm-cov; erzeugt LCOV bzw. HTML)
+make cov-rust         # -> reports/rust-lcov.info
+make cov-rust-html    # -> reports/llvm-cov/index.html
+```
+
 ### Beispiele: Index & Suche
 
 Upsert
@@ -100,7 +136,22 @@ Search (Embedding vorerst Pflicht)
 ```bash
 curl -sS localhost:8080/index/search \
   -H 'content-type: application/json' \
-  -d '{"query":"hello","k":5,"namespace":"vault","embedding":[0.1,0.2,0.3]}'
+  -d '{
+    "query":{
+      "text":"hello",
+      "meta":{
+        "embedding":[0.1,0.2,0.3]
+      }
+    },
+    "k":5,
+    "namespace":"vault"
+  }'
+
+# Legacy-Unterstützung:
+# Alternativ darf `embedding` auf Top-Level oder (rückwärtskompatibel)
+# im Top-Level `meta.embedding` stehen. Falls mehrere vorhanden sind, gewinnt
+# der Wert aus `query.meta.embedding`.
+# Embeddings werden als Liste von Floats (`f32`) erwartet.
 ```
 
 ### Persistenz (optional)

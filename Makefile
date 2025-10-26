@@ -1,9 +1,12 @@
-.PHONY: uv-sync venv sync index graph related push-index all demo clean py-freeze insights-today
+.PHONY: 	uv-sync venv sync index graph related push-index all demo clean py-freeze insights-today 	test test-integration coverage coverage-clean 	test-rust lint-rust audit-rust cov-rust cov-rust-html cov-rust-clean
 
 UV := $(shell command -v uv 2>/dev/null)
 ifeq ($(UV),)
 $(error "uv is not installed. Install: https://docs.astral.sh/uv/getting-started/")
 endif
+
+CARGO ?= cargo
+RUSTFLAGS ?= -D warnings
 
 uv-sync:
 	uv sync
@@ -25,6 +28,69 @@ push-index:
 	uv run scripts/push_index.py
 
 all: uv-sync index graph related
+
+# --- Python tests (uv) -------------------------------------------------------
+# Erwartung: `uv sync` wurde bereits ausgeführt. Für lokale Nutzung mit Extras:
+#   uv sync -E test
+
+test:
+	uv run pytest -q -m "not integration"
+
+# Integration-Tests (nur @integration)
+test-integration:
+	uv run pytest -q -m "integration" -v
+
+# Coverage-Report (Unit-only standardmäßig). Erzeugt:
+#   reports/coverage-unit.xml (Cobertura/XML)
+#   reports/.coverage         (sqlite)
+coverage: | coverage-clean
+	mkdir -p reports
+	uv run pytest -q -m "not integration" \
+	  --junitxml=reports/unit-junit.xml \
+	  --cov=. \
+	  --cov-report=xml:reports/coverage-unit.xml \
+	  --cov-report=term-missing:skip-covered
+	@test ! -f .coverage || mv .coverage reports/.coverage
+
+coverage-clean:
+	rm -f .coverage
+	rm -rf reports
+
+# --- Rust: Tests, Lint, Audit, Coverage -------------------------------------
+
+test-rust:
+	$(CARGO) test --workspace --all-features --locked -- --nocapture
+
+lint-rust:
+	$(CARGO) clippy --workspace --all-features -- -D warnings
+
+audit-rust:
+	@if ! command -v cargo-audit >/dev/null 2>&1; then \
+	  echo "cargo-audit nicht gefunden. Installation: 'cargo install cargo-audit'"; \
+	  exit 1; \
+	fi
+	cargo audit
+
+cov-rust: | cov-rust-clean
+	@if ! command -v cargo-llvm-cov >/dev/null 2>&1; then \
+	  echo "cargo-llvm-cov nicht gefunden. Installation: 'cargo install cargo-llvm-cov'"; \
+	  exit 1; \
+	fi
+	mkdir -p reports
+	cargo llvm-cov --workspace --lcov --output-path reports/rust-lcov.info
+	@echo "LCOV geschrieben nach reports/rust-lcov.info"
+
+cov-rust-html: | cov-rust-clean
+	@if ! command -v cargo-llvm-cov >/dev/null 2>&1; then \
+	  echo "cargo-llvm-cov nicht gefunden. Installation: 'cargo install cargo-llvm-cov'"; \
+	  exit 1; \
+	fi
+	mkdir -p reports/llvm-cov
+	cargo llvm-cov --workspace --html --output-dir reports/llvm-cov
+	@echo "HTML-Report unter reports/llvm-cov/index.html"
+
+cov-rust-clean:
+	rm -rf reports/rust-lcov.info reports/llvm-cov
 
 .PHONY: insights-today
 insights-today:
