@@ -42,7 +42,20 @@ Lokale Entwicklungsumgebungen laufen ohne Authentifizierung. Für produktive Set
 
 ### `POST /index/search`
 - **Zweck:** Führt eine vektorbasierte Suche aus.
-- **Body:** `{ "query": "backup policy", "namespace": "vault", "k": 10, "filters": { "tags": ["policy"] } }`
+  - **Body:**
+  ```json
+  {
+    "query": {
+      "text": "backup policy",
+      "meta": {
+        "embedding": [0.12, 0.98]
+      }
+    },
+    "namespace": "vault",
+    "k": 10,
+    "filters": { "tags": ["policy"] }
+  }
+  ```
 - **Antwort:**
   ```json
   {
@@ -57,6 +70,8 @@ Lokale Entwicklungsumgebungen laufen ohne Authentifizierung. Für produktive Set
     ]
   }
   ```
+  Legacy-Clients können das Feld `embedding` weiterhin auf Top-Level senden.
+  Falls sowohl `query.meta.embedding` als auch `embedding` vorhanden sind, gewinnt der Wert aus dem Meta-Objekt.
   Aktuell liefert der Stub eine leere Trefferliste; das Schema ist dennoch stabil und kann für Clients genutzt werden.
 
 ### `GET /healthz`
@@ -79,7 +94,14 @@ curl -X POST http://localhost:8080/index/upsert \
 
 curl -X POST http://localhost:8080/index/search \
   -H 'Content-Type: application/json' \
-  -d '{"query":"backup","namespace":"vault","k":5}'
+  -d '{
+        "query": {
+          "text": "backup",
+          "meta": { "embedding": [0.1, 0.2] }
+        },
+        "namespace": "vault",
+        "k": 5
+      }'
 ```
 
 ## Logging & Observability

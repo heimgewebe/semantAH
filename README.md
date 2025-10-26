@@ -84,7 +84,14 @@ curl -sS localhost:8080/index/upsert \
   -d '{
     "doc_id":"note-1",
     "namespace":"vault",
-    "chunks":[{"id":"c1","text":"Hello world","meta":{"embedding":[0.1,0.2,0.3],"snippet":"Hello world"}}]
+    "chunks":[{
+      "id":"c1",
+      "text":"Hello world",
+      "meta":{
+        "embedding":[0.1,0.2,0.3],
+        "snippet":"Hello world"
+      }
+    }]
   }'
 ```
 
@@ -93,8 +100,20 @@ Search (Embedding vorerst Pflicht)
 ```bash
 curl -sS localhost:8080/index/search \
   -H 'content-type: application/json' \
-  -d '{"query":"hello","k":5,"namespace":"vault","embedding":[0.1,0.2,0.3]}'
+  -d '{
+    "query":{
+      "text":"hello",
+      "meta":{
+        "embedding":[0.1,0.2,0.3]
+      }
+    },
+    "k":5,
+    "namespace":"vault"
+  }'
 ```
+
+Legacy-Clients dürfen das Feld `embedding` auch auf Top-Level setzen.
+Fehlt `query.meta.embedding`, wird der Top-Level-Wert verwendet.
 
 ### Persistenz (optional)
 
