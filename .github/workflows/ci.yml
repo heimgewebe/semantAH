@@ -67,6 +67,28 @@ jobs:
           RUSTFLAGS: -D warnings
         run: cargo test --workspace --all-features --locked -- --nocapture
 
+      - name: indexd healthcheck smoke test
+        run: |
+          cargo run -p indexd --quiet &
+          INDEXD_PID=$!
+          cleanup() { kill $INDEXD_PID >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/healthz >/dev/null; then
+              READY=1
+              break
+            fi
+            sleep 1
+          done
+
+          if [ -z "${READY:-}" ]; then
+            echo "indexd healthz endpoint did not become ready" >&2
+            exit 1
+          fi
+
+          curl -fsS http://127.0.0.1:8080/healthz
+
       - name: Cache cargo advisory DB
         uses: actions/cache@v4
         with:

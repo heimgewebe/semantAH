@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::AppState;
 
@@ -173,9 +173,10 @@ async fn handle_search(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<SearchRequest>,
 ) -> Result<Json<SearchResponse>, (StatusCode, Json<Value>)> {
-    let query_text = payload.query.text();
+    let query_text_owned = payload.query.text().to_owned();
+    let query_text = &query_text_owned;
 
-    info!(
+    debug!(
         query = %query_text,
         k = payload.k,
         namespace = %payload.namespace,
@@ -195,6 +196,8 @@ async fn handle_search(
         embedding,
         meta,
     } = payload;
+
+    let embedder = state.embedder();
 
     let query_embedding_value = match query {
         QueryPayload::Text(_) => None,
@@ -228,9 +231,17 @@ async fn handle_search(
         };
 
         parse_embedding(value).map_err(bad_request)?
+    } else if let Some(embedder) = embedder {
+        let vectors = embedder
+            .embed(&[query_text_owned.clone()])
+            .await
+            .map_err(|err| bad_request(format!("failed to generate embedding: {err}")))?;
+        vectors.into_iter().next().ok_or_else(|| {
+            bad_request("failed to generate embedding: embedder returned no embeddings")
+        })?
     } else {
         return Err(bad_request(
-            "embedding is required (provide query.meta.embedding, top-level embedding, or legacy meta.embedding)",
+            "embedding is required (provide query.meta.embedding, top-level embedding, legacy meta.embedding, or configure INDEXD_EMBEDDER_PROVIDER)",
         ));
     };
 

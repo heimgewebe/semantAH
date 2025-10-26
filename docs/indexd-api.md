@@ -73,7 +73,10 @@ Lokale Entwicklungsumgebungen laufen ohne Authentifizierung. Für produktive Set
   **Kompatibilität:** Clients können das Feld `embedding` auf Top-Level senden;
   legacy-Clients dürfen außerdem `meta.embedding` (Top-Level) verwenden.
   Priorität: `query.meta.embedding` > `embedding` > `meta.embedding`.
-  Ein `embedding` ist eine Liste von Gleitkommazahlen (`f32`).
+  Ein `embedding` ist eine Liste von Gleitkommazahlen (`f32`). Ist auf dem
+  Server `INDEXD_EMBEDDER_PROVIDER=ollama` (plus optionale Parameter) gesetzt,
+  wird – falls kein Embedding im Request vorliegt – der Query-Text über den
+  konfigurierten Provider eingebettet.
   Aktuell liefert der Stub eine leere Trefferliste; das Schema ist dennoch stabil und kann für Clients genutzt werden.
 
 ### `GET /healthz`
@@ -101,6 +104,15 @@ curl -X POST http://localhost:8080/index/search \
           "text": "backup",
           "meta": {"embedding": [0.1, 0.2]}
         },
+        "namespace": "vault",
+        "k": 5
+      }'
+
+# Serverseitige Embeddings
+curl -X POST http://localhost:8080/index/search \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "query": "backup",
         "namespace": "vault",
         "k": 5
       }'

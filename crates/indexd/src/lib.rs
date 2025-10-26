@@ -3,24 +3,50 @@ mod key;
 mod persist;
 pub mod store;
 
-use std::{net::SocketAddr, sync::Arc};
+use std::{env, net::SocketAddr, sync::Arc};
 
 use axum::{routing::get, Router};
+use embeddings::{Embedder, OllamaConfig, OllamaEmbedder};
 use tokio::sync::RwLock;
 use tokio::{net::TcpListener, signal};
 use tracing::{info, warn, Level};
 use tracing_subscriber::FmtSubscriber;
 
-#[derive(Debug)]
 pub struct AppState {
     pub store: RwLock<store::VectorStore>,
+    embedder: Option<Arc<dyn Embedder>>,
+}
+
+impl std::fmt::Debug for AppState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AppState")
+            .field("store", &"VectorStore")
+            .field(
+                "embedder",
+                &self
+                    .embedder
+                    .as_ref()
+                    .map(|embedder| embedder.id())
+                    .unwrap_or("none"),
+            )
+            .finish()
+    }
 }
 
 impl AppState {
     pub fn new() -> Self {
+        Self::with_embedder(None)
+    }
+
+    pub fn with_embedder(embedder: Option<Arc<dyn Embedder>>) -> Self {
         Self {
             store: RwLock::new(store::VectorStore::new()),
+            embedder,
         }
+    }
+
+    pub fn embedder(&self) -> Option<Arc<dyn Embedder>> {
+        self.embedder.as_ref().map(Arc::clone)
     }
 }
 
@@ -48,7 +74,8 @@ pub async fn run(
 ) -> anyhow::Result<()> {
     init_tracing();
 
-    let state = Arc::new(AppState::new());
+    let embedder = maybe_init_embedder()?;
+    let state = Arc::new(AppState::with_embedder(embedder));
     persist::maybe_load_from_env(&state).await?;
 
     let router = build_routes(state.clone()).merge(router(state.clone()));
@@ -67,6 +94,46 @@ pub async fn run(
 
     info!("indexd stopped");
     Ok(())
+}
+
+fn maybe_init_embedder() -> anyhow::Result<Option<Arc<dyn Embedder>>> {
+    match env::var("INDEXD_EMBEDDER_PROVIDER") {
+        Ok(provider) => {
+            let provider = provider.trim();
+            match provider {
+                "ollama" => {
+                    let base_url = env::var("INDEXD_EMBEDDER_BASE_URL")
+                        .unwrap_or_else(|_| "http://127.0.0.1:11434".to_string());
+                    let model = env::var("INDEXD_EMBEDDER_MODEL")
+                        .unwrap_or_else(|_| "nomic-embed-text".to_string());
+                    let dim = env::var("INDEXD_EMBEDDER_DIM")
+                        .ok()
+                        .and_then(|value| value.parse::<usize>().ok())
+                        .unwrap_or(1536);
+
+                    info!(
+                        provider = provider,
+                        model = %model,
+                        base_url = %base_url,
+                        dim,
+                        "configured embedder"
+                    );
+                    let embedder = OllamaEmbedder::new(OllamaConfig {
+                        base_url,
+                        model,
+                        dim,
+                    });
+                    let embedder: Arc<dyn Embedder> = Arc::new(embedder);
+                    Ok(Some(embedder))
+                }
+                other => {
+                    anyhow::bail!("unsupported embedder provider: {other}");
+                }
+            }
+        }
+        Err(env::VarError::NotPresent) => Ok(None),
+        Err(err) => Err(err.into()),
+    }
 }
 
 fn init_tracing() {

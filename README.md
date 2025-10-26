@@ -131,7 +131,7 @@ curl -sS localhost:8080/index/upsert \
   }'
 ```
 
-Search (Embedding vorerst Pflicht)
+Search (berechnet Embedding optional serverseitig)
 
 ```bash
 curl -sS localhost:8080/index/search \
@@ -152,6 +152,12 @@ curl -sS localhost:8080/index/search \
 # im Top-Level `meta.embedding` stehen. Falls mehrere vorhanden sind, gewinnt
 # der Wert aus `query.meta.embedding`.
 # Embeddings werden als Liste von Floats (`f32`) erwartet.
+#
+# Server-seitige Embeddings:
+# Setze `INDEXD_EMBEDDER_PROVIDER=ollama` (optional: `INDEXD_EMBEDDER_MODEL`,
+# `INDEXD_EMBEDDER_BASE_URL`, `INDEXD_EMBEDDER_DIM`). Ohne explizites
+# Embedding im Request wird der Query-Text dann über den hinterlegten Provider
+# eingebettet.
 ```
 
 ### Persistenz (optional)
