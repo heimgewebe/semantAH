@@ -65,6 +65,7 @@ Für ein ausführliches Step-by-Step siehe **docs/quickstart.md**. Kurzform:
    - `cp examples/semantah.example.yml semantah.yml` → Pfade anpassen
 4. **Pipeline laufen lassen**
    - `make all` (erstellt `.gewebe/`-Artefakte)
+   - `make push-index` (schiebt vorhandene Embeddings zu indexd)
    - `make demo` (Mini-Demo auf Basis der Example-Konfig)
 5. **Leitstand-Insights exportieren (read-only)**
    - `uv run cli/ingest_leitstand.py leitstand/data/aussen.jsonl`

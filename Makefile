@@ -1,4 +1,4 @@
-.PHONY: uv-sync venv sync index graph related all demo clean py-freeze insights-today
+.PHONY: uv-sync venv sync index graph related push-index all demo clean py-freeze insights-today
 
 UV := $(shell command -v uv 2>/dev/null)
 ifeq ($(UV),)
@@ -20,6 +20,9 @@ graph:
 
 related:
 	uv run scripts/update_related.py
+
+push-index:
+	uv run scripts/push_index.py
 
 all: uv-sync index graph related
 
