@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tracing::info;
 
-use crate::{AppState, VectorStoreError};
+use crate::AppState;
 
 #[derive(Debug, Deserialize)]
 pub struct UpsertRequest {
@@ -32,7 +32,7 @@ pub struct DeleteRequest {
 #[derive(Debug, Deserialize)]
 pub struct SearchRequest {
     /// TODO(server-side-embeddings): replace client-provided vectors with generated embeddings.
-    pub query: String,
+    pub query: QueryPayload,
     #[serde(default = "default_k")]
     pub k: u32,
     pub namespace: String,
@@ -40,6 +40,26 @@ pub struct SearchRequest {
     pub filters: Value,
     /// Temporarily required until server-side embeddings are wired in.
     pub embedding: Option<Vec<f32>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum QueryPayload {
+    Text(String),
+    WithMeta {
+        text: String,
+        #[serde(default = "default_meta")]
+        meta: Value,
+    },
+}
+
+impl QueryPayload {
+    fn text(&self) -> &str {
+        match self {
+            QueryPayload::Text(text) => text,
+            QueryPayload::WithMeta { text, .. } => text,
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -106,11 +126,10 @@ async fn handle_upsert(
 
         if let Some(expected) = expected_dim {
             if expected != vector.len() {
-                let err = VectorStoreError::DimensionalityMismatch {
-                    expected,
-                    actual: vector.len(),
-                };
-                return Err(bad_request(err.to_string()));
+                return Err(bad_request(format!(
+                    "chunk embedding dimensionality mismatch: expected {expected}, got {}",
+                    vector.len()
+                )));
             }
         } else {
             expected_dim = Some(vector.len());
@@ -150,21 +169,47 @@ async fn handle_search(
     Json(payload): Json<SearchRequest>,
 ) -> Result<Json<SearchResponse>, (StatusCode, Json<Value>)> {
     info!(
-        query = %payload.query,
+        query = %payload.query.text(),
         k = payload.k,
         namespace = %payload.namespace,
-        filters = ?payload.filters,
+        filters = if payload.filters.is_null() { "none" } else { "provided" },
         "received search"
     );
 
-    let k = payload.k as usize;
-    let embedding = payload.embedding.ok_or_else(|| {
-        bad_request("embedding is required until server-side embeddings are available")
-    })?;
+    let SearchRequest {
+        query,
+        k,
+        namespace,
+        filters: _,
+        embedding,
+    } = payload;
+
+    let query_embedding_value = match query {
+        QueryPayload::Text(_) => None,
+        QueryPayload::WithMeta { meta, .. } => {
+            let mut meta_map = match meta {
+                Value::Object(map) => map,
+                _ => return Err(bad_request("query meta must be an object")),
+            };
+
+            meta_map.remove("embedding")
+        }
+    };
+
+    let k = k as usize;
+    let embedding = if let Some(value) = query_embedding_value {
+        parse_embedding(value).map_err(bad_request)?
+    } else if let Some(vector) = embedding {
+        vector
+    } else {
+        return Err(bad_request(
+            "embedding is required (provide query.meta.embedding or top-level embedding)",
+        ));
+    };
 
     let store = state.store.read().await;
     let scored = store
-        .search(&payload.namespace, &embedding, k)
+        .search(&namespace, &embedding, k)
         .map_err(|err| bad_request(err.to_string()))?;
 
     let results = scored
@@ -251,7 +296,7 @@ mod tests {
     async fn search_requires_embedding() {
         let state = Arc::new(AppState::new());
         let payload = SearchRequest {
-            query: "hello".into(),
+            query: QueryPayload::Text("hello".into()),
             k: 5,
             namespace: "ns".into(),
             filters: Value::Null,
