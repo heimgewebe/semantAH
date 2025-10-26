@@ -75,6 +75,42 @@ Für ein ausführliches Step-by-Step siehe **docs/quickstart.md**. Kurzform:
 6. **Service testen**
    - `cargo run -p indexd`
 
+### Tests & Coverage (Python)
+
+Lokal kannst du die Test-Extras mit `uv` aktivieren:
+
+```bash
+uv sync -E test
+uv run pytest
+```
+
+Oder bequem per `make`:
+
+```bash
+# Unit-Tests (ohne @integration)
+make test
+# Coverage-Report unter ./reports/
+make coverage
+# Integration-Tests (mit @integration)
+make test-integration
+```
+
+> ℹ️ Setze `HYPOTHESIS_PROFILE=ci`, um lokal das deterministische Hypothesis-Profil der CI zu nutzen.
+
+Rust-Shortcuts:
+
+```bash
+# Tests (alle Crates)
+make test-rust
+
+# Lint (Clippy, bricht bei Warnungen ab)
+make lint-rust
+
+# Coverage (cargo llvm-cov; erzeugt LCOV bzw. HTML)
+make cov-rust         # -> reports/rust-lcov.info
+make cov-rust-html    # -> reports/llvm-cov/index.html
+```
+
 ### Beispiele: Index & Suche
 
 Upsert
