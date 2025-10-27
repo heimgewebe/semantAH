@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use axum::Router;
-use indexd::{api, AppState};
+use indexd::{api, router as base_router, AppState};
 use serde_json::json;
 use tokio::net::TcpListener;
 
@@ -10,7 +10,9 @@ use tokio::net::TcpListener;
 async fn upsert_and_search_over_http() {
     // --- start server on a random local port
     let state = Arc::new(AppState::new());
-    let app: Router = api::router(state);
+    let app: Router = Router::new()
+        .merge(base_router(state.clone()))
+        .merge(api::router(state));
 
     let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
     let addr: SocketAddr = listener.local_addr().unwrap();
