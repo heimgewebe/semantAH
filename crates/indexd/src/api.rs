@@ -82,11 +82,13 @@ pub struct SearchHit {
 }
 
 pub fn router(state: Arc<AppState>) -> Router {
-    Router::new()
+    let api_routes = Router::new()
         .route("/index/upsert", post(handle_upsert))
         .route("/index/delete", post(handle_delete))
         .route("/index/search", post(handle_search))
-        .with_state(state)
+        .with_state(state.clone());
+
+    crate::router(state).merge(api_routes)
 }
 
 fn default_k() -> u32 {
@@ -295,8 +297,31 @@ fn bad_request(message: impl Into<String>) -> (StatusCode, Json<Value>) {
 mod tests {
     use super::*;
 
+    use async_trait::async_trait;
     use axum::extract::State;
+    use embeddings::Embedder;
     use serde_json::json;
+
+    #[derive(Debug)]
+    struct TestEmbedder;
+
+    #[async_trait]
+    impl Embedder for TestEmbedder {
+        async fn embed(&self, texts: &[String]) -> anyhow::Result<Vec<Vec<f32>>> {
+            Ok(texts
+                .iter()
+                .map(|_| vec![1.0f32, 0.0])
+                .collect())
+        }
+
+        fn dim(&self) -> usize {
+            2
+        }
+
+        fn id(&self) -> &'static str {
+            "test"
+        }
+    }
 
     #[tokio::test]
     async fn upsert_is_atomic_on_failure() {
@@ -436,5 +461,39 @@ mod tests {
 
         let result = handle_search(State(state), Json(payload)).await;
         assert!(result.is_ok(), "search should accept legacy meta.embedding");
+    }
+
+    #[tokio::test]
+    async fn search_generates_embeddings_when_embedder_configured() {
+        let embedder: Arc<dyn Embedder> = Arc::new(TestEmbedder);
+        let state = Arc::new(AppState::with_embedder(Some(embedder)));
+
+        let upsert_payload = UpsertRequest {
+            doc_id: "doc".into(),
+            namespace: "ns".into(),
+            chunks: vec![ChunkPayload {
+                id: "chunk-1".into(),
+                _text: "ignored".into(),
+                meta: json!({ "embedding": [1.0, 0.0] }),
+            }],
+        };
+
+        let upsert_result = handle_upsert(State(state.clone()), Json(upsert_payload)).await;
+        assert!(upsert_result.is_ok(), "upsert should succeed");
+
+        let payload = SearchRequest {
+            query: QueryPayload::Text("hello".into()),
+            k: 1,
+            namespace: "ns".into(),
+            filters: None,
+            embedding: None,
+            meta: None,
+        };
+
+        let result = handle_search(State(state), Json(payload)).await;
+        let Json(response) = result.expect("search should succeed when embedder is configured");
+        assert_eq!(response.results.len(), 1);
+        assert_eq!(response.results[0].doc_id, "doc");
+        assert_eq!(response.results[0].chunk_id, "chunk-1");
     }
 }
