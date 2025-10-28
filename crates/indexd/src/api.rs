@@ -82,13 +82,13 @@ pub struct SearchHit {
 }
 
 pub fn router(state: Arc<AppState>) -> Router {
-    let api_routes = Router::new()
+    // NOTE: Only API routes here. Base routes (e.g. /healthz) are merged in `indexd::run`
+    // (and in Tests explizit), um doppelte Registrierung zu vermeiden.
+    Router::new()
         .route("/index/upsert", post(handle_upsert))
         .route("/index/delete", post(handle_delete))
         .route("/index/search", post(handle_search))
-        .with_state(state.clone());
-
-    crate::router(state).merge(api_routes)
+        .with_state(state)
 }
 
 fn default_k() -> u32 {
@@ -308,10 +308,7 @@ mod tests {
     #[async_trait]
     impl Embedder for TestEmbedder {
         async fn embed(&self, texts: &[String]) -> anyhow::Result<Vec<Vec<f32>>> {
-            Ok(texts
-                .iter()
-                .map(|_| vec![1.0f32, 0.0])
-                .collect())
+            Ok(texts.iter().map(|_| vec![1.0f32, 0.0]).collect())
         }
 
         fn dim(&self) -> usize {
