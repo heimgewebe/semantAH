@@ -120,11 +120,15 @@ impl Embedder for OllamaEmbedder {
             .send()
             .await?;
 
-        if !response.status().is_success() {
-            return Err(anyhow!(
-                "ollama responded with status {}",
-                response.status()
-            ));
+        let status = response.status();
+        if !status.is_success() {
+            let message = response.text().await.unwrap_or_default();
+            let detail = if message.trim().is_empty() {
+                String::new()
+            } else {
+                format!(": {}", message)
+            };
+            return Err(anyhow!("ollama responded with status {}{}", status, detail));
         }
 
         let body: OllamaResponse = response.json().await?;
