@@ -112,10 +112,13 @@ async fn handle_upsert(
         chunks,
     } = payload;
 
-    let mut store = state.store.write().await;
+    let initial_dim = {
+        let store = state.store.read().await;
+        store.dims
+    };
 
     let mut staged = Vec::with_capacity(chunk_count);
-    let mut expected_dim = store.dims;
+    let mut expected_dim = initial_dim;
 
     for chunk in chunks {
         let ChunkPayload { id, _text: _, meta } = chunk;
@@ -143,6 +146,18 @@ async fn handle_upsert(
         }
 
         staged.push((id, vector, Value::Object(meta)));
+    }
+
+    let mut store = state.store.write().await;
+    if let Some(validated_dim) = expected_dim {
+        if let Some(current_dim) = store.dims {
+            if current_dim != validated_dim {
+                return Err(bad_request(format!(
+                    "chunk embedding dimensionality mismatch: expected {current_dim}, got {}",
+                    validated_dim
+                )));
+            }
+        }
     }
 
     for (id, vector, meta) in staged {

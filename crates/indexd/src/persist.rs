@@ -4,6 +4,7 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use anyhow::{anyhow, Context};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::task;
@@ -32,7 +33,10 @@ pub async fn maybe_load_from_env(state: &Arc<AppState>) -> anyhow::Result<()> {
     }
 
     let path_clone = path.clone();
-    let items = task::spawn_blocking(move || read_jsonl(&path_clone)).await??;
+    let items = task::spawn_blocking(move || read_jsonl(&path_clone))
+        .await
+        .map_err(|err| anyhow!("spawn blocking read_jsonl failed: {}", err))?
+        .map_err(|err| anyhow!("read_jsonl failed: {}", err))?;
 
     let mut store = state.store.write().await;
     let mut dims: Option<usize> = store.dims;
@@ -97,7 +101,10 @@ pub async fn maybe_save_from_env(state: &Arc<AppState>) -> anyhow::Result<()> {
 
     let row_count = rows.len();
     let path_clone = path.clone();
-    task::spawn_blocking(move || write_jsonl_atomic(&path_clone, &rows)).await??;
+    task::spawn_blocking(move || write_jsonl_atomic(&path_clone, &rows))
+        .await
+        .map_err(|err| anyhow!("spawn blocking write_jsonl_atomic failed: {}", err))?
+        .map_err(|err| anyhow!("write_jsonl_atomic failed: {}", err))?;
 
     info!(path = %path.display(), count = row_count, "saved vector store");
     Ok(())
@@ -123,7 +130,8 @@ fn read_jsonl(path: &Path) -> anyhow::Result<Vec<RowOwned>> {
 
 fn write_jsonl_atomic(path: &Path, rows: &[RowOwned]) -> anyhow::Result<()> {
     if let Some(dir) = path.parent() {
-        fs::create_dir_all(dir)?;
+        fs::create_dir_all(dir)
+            .with_context(|| format!("create_dir_all {}", dir.display()))?;
     }
 
     let tmp = path.with_extension("tmp");

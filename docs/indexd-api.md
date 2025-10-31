@@ -70,9 +70,14 @@ Lokale Entwicklungsumgebungen laufen ohne Authentifizierung. Für produktive Set
     ]
   }
   ```
-  **Kompatibilität:** Clients können das Feld `embedding` auf Top-Level senden;
-  legacy-Clients dürfen außerdem `meta.embedding` (Top-Level) verwenden.
-  Priorität: `query.meta.embedding` > `embedding` > `meta.embedding`.
+  **Kompatibilität & Priorität:** Es gibt mehrere Quellen für Embeddings.
+  Die Auswertungsreihenfolge ist **klar definiert** (erstes vorhandenes gewinnt):
+  1. `query.meta.embedding`
+  2. Top-Level `embedding`
+  3. Legacy Top-Level `meta.embedding`
+  4. **Serverseitig**: Falls oben nichts gesetzt und `INDEXD_EMBEDDER_PROVIDER` konfiguriert ist,
+     wird der Query-Text serverseitig eingebettet (z. B. via Ollama).
+
   Ein `embedding` ist eine Liste von Gleitkommazahlen (`f32`). Ist auf dem
   Server `INDEXD_EMBEDDER_PROVIDER=ollama` (plus optionale Parameter) gesetzt,
   wird – falls kein Embedding im Request vorliegt – der Query-Text über den
