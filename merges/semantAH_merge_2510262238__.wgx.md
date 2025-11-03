@@ -1,0 +1,91 @@
+### 📄 .wgx/profile.yml
+
+**Größe:** 3 KB | **md5:** `ee6aef00c6b7a998e9129d865ef0f766`
+
+```yaml
+version: 1
+repo:
+  # Kurzname des Repos (wird automatisch aus git ableitbar sein – hier nur Doku)
+  name: auto
+  description: "WGX profile for unified tasks and env priorities"
+
+env_priority:
+  # Ordnungsprinzip laut Vorgabe
+  - devcontainer
+  - devbox
+  - mise
+  - direnv
+  - termux
+
+tooling:
+  python:
+    uv: true           # uv ist Standard-Layer für Python-Tools
+    precommit: true    # falls .pre-commit-config.yaml vorhanden
+  rust:
+    cargo: auto        # wenn Cargo.toml vorhanden → Rust-Checks aktivieren
+    clippy_strict: true
+    fmt_check: true
+    deny: optional     # cargo-deny, falls vorhanden
+
+tasks:
+  up:
+    desc: "Dev-Umgebung hochfahren (Container/venv/tooling bootstrap)"
+    sh:
+      - |
+        if command -v devcontainer >/dev/null 2>&1 || [ -f .devcontainer/devcontainer.json ]; then
+          echo "[wgx.up] devcontainer context detected"
+        fi
+        if command -v uv >/dev/null 2>&1; then
+          uv --version || true
+          [ -f pyproject.toml ] && uv sync --frozen || true
+        fi
+        [ -f .pre-commit-config.yaml ] && command -v pre-commit >/dev/null 2>&1 && pre-commit install || true
+  lint:
+    desc: "Schnelle statische Checks (Rust/Python/Markdown/YAML)"
+    sh:
+      - |
+        # Rust
+        if [ -f Cargo.toml ]; then
+          cargo fmt --all -- --check
+          cargo clippy --all-targets --all-features -- -D warnings
+        fi
+        # Python
+        if [ -f pyproject.toml ]; then
+          if command -v uv >/dev/null 2>&1; then uv run ruff check . || true; fi
+          if command -v uv >/dev/null 2>&1; then uv run ruff format --check . || true; fi
+        fi
+        # Docs
+        command -v markdownlint >/dev/null 2>&1 && markdownlint "**/*.md" || true
+        command -v yamllint    >/dev/null 2>&1 && yamllint . || true
+  test:
+    desc: "Testsuite"
+    sh:
+      - |
+        [ -f Cargo.toml ] && cargo test --all --all-features || true
+        if [ -f pyproject.toml ] && command -v uv >/dev/null 2>&1; then
+          uv run pytest -q || true
+        fi
+  build:
+    desc: "Build-Artefakte erstellen"
+    sh:
+      - |
+        [ -f Cargo.toml ] && cargo build --release || true
+        if [ -f pyproject.toml ] && command -v uv >/dev/null 2>&1; then
+          uv build || true
+        fi
+  smoke:
+    desc: "Schnelle Smoke-Checks (läuft <60s)"
+    sh:
+      - |
+        echo "[wgx.smoke] repo=$(basename "$(git rev-parse --show-toplevel)")"
+        [ -f Cargo.toml ] && cargo metadata --no-deps > /dev/null || true
+        [ -f pyproject.toml ] && grep -q '\[project\]' pyproject.toml || true
+
+meta:
+  owner: "heimgewebe"
+  conventions:
+    gewebedir: ".gewebe"
+    version_endpoint: "/version"
+    tasks_standardized: true
+```
+
