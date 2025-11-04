@@ -9,7 +9,7 @@ import json
 import math
 import sys
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Set
 from urllib import error, request
 
 import pandas as pd
@@ -96,7 +96,7 @@ def to_batches(df: pd.DataFrame, default_namespace: str = "default") -> Iterable
 
     # Gruppieren und Chunks erzeugen – mit per-Doc eindeutigen IDs
     for (ns, doc), group in df.groupby(["namespace", "doc_id"]):
-        used_ids: set[str] = set()
+        used_ids: Set[str] = set()
         chunks: List[Dict[str, Any]] = []
         for rec in group.to_dict(orient="records"):
             ch = _record_to_chunk(rec, doc_id=str(doc))
