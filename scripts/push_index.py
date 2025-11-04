@@ -68,9 +68,9 @@ def parse_args() -> argparse.Namespace:
 
 def to_batches(df: pd.DataFrame, default_namespace: str = "default") -> Iterable[Dict[str, Any]]:
     """
-    Gruppiert Zeilen zu Batches nach (namespace, doc_id) und wandelt sie in Chunks um.
-    - `doc_id` wird pro *Zeile* robust befüllt (auch wenn die Spalte existiert, aber Werte leer/NaN sind).
-    - Chunk-IDs werden innerhalb eines Dokuments eindeutig gemacht (…_2, …_3, …), um Überschreiben zu verhindern.
+    Groups rows into batches by (namespace, doc_id) and converts them to chunks.
+    - `doc_id` is robustly populated per *row* (even if the column exists but values are empty/NaN).
+    - Chunk IDs are made unique within a document (..._2, ..._3, ...) to prevent overwrites.
     """
     df = df.copy()
 
