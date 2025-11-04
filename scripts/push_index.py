@@ -134,7 +134,7 @@ def _derive_chunk_id(rec: Dict[str, Any], doc_id: str) -> str:
     text = rec.get("text")
     if _is_missing(text):
         return f"{doc_id}#chunk"
-    h = hashlib.sha1(str(text).encode("utf-8")).hexdigest()[:6]
+    h = hashlib.blake2b(str(text).encode("utf-8"), digest_size=6).hexdigest()[:6]
     return f"{doc_id}#t{h}"
 
 
