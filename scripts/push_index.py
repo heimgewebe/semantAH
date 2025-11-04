@@ -125,7 +125,7 @@ def _derive_chunk_id(rec: Dict[str, Any], doc_id: str) -> str:
     if isinstance(rec.get("chunk_id"), str) and rec["chunk_id"].startswith("G#"):
         return rec["chunk_id"]
     if isinstance(rec.get("chunk_id"), bool):
-        pass
+        # Boolean values are not valid chunk_ids; fall through to default logic below.
 
     row_val = rec.get("__row")
     if row_val is not None and not _is_missing(row_val):
