@@ -3,6 +3,7 @@
 .gewebe/
 vault/.gewebe/
 .pytest_cache/
+.hypothesis/
 .ruff_cache/
 .mypy_cache/
 __pycache__/
