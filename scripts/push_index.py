@@ -9,7 +9,7 @@ import json
 import math
 import sys
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Set, Tuple
+from typing import Any, Dict, Iterable, List
 from urllib import error, request
 
 import pandas as pd
@@ -66,76 +66,42 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def to_batches(df: pd.DataFrame, default_namespace: str) -> Iterable[Dict[str, Any]]:
-    """Gruppiert DataFrame-Zeilen zu Upsert-Batches."""
+def to_batches(df: pd.DataFrame, default_namespace="default") -> Iterable[Dict[str, Any]]:
+    df = df.copy()
+    if "namespace" not in df.columns:
+        df["namespace"] = None
+    if "doc_id" not in df.columns:
+        df["doc_id"] = df.apply(_derive_doc_id, axis=1)
 
-    records = df.to_dict(orient="records")
-    grouped: Dict[Tuple[str, str], Dict[str, Any]] = {}
-    # Für Kollisionsfreiheit pro (namespace, doc_id)
-    used_ids: Dict[Tuple[str, str], Set[str]] = {}
-
-    for record in records:
-        doc_id = _derive_doc_id(record)
-        ns_value = record.get("namespace")
-        if _is_missing(ns_value):
-            namespace = default_namespace
-        else:
-            namespace = str(ns_value).strip()
-            if not namespace:
-                namespace = default_namespace
-        key = (namespace, doc_id)
-        batch = grouped.setdefault(
-            key,
-            {
-                "doc_id": doc_id,
-                "namespace": namespace,
-                "chunks": [],
-            },
-        )
-        chunk = _record_to_chunk(record, doc_id)
-
-        # Sicherstellen, dass die Chunk-ID innerhalb desselben Dokuments eindeutig ist
-        seen = used_ids.setdefault(key, set())
-        original_id = str(chunk["id"])
-        candidate = original_id
-        disambig = 1
-        while candidate in seen:
-            disambig += 1
-            candidate = f"{original_id}~{disambig}"
-        chunk["id"] = candidate
-        seen.add(candidate)
-
-        batch["chunks"].append(chunk)
-
-    return grouped.values()
+    df["namespace"] = df["namespace"].apply(
+        lambda ns: default_namespace if _is_missing(ns) else str(ns).strip()
+    )
+    for (ns, doc), group in df.groupby(["namespace", "doc_id"]):
+        yield {
+            "namespace": ns,
+            "doc_id": doc,
+            "chunks": [
+                _record_to_chunk(r, doc_id=str(doc))
+                for r in group.to_dict(orient="records")
+            ],
+        }
 
 
-def _derive_doc_id(record: Dict[str, Any]) -> str:
-    """Derive a stable document identifier from a record."""
-
+def _derive_doc_id(rec: Dict[str, Any]) -> str:
     for key in ("doc_id", "path", "id"):
-        value = record.get(key)
-        if _is_missing(value):
-            continue
-        if isinstance(value, (str, int)):
-            candidate = str(value).strip()
-            if candidate:
-                return candidate
-            continue
-        if value is not None:
-            return str(value)
-    raise ValueError("Record without doc identifier")
+        val = rec.get(key)
+        if not _is_missing(val):
+            return str(val).strip()
+    raise ValueError("No valid doc_id/path/id field found")
 
 
 def _record_to_chunk(record: Dict[str, Any], doc_id: str) -> Dict[str, Any]:
-    # robust & kollisionssicher: ggf. mit doc_id präfixieren
     chunk_id = _derive_chunk_id(record, doc_id)
     text = str(record.get("text") or "")
     embedding = _to_embedding(record.get("embedding"))
 
     meta: Dict[str, Any] = {"embedding": embedding}
 
-    # Zusätzliche Metadaten mitschicken (falls vorhanden)
     for key, value in record.items():
         if key in {"embedding", "text", "doc_id", "namespace", "id"}:
             continue
@@ -155,59 +121,21 @@ def _record_to_chunk(record: Dict[str, Any], doc_id: str) -> Dict[str, Any]:
     return {"id": str(chunk_id), "text": text, "meta": meta}
 
 
-def _derive_chunk_id(record: Dict[str, Any], doc_id: str) -> str:
-    """Leite eine kollisionssichere Chunk-ID ab.
+def _derive_chunk_id(rec: Dict[str, Any], doc_id: str) -> str:
+    if isinstance(rec.get("chunk_id"), str) and rec["chunk_id"].startswith("G#"):
+        return rec["chunk_id"]
+    if isinstance(rec.get("chunk_id"), bool):
+        # Boolean values are not valid chunk_ids; fall through to default logic below.
 
-    Regeln:
-    - Wenn ein Kandidat bereits wie ``<doc_id>#<suffix>`` aussieht oder ein ``#`` enthält,
-      wird er direkt verwendet (global eindeutig angenommen).
-    - Ansonsten wird der Kandidat als Suffix interpretiert und mit dem ``doc_id`` kombiniert.
-    - Fallbacks (keine Kandidaten): nutze Text-Hash oder Row-Hints, dann erst generisches ``#chunk``.
-    """
+    row_val = rec.get("__row")
+    if row_val is not None and not _is_missing(row_val):
+        return f"{doc_id}#r{int(row_val)}"
 
-    candidates = [
-        record.get("chunk_id"),
-        record.get("chunk_index"),
-        record.get("i"),
-        record.get("offset"),
-        record.get("id"),
-    ]
-
-    for value in candidates:
-        if _is_missing(value):
-            continue
-
-        # Verhindere True/False als numerische Suffixe (#1/#0)
-        if isinstance(value, bool):
-            continue
-
-        if isinstance(value, str):
-            v = value.strip()
-            if not v:
-                continue
-            if v.startswith(f"{doc_id}#") or "#" in v:
-                return v
-            return f"{doc_id}#{v}"
-
-        try:
-            if isinstance(value, (int, float)) and not math.isnan(float(value)):
-                return f"{doc_id}#{int(value)}"
-        except Exception:
-            pass
-
-        return f"{doc_id}#{str(value)}"
-
-    text = record.get("text")
-    if not _is_missing(text):
-        digest = hashlib.blake2b(str(text).encode("utf-8"), digest_size=8).hexdigest()
-        return f"{doc_id}#t{digest}"
-
-    for hint_key in ("__row", "_row", "row_index", "_i", "i"):
-        hint = record.get(hint_key)
-        if not _is_missing(hint):
-            return f"{doc_id}#r{hint}"
-
-    return f"{doc_id}#chunk"
+    text = rec.get("text")
+    if _is_missing(text):
+        return f"{doc_id}#chunk"
+    h = hashlib.blake2b(str(text).encode("utf-8"), digest_size=6).hexdigest()[:6]
+    return f"{doc_id}#t{h}"
 
 
 def _to_embedding(value: Any) -> List[float]:
@@ -222,25 +150,13 @@ def _to_embedding(value: Any) -> List[float]:
     return [float(x) for x in value]
 
 
-def _is_missing(value: Any) -> bool:
-    if value is None:
+def _is_missing(x: Any) -> bool:
+    if x is None:
         return True
-    if isinstance(value, float) and math.isnan(value):
+    if isinstance(x, float) and math.isnan(x):
         return True
-    if isinstance(value, str):
-        return not value.strip()
-    try:
-        result = pd.isna(value)
-    except Exception:
-        return False
-    else:
-        if isinstance(result, bool):
-            return result
-        if hasattr(result, "all"):
-            try:
-                return bool(result.all())
-            except Exception:
-                return False
+    if isinstance(x, str) and x.strip() == "":
+        return True
     return False
 
 

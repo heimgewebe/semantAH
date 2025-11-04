@@ -85,10 +85,16 @@ def test_chunk_ids_stable_across_permutations(records: List[Dict[str, Any]]):
 
 
 @pytest.mark.parametrize(
-    "namespace_value",
-    [None, "", "   ", float("nan"), "vault"],
+    "namespace_value,expected_namespace",
+    [
+        (None, "vault-default"),
+        ("", "vault-default"),
+        ("   ", "vault-default"),
+        (float("nan"), "vault-default"),
+        ("vault", "vault"),
+    ],
 )
-def test_default_namespace_applied(namespace_value):
+def test_default_namespace_applied(namespace_value, expected_namespace):
     df = pd.DataFrame(
         [
             {
@@ -100,4 +106,4 @@ def test_default_namespace_applied(namespace_value):
         ]
     )
     batches = list(to_batches(df, default_namespace="vault-default"))
-    assert batches[0]["namespace"] == "vault-default"
+    assert batches[0]["namespace"] == expected_namespace
