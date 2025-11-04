@@ -66,24 +66,55 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def to_batches(df: pd.DataFrame, default_namespace="default") -> Iterable[Dict[str, Any]]:
+def to_batches(df: pd.DataFrame, default_namespace: str = "default") -> Iterable[Dict[str, Any]]:
+    """
+    Gruppiert Zeilen zu Batches nach (namespace, doc_id) und wandelt sie in Chunks um.
+    - `doc_id` wird pro *Zeile* robust befüllt (auch wenn die Spalte existiert, aber Werte leer/NaN sind).
+    - Chunk-IDs werden innerhalb eines Dokuments eindeutig gemacht (…_2, …_3, …), um Überschreiben zu verhindern.
+    """
     df = df.copy()
+
+    # Spalten sicherstellen
     if "namespace" not in df.columns:
         df["namespace"] = None
     if "doc_id" not in df.columns:
+        # Spalte fehlt komplett -> aus Zeileninhalt ableiten
         df["doc_id"] = df.apply(_derive_doc_id, axis=1)
+    else:
+        # Spalte existiert -> pro Zeile fehlende/blanke Werte ersetzen
+        def _fill_doc_id(row: pd.Series) -> str:
+            raw = row.get("doc_id")
+            if _is_missing(raw) or (isinstance(raw, str) and not raw.strip()):
+                return _derive_doc_id(row)
+            return str(raw).strip()
+        df["doc_id"] = df.apply(_fill_doc_id, axis=1)
 
+    # Namespace standardisieren
     df["namespace"] = df["namespace"].apply(
         lambda ns: default_namespace if _is_missing(ns) else str(ns).strip()
     )
+
+    # Gruppieren und Chunks erzeugen – mit per-Doc eindeutigen IDs
     for (ns, doc), group in df.groupby(["namespace", "doc_id"]):
+        used_ids: set[str] = set()
+        chunks: list[Dict[str, Any]] = []
+        for rec in group.to_dict(orient="records"):
+            ch = _record_to_chunk(rec, doc_id=str(doc))
+            base = str(ch["id"])
+            cid = base
+            # Eindeutigkeit je Dokument erzwingen
+            i = 2
+            while cid in used_ids:
+                cid = f"{base}_{i}"
+                i += 1
+            ch["id"] = cid
+            used_ids.add(cid)
+            chunks.append(ch)
+
         yield {
             "namespace": ns,
             "doc_id": doc,
-            "chunks": [
-                _record_to_chunk(r, doc_id=str(doc))
-                for r in group.to_dict(orient="records")
-            ],
+            "chunks": chunks,
         }
 
 
@@ -126,6 +157,7 @@ def _derive_chunk_id(rec: Dict[str, Any], doc_id: str) -> str:
         return rec["chunk_id"]
     if isinstance(rec.get("chunk_id"), bool):
         # Boolean values are not valid chunk_ids; fall through to default logic below.
+        pass
 
     row_val = rec.get("__row")
     if row_val is not None and not _is_missing(row_val):
