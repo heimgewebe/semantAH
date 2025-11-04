@@ -1,0 +1,4 @@
+# file: /app/scripts/push_index.py
+# hypothesis_version: 6.145.0
+
+[10.0, 500, '--embeddings', '--endpoint', '--max-chunks', '--namespace', '--retries', '--timeout', 'Content-Type', 'G#', '__main__', '__row', 'application/json', 'chunk_id', 'chunks', 'default', 'doc_id', 'embedding', 'id', 'item', 'meta', 'namespace', 'ok', 'path', 'records', 'source_path', 'status', 'text', 'tolist', 'utf-8', 'vault']
