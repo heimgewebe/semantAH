@@ -249,12 +249,10 @@ async fn handle_search(
 
         parse_embedding(value).map_err(bad_request)?
     } else if let Some(embedder) = embedder {
-        let vectors = embedder
-            .embed(&[query_text_owned.clone()])
-            .await
-            .map_err(|err| bad_request(format!("failed to generate embedding: {err}")))?;
+        let vectors = embedder.embed(&[query_text_owned.clone()]).await
+            .map_err(|err| server_unavailable(format!("failed to generate embedding: {err}")))?;
         vectors.into_iter().next().ok_or_else(|| {
-            bad_request("failed to generate embedding: embedder returned no embeddings")
+            server_unavailable("failed to generate embedding: embedder returned no embeddings")
         })?
     } else {
         return Err(bad_request(
@@ -306,6 +304,14 @@ fn bad_request(message: impl Into<String>) -> (StatusCode, Json<Value>) {
         "error": message.into(),
     });
     (StatusCode::BAD_REQUEST, Json(body))
+}
+
+fn server_unavailable(message: impl Into<String>) -> (StatusCode, Json<Value>) {
+    let body = json!({
+        "error": message.into(),
+    });
+    // Infrastruktur-/Providerproblem (retry-bar, surfac’t in Monitoring)
+    (StatusCode::SERVICE_UNAVAILABLE, Json(body))
 }
 
 #[cfg(test)]
@@ -507,5 +513,46 @@ mod tests {
         assert_eq!(response.results.len(), 1);
         assert_eq!(response.results[0].doc_id, "doc");
         assert_eq!(response.results[0].chunk_id, "chunk-1");
+    }
+
+    #[derive(Debug)]
+    struct FailingEmbedder;
+
+    #[async_trait]
+    impl Embedder for FailingEmbedder {
+        async fn embed(&self, _texts: &[String]) -> anyhow::Result<Vec<Vec<f32>>> {
+            Err(anyhow::anyhow!("provider unavailable"))
+        }
+
+        fn dim(&self) -> usize {
+            2
+        }
+
+        fn id(&self) -> &'static str {
+            "failing"
+        }
+    }
+
+    #[tokio::test]
+    async fn search_returns_503_on_embedder_failure() {
+        let embedder: Arc<dyn Embedder> = Arc::new(FailingEmbedder);
+        let state = Arc::new(AppState::with_embedder(Some(embedder)));
+
+        let payload = SearchRequest {
+            query: QueryPayload::Text("hello".into()),
+            k: 1,
+            namespace: "ns".into(),
+            filters: None,
+            embedding: None,
+            meta: None,
+        };
+
+        let result = handle_search(State(state), Json(payload)).await;
+        let (status, body) = result.expect_err("search should fail when embedder returns an error");
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            body.get("error").and_then(|v| v.as_str()).unwrap_or(""),
+            "failed to generate embedding: provider unavailable"
+        );
     }
 }
