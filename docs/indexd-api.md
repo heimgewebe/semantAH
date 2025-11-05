@@ -89,8 +89,12 @@ Lokale Entwicklungsumgebungen laufen ohne Authentifizierung. Für produktive Set
 
 ## Antwortschema & Fehlercodes
 - Erfolgreiche Antworten sind JSON (`application/json`).
-- Fehlerhafte Requests geben `400 Bad Request` mit `{ "error": "…" }` zurück.
-- Weitere HTTP-Codes (z. B. `500`) sind für zukünftige Persistenzfehler reserviert.
++- **400 Bad Request**: Clientseitige Probleme (z. B. falsches `embedding`-Format,
++  Dimensionsmismatch, invalides JSON) – Response: `{ "error": "…" }`.
++- **503 Service Unavailable**: Serverseitige Einbettung fehlgeschlagen
++  (z. B. Embedder/Provider nicht erreichbar oder liefert keine Vektoren).
++  Clients sollten verzögert **retry** ausführen. Response: `{ "error": "…" }`.
+ - Weitere HTTP-Codes (z. B. `500`) sind für zukünftige Persistenzfehler reserviert.
 
 ## Beispiele mit `curl`
 ```bash
