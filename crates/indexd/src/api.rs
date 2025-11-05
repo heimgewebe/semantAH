@@ -310,7 +310,7 @@ fn server_unavailable(message: impl Into<String>) -> (StatusCode, Json<Value>) {
     let body = json!({
         "error": message.into(),
     });
-    // Infrastruktur-/Providerproblem (retry-bar, surfac’t in Monitoring)
+    // Infrastruktur-/Providerproblem (retryable, surface in Monitoring)
     (StatusCode::SERVICE_UNAVAILABLE, Json(body))
 }
 
