@@ -190,6 +190,10 @@ async fn handle_search(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<SearchRequest>,
 ) -> Result<Json<SearchResponse>, (StatusCode, Json<Value>)> {
+    if payload.k == 0 {
+        return Err(bad_request("k must be greater than 0"));
+    }
+
     let query_text_owned = payload.query.text().to_owned();
     let query_text = &query_text_owned;
 
@@ -213,10 +217,6 @@ async fn handle_search(
         embedding,
         meta,
     } = payload;
-
-    if k == 0 {
-        return Err(bad_request("k must be greater than 0"));
-    }
 
     let embedder = state.embedder();
 
