@@ -214,6 +214,10 @@ async fn handle_search(
         meta,
     } = payload;
 
+    if k == 0 {
+        return Err(bad_request("k must be greater than 0"));
+    }
+
     let embedder = state.embedder();
 
     let query_embedding_value = match query {
@@ -556,5 +560,23 @@ mod tests {
                 .unwrap_or(""),
             "failed to generate embedding: provider unavailable"
         );
+    }
+
+    #[tokio::test]
+    async fn search_with_k_zero_is_rejected() {
+        let state = Arc::new(AppState::new());
+        let payload = SearchRequest {
+            query: QueryPayload::Text("hello".into()),
+            k: 0,
+            namespace: "ns".into(),
+            filters: None,
+            embedding: Some(json!([0.1, 0.2])),
+            meta: None,
+        };
+
+        let result = handle_search(State(state), Json(payload)).await;
+        assert!(result.is_err(), "search with k=0 should be rejected");
+        let (status, _) = result.unwrap_err();
+        assert_eq!(status, StatusCode::BAD_REQUEST);
     }
 }
