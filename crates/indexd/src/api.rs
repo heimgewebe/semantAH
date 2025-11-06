@@ -551,7 +551,9 @@ mod tests {
         let (status, body) = result.expect_err("search should fail when embedder returns an error");
         assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
         assert_eq!(
-            body.get("error").and_then(|v| v.as_str()).unwrap_or(""),
+            body.0.get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or(""),
             "failed to generate embedding: provider unavailable"
         );
     }
