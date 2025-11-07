@@ -26,3 +26,18 @@ tempfile = "3"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 async-trait = "0.1"
 
+[[test]]
+name = "healthz"
+path = "tests/healthz.rs"
+
+[[test]]
+name = "search"
+path = "tests/search.rs"
+
+[[test]]
+name = "e2e_http"
+path = "tests/e2e_http.rs"
+
+[[test]]
+name = "upsert"
+path = "tests/upsert.rs"

@@ -189,7 +189,7 @@ jobs:
             uv-${{ runner.os }}-
 
       - name: Sync env
-        run: uv sync --frozen
+        run: uv sync --frozen --extra test
 
       - name: Ensure pyarrow available (CI bootstrap)
         run: |
@@ -205,18 +205,6 @@ jobs:
 
       - name: Prepare reports dir
         run: mkdir -p reports
-
-      - name: Ensure pytest-cov available (bootstrap-in-CI only)
-        run: |
-          uv run python - <<'PY'
-          import sys, subprocess
-          try:
-              import pytest_cov, coverage  # noqa: F401
-              print("pytest-cov & coverage already present")
-          except Exception:
-              print("Installing pytest-cov & coverage just for CI…")
-              subprocess.check_call([sys.executable, "-m", "pip", "install", "pytest-cov", "coverage"])
-          PY
 
       # --- Unit-Tests + JUnit + Coverage ---
       - name: Unit tests (exclude integration)
@@ -303,7 +291,7 @@ jobs:
             uv-${{ runner.os }}-
 
       - name: Sync env
-        run: uv sync --frozen
+        run: uv sync --frozen --extra test
 
       - name: Ensure pyarrow available (CI bootstrap)
         run: |
@@ -319,18 +307,6 @@ jobs:
 
       - name: Prepare reports dir
         run: mkdir -p reports
-
-      - name: Ensure pytest-cov available (bootstrap-in-CI only)
-        run: |
-          uv run python - <<'PY'
-          import sys, subprocess
-          try:
-              import pytest_cov, coverage  # noqa: F401
-              print("pytest-cov & coverage already present")
-          except Exception:
-              print("Installing pytest-cov & coverage just for CI…")
-              subprocess.check_call([sys.executable, "-m", "pip", "install", "pytest-cov", "coverage"])
-          PY
 
       # --- Integration-Tests + JUnit + Coverage ---
       - name: Integration tests
@@ -385,6 +361,19 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: uv cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/uv
+            .venv
+          key: uv-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-
+
+      - name: Sync env
+        run: uv sync --frozen --extra test
+
       - name: Prepare reports dir
         run: mkdir -p reports
 
@@ -399,18 +388,6 @@ jobs:
         with:
           name: coverage-integration
           path: reports
-
-      - name: Ensure coverage available
-        run: |
-          uv run python - <<'PY'
-          import sys, subprocess
-          try:
-              import coverage  # noqa: F401
-              print("coverage present")
-          except Exception:
-              print("Installing coverage just for CI…")
-              subprocess.check_call([sys.executable, "-m", "pip", "install", "coverage"])
-          PY
 
       - name: Combine .coverage files
         env:
