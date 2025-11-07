@@ -160,6 +160,8 @@ async fn handle_upsert(
         }
     }
 
+    store.delete_doc(&namespace, &doc_id);
+
     for (id, vector, meta) in staged {
         store
             .upsert(&namespace, &doc_id, &id, vector, meta)
