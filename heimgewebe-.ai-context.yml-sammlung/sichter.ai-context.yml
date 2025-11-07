@@ -11,7 +11,9 @@ dependencies:
 internal:
 - name: contracts
 relationship: uses
-interface: policies | validation_schemas
+interface:
+  - policies
+  - validation_schemas
 - name: heimlern
 relationship: uses
 interface: quality_scores
