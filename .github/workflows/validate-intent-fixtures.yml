@@ -1,5 +1,7 @@
 name: validate-intent-fixtures
 on: [push, pull_request]
+permissions:
+  contents: read
 jobs:
   ajv:
     uses: heimgewebe/metarepo/.github/workflows/reusable-validate-jsonl.yml@contracts-v1
