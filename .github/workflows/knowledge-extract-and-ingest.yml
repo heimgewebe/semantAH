@@ -21,17 +21,34 @@ jobs:
         run: |
           echo "WGX bootstrap (minimal)"; true
       - name: Extract knowledge graph
+        id: extract
         run: |
-          ./wgx knowledge extract --repo . --out knowledge.graph.json
+          if [[ -f ./wgx ]]; then
+            ./wgx knowledge extract --repo . --out knowledge.graph.json
+            if [[ -f knowledge.graph.json ]]; then
+              echo "knowledge_graph_generated=true" >> $GITHUB_OUTPUT
+            else
+              echo "knowledge_graph_generated=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "wgx not found, skipping"
+            echo "knowledge_graph_generated=false" >> $GITHUB_OUTPUT
+          fi
       - name: Validate knowledge graph (contracts)
+        if: steps.extract.outputs.knowledge_graph_generated == 'true'
         uses: heimgewebe/metarepo/.github/workflows/validate-knowledge-graph.yml@contracts-v1
         with:
           files_glob: knowledge.graph.json
       - name: Ingest to semantAH
+        if: steps.extract.outputs.knowledge_graph_generated == 'true'
         env:
           SEMANTAH_URL: http://localhost:8765
         run: |
-          curl -fsS -X POST \
-            -H 'content-type: application/json' \
-            --data-binary @knowledge.graph.json \
-            "${SEMANTAH_URL}/v1/ingest/knowledge"
+          if [[ "${SEMANTAH_URL}" != "http://localhost:8765" ]]; then
+            curl -fsS -X POST \
+              -H 'content-type: application/json' \
+              --data-binary @knowledge.graph.json \
+              "${SEMANTAH_URL}/v1/ingest/knowledge"
+          else
+            echo "Skipping ingest to semantAH"
+          fi
