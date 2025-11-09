@@ -1,4 +1,4 @@
-.PHONY: 	uv-sync venv sync index graph related push-index all demo clean py-freeze insights-today 	test test-integration coverage coverage-clean 	test-rust lint-rust audit-rust cov-rust cov-rust-html cov-rust-clean
+.PHONY: 	uv-sync venv sync index graph related push-index all demo clean py-freeze insights-today ingest-intents	test test-integration coverage coverage-clean 	test-rust lint-rust audit-rust cov-rust cov-rust-html cov-rust-clean
 
 UV := $(shell command -v uv 2>/dev/null)
 ifeq ($(UV),)
@@ -98,6 +98,11 @@ insights-today:
 	uv run cli/ingest_leitstand.py leitstand/data/aussen.jsonl
 	@command -v npx >/dev/null 2>&1 || { echo "Node/npx fehlt (für ajv-cli)"; exit 1; }
 	npx -y ajv-cli@5 validate --spec=draft2020 --validate-formats=false -s contracts/insights.schema.json -d vault/.gewebe/insights/today.json
+
+.PHONY: ingest-intents
+ingest-intents:
+	@test -f export/os.intent.jsonl || { echo "fehlend: export/os.intent.jsonl"; exit 1; }
+	uv run cli/ingest_intents.py export/os.intent.jsonl
 
 .PHONY: demo
 demo:
