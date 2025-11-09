@@ -1,6 +1,6 @@
 pub mod api;
 mod key;
-mod persist;
+pub mod persist;
 pub mod store;
 
 use std::{env, net::SocketAddr, sync::Arc};
