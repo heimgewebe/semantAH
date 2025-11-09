@@ -1,4 +1,6 @@
 name: knowledge-extract-and-ingest
+permissions:
+  contents: read
 on:
   workflow_dispatch:
   push:
