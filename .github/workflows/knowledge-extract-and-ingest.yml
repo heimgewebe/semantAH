@@ -1,0 +1,44 @@
+name: knowledge-extract-and-ingest
+permissions:
+  contents: read
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "**/*.py"
+      - "docs/**"
+      - ".github/workflows/knowledge-extract-and-ingest.yml"
+  schedule:
+    - cron: "17 3 * * *"
+jobs:
+  extract-and-ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@8ade135a242bde00fd19c0e54fb3760beea110ee
+      - uses: actions/setup-node@5e221d4786ffb21088b21dfc9c80efb16b52cd3b
+      - name: Install ajv-cli
+        run: npm i -g ajv-cli@5
+      - name: Extract knowledge graph (falls wgx vorhanden)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -x ./scripts/wgx ]]; then
+            ./scripts/wgx knowledge extract || { echo "::warning::wgx knowledge extract failed"; exit 1; }
+          else
+            echo "::notice::./scripts/wgx nicht gefunden – fallback: touch knowledge.graph.json"
+            [[ -f knowledge.graph.json ]] || echo '{"nodes":[],"edges":[],"metadata":{"tags":["empty"]}}' > knowledge.graph.json
+          fi
+      - name: Validate knowledge.graph.json
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/knowledge.graph.schema.json -o /tmp/schema.json
+          ajv validate --spec=draft2020 --strict=true -s /tmp/schema.json -d knowledge.graph.json
+      - name: Ingest (best-effort)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -x ./scripts/ingest-knowledge.sh ]]; then
+            ./scripts/ingest-knowledge.sh knowledge.graph.json
+          else
+            echo "::notice::Kein ingest-knowledge.sh – Schritt übersprungen."
+          fi
