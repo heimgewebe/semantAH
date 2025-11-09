@@ -1,44 +1,37 @@
-name: knowledge-extract-and-ingest
-permissions:
-  contents: read
+name: knowledge-extract-ingest
 on:
-  workflow_dispatch:
   push:
     paths:
+      - "**/*.rs"
       - "**/*.py"
       - "docs/**"
-      - ".github/workflows/knowledge-extract-and-ingest.yml"
-  schedule:
-    - cron: "17 3 * * *"
+      - ".github/workflows/knowledge-extract-ingest.yml"
+  workflow_dispatch: {}
+permissions: { contents: read }
 jobs:
   extract-and-ingest:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-      - name: Install ajv-cli
-        run: npm i -g ajv-cli@5
-      - name: Extract knowledge graph (falls wgx vorhanden)
-        shell: bash
+      - name: Set up Python (wgx runner needs it if scripts call py)
+        uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Install wgx deps (minimal)
         run: |
-          set -euo pipefail
-          if [[ -x ./scripts/wgx ]]; then
-            ./scripts/wgx knowledge extract || { echo "::warning::wgx knowledge extract failed"; exit 1; }
-          else
-            echo "::notice::./scripts/wgx nicht gefunden – fallback: touch knowledge.graph.json"
-            [[ -f knowledge.graph.json ]] || echo '{"nodes":[],"edges":[],"metadata":{"tags":["empty"]}}' > knowledge.graph.json
-          fi
-      - name: Validate knowledge.graph.json
+          echo "WGX bootstrap (minimal)"; true
+      - name: Extract knowledge graph
         run: |
-          curl -fsSL https://raw.githubusercontent.com/heimgewebe/metarepo/main/contracts/knowledge.graph.schema.json -o /tmp/schema.json
-          ajv validate --spec=draft2020 --strict=true -s /tmp/schema.json -d knowledge.graph.json
-      - name: Ingest (best-effort)
-        shell: bash
+          ./wgx knowledge extract --repo . --out knowledge.graph.json
+      - name: Validate knowledge graph (contracts)
+        uses: heimgewebe/metarepo/.github/workflows/validate-knowledge-graph.yml@contracts-v1
+        with:
+          files_glob: knowledge.graph.json
+      - name: Ingest to semantAH
+        env:
+          SEMANTAH_URL: http://localhost:8765
         run: |
-          set -euo pipefail
-          if [[ -x ./scripts/ingest-knowledge.sh ]]; then
-            ./scripts/ingest-knowledge.sh knowledge.graph.json
-          else
-            echo "::notice::Kein ingest-knowledge.sh – Schritt übersprungen."
-          fi
+          curl -fsS -X POST \
+            -H 'content-type: application/json' \
+            --data-binary @knowledge.graph.json \
+            "${SEMANTAH_URL}/v1/ingest/knowledge"
