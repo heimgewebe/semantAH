@@ -1,4 +1,6 @@
 name: validate-knowledge-graph
+permissions:
+  contents: read
 on:
   pull_request:
     paths:
