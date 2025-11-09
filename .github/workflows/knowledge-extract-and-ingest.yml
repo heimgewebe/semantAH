@@ -31,7 +31,7 @@ jobs:
           fi
       - name: Validate knowledge.graph.json
         run: |
-          curl -fsSL https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/knowledge.graph.schema.json -o /tmp/schema.json
+          curl -fsSL https://raw.githubusercontent.com/heimgewebe/metarepo/main/contracts/knowledge.graph.schema.json -o /tmp/schema.json
           ajv validate --spec=draft2020 --strict=true -s /tmp/schema.json -d knowledge.graph.json
       - name: Ingest (best-effort)
         shell: bash
