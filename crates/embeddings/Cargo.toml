@@ -14,5 +14,8 @@ serde_json.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-axum = { version = "0.7", default-features = false, features = ["macros", "json", "tokio", "http1"] }
-tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net"] }
+axum = "0.7"
+anyhow = "1"
+hyper = { version = "1", features = ["server"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
