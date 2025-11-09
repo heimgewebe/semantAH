@@ -1,22 +1,22 @@
 name: Repo structure guard
 
 on:
-  pull_request:
-  push:
-    branches: ["main"]
+  pull_request:
+  push:
+    branches: ["main"]
 
 permissions: read-all
 
 jobs:
-  structure-check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Fail on duplicated semantAH subtree
-        run: |
-          if [ -d "semantAH" ]; then
-            echo "::error ::Found top-level 'semantAH/' directory (duplicated project tree)."
-            echo "Please remove it (git rm -r semantAH/) and fix any references."
-            exit 1
-          fi
-          echo "OK: no duplicated semantAH/ subtree."
+  structure-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fail on duplicated semantAH subtree
+        run: |
+          if [ -d "semantAH" ]; then
+            echo "::error ::Found top-level 'semantAH/' directory (duplicated project tree)."
+            echo "Please remove it (git rm -r semantAH/) and fix any references."
+            exit 1
+          fi
+          echo "OK: no duplicated semantAH/ subtree."
