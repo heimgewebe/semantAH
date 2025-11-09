@@ -1,0 +1,13 @@
+name: validate-intent-fixtures
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  ajv:
+    uses: heimgewebe/metarepo/.github/workflows/reusable-validate-jsonl.yml@contracts-v1
+    with:
+      jsonl_paths_list: |
+        fixtures/intent/*.jsonl
+      schema_url: https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/os.context.intent.schema.json
+      strict: false
+      validate_formats: true
