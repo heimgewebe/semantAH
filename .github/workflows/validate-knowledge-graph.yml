@@ -1,0 +1,33 @@
+name: validate-knowledge-graph
+on:
+  pull_request:
+    paths:
+      - "knowledge.graph.json"
+      - "docs/**/knowledge.graph.json"
+  push:
+    paths:
+      - "knowledge.graph.json"
+      - "docs/**/knowledge.graph.json"
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8ade135a242bde00fd19c0e54fb3760beea110ee
+      - uses: actions/setup-node@5e221d4786ffb21088b21dfc9c80efb16b52cd3b
+      - run: npm i -g ajv-cli@5
+      - run: |
+          set -euo pipefail
+          curl -fsSL https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/knowledge.graph.schema.json -o /tmp/schema.json
+          shopt -s nullglob
+          files=()
+          if [[ -f knowledge.graph.json ]]; then
+            files+=("knowledge.graph.json")
+          fi
+          while IFS= read -r -d '' f; do files+=("$f"); done < <(find docs -type f -name 'knowledge.graph.json' -print0 || true)
+          if (( ${#files[@]} == 0 )); then
+            echo "::notice::Keine knowledge.graph.json gefunden – skip."
+            exit 0
+          fi
+          for f in "${files[@]}"; do
+            echo "→ $f"; ajv validate --spec=draft2020 -s /tmp/schema.json -d "$f"
+          done
