@@ -113,7 +113,7 @@ def _encode(payload: dict) -> bytes:
 def build_payload(insights: list[Insight]) -> dict:
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "source": "leitstand",
+        "source": "chronik",
         "items": [insight.to_dict() for insight in insights],
     }
 
@@ -144,13 +144,13 @@ def ingest(args: argparse.Namespace) -> Path:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Read Leitstand JSONL export and store the latest insights in "
+            "Read Chronik JSONL export and store the latest insights in "
             "vault/.gewebe/insights/today.json"
         )
     )
     parser.add_argument(
         "source",
-        help="Path to leitstand/data/aussen.jsonl",
+        help="Path to chronik/data/aussen.jsonl",
     )
     parser.add_argument(
         "--output",

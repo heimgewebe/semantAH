@@ -1,6 +1,6 @@
-ingest-leitstand:
-	@test -f leitstand/data/aussen.jsonl || { echo "fehlend: leitstand/data/aussen.jsonl"; exit 1; }
-	uv run cli/ingest_leitstand.py leitstand/data/aussen.jsonl
+ingest-chronik:
+	@test -f chronik/data/aussen.jsonl || { echo "fehlend: chronik/data/aussen.jsonl"; exit 1; }
+	uv run cli/ingest_chronik.py chronik/data/aussen.jsonl
 default: lint
 
 
