@@ -8,7 +8,7 @@ Semantische Suche über Kontext-Embeddings aus mitschreiber.
 - Payload: `app`, `window`, `keyphrases[]`, `hash_id`
 
 ## Ingest
-- Quelle: leitstand (ETL/Stream)
+- Quelle: chronik (ETL/Stream)
 - Dedup: über `hash_id`
 
 ## Realtime

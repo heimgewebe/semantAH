@@ -73,8 +73,8 @@ Für ein ausführliches Step-by-Step siehe **docs/quickstart.md**. Kurzform:
    - `make all` (erstellt `.gewebe/`-Artefakte)
    - `make push-index` (schiebt vorhandene Embeddings zu indexd)
    - `make demo` (Mini-Demo auf Basis der Example-Konfig)
-5. **Leitstand-Insights exportieren (read-only)**
-   - `uv run cli/ingest_leitstand.py leitstand/data/aussen.jsonl`
+5. **Chronik-Insights exportieren (read-only)**
+   - `uv run cli/ingest_chronik.py chronik/data/aussen.jsonl`
    - Ergebnis: `vault/.gewebe/insights/today.json` (≤ 10 KB)
    - Validierung: `npx -y ajv-cli@5 validate -s contracts/insights.schema.json -d vault/.gewebe/insights/today.json`
    - Shortcut: `make insights-today`
