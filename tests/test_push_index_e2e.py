@@ -155,11 +155,8 @@ def test_push_index_script_end_to_end(tmp_path: Path, monkeypatch: pytest.Monkey
             pytest.fail(f"push_index.py failed: rc={proc.returncode}\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}")
 
         # 4) Suche absetzen und Treffer prüfen
-        res = _http_json(
-            f"{base}/index/search",
-            dict(query="hello", k=5, namespace="ns", embedding=[1.0, 0.0]),
-            timeout=5.0,
-        )
+        payload = dict(query="hello", k=5, namespace="ns", embedding=[1.0, 0.0])
+        res = _http_json(f"{base}/index/search", payload, timeout=5.0)
         results = res.get("results", [])
         assert len(results) == 1
         assert results[0]["doc_id"] == "D1"
