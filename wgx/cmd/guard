@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+WGX_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/parse_yaml.sh
+source "${WGX_ROOT}/lib/parse_yaml.sh"
+
+task=$(parse_yaml ".wgx/profile.yml" ".tasks.guard")
+[ -z "$task" ] || bash -c "$task"

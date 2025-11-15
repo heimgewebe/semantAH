@@ -1,4 +1,5 @@
 name: knowledge-extract-ingest
+
 on:
   push:
     paths:
@@ -6,49 +7,8 @@ on:
       - "**/*.py"
       - "docs/**"
       - ".github/workflows/knowledge-extract-ingest.yml"
-  workflow_dispatch: {}
-permissions: { contents: read }
+  workflow_dispatch:
+
 jobs:
-  extract-and-ingest:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python (wgx runner needs it if scripts call py)
-        uses: actions/setup-python@v5
-        with: { python-version: "3.11" }
-      - name: Install wgx deps (minimal)
-        run: |
-          echo "WGX bootstrap (minimal)"; true
-      - name: Extract knowledge graph
-        id: extract
-        run: |
-          if [[ -f ./wgx ]]; then
-            ./wgx knowledge extract --repo . --out knowledge.graph.json
-            if [[ -f knowledge.graph.json ]]; then
-              echo "knowledge_graph_generated=true" >> $GITHUB_OUTPUT
-            else
-              echo "knowledge_graph_generated=false" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "wgx not found, skipping"
-            echo "knowledge_graph_generated=false" >> $GITHUB_OUTPUT
-          fi
-      - name: Validate knowledge graph (contracts)
-        if: steps.extract.outputs.knowledge_graph_generated == 'true'
-        uses: heimgewebe/metarepo/.github/workflows/validate-knowledge-graph.yml@contracts-v1
-        with:
-          files_glob: knowledge.graph.json
-      - name: Ingest to semantAH
-        if: steps.extract.outputs.knowledge_graph_generated == 'true'
-        env:
-          SEMANTAH_URL: http://localhost:8765
-        run: |
-          if [[ "${SEMANTAH_URL}" != "http://localhost:8765" ]]; then
-            curl -fsS -X POST \
-              -H 'content-type: application/json' \
-              --data-binary @knowledge.graph.json \
-              "${SEMANTAH_URL}/v1/ingest/knowledge"
-          else
-            echo "Skipping ingest to semantAH"
-          fi
+  call-reusable-workflow:
+    uses: ./.github/workflows/wgx-reusable.yml
