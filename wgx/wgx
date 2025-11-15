@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+WGX_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export WGX_ROOT
+
+# shellcheck source=lib/logging.bash
+source "${WGX_ROOT}/lib/logging.bash"
+
+if [[ $# -eq 0 ]]; then
+  log_error "Usage: $0 <command>"
+  exit 1
+fi
+
+COMMAND="$1"
+shift
+
+CMD_PATH="${WGX_ROOT}/cmd/${COMMAND}"
+
+if [[ ! -f "${CMD_PATH}" ]]; then
+  log_error "Unknown command: ${COMMAND}"
+  exit 1
+fi
+
+exec "${CMD_PATH}" "$@"

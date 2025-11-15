@@ -1,6 +1,4 @@
 name: wgx-guard
-permissions:
-  contents: read
 
 on:
   push:
@@ -18,62 +16,5 @@ on:
   workflow_dispatch:
 
 jobs:
-  guard:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Check .wgx/profile.yml presence
-        run: |
-          test -f .wgx/profile.yml || { echo "::error::.wgx/profile.yml missing"; exit 1; }
-          echo "found .wgx/profile.yml"
-
-      - name: Validate minimal schema keys
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Install PyYAML
-        run: python -m pip install --upgrade pip pyyaml
-      - name: Run schema-lite check
-        run: |
-          python - <<'PY'
-import sys, yaml, pathlib
-p = pathlib.Path(".wgx/profile.yml")
-data = yaml.safe_load(p.read_text(encoding="utf-8"))
-required_top = ["version","env_priority","tooling","tasks"]
-missing = [k for k in required_top if k not in data]
-if missing:
-    print(f"::error::missing keys: {missing}")
-    sys.exit(1)
-envp = data["env_priority"]
-if not isinstance(envp, list) or not envp:
-    print("::error::env_priority must be a non-empty list")
-    sys.exit(1)
-for t in ["up","lint","test","build","smoke"]:
-    if t not in data["tasks"]:
-        print(f"::error::task '{t}' missing")
-        sys.exit(1)
-print("schema-lite ok")
-PY
-
-      - name: Cache uv downloads
-        if: ${{ hashFiles('pyproject.toml', 'uv.lock') != '' }}
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/uv
-          key: uv-${{ runner.os }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
-          restore-keys: |
-            uv-${{ runner.os }}-
-
-      - name: (Optional) UV bootstrap (pyproject present)
-        if: ${{ hashFiles('pyproject.toml') != '' }}
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-          export PATH="$HOME/.local/bin:$PATH"
-          uv --version
-          uv sync --frozen
-
-      - name: Done
-        run: echo "wgx-guard passed ✅"
+  call-reusable-workflow:
+    uses: ./.github/workflows/wgx-reusable.yml

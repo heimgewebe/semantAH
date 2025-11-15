@@ -1,0 +1,36 @@
+name: WGX Reusable Workflow
+
+on:
+  workflow_call:
+
+jobs:
+  wgx:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+
+      - name: Setup uv (Python)
+        uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install yq
+        uses: mikefarah/yq@v4
+
+      - name: Run smoke task
+        run: ./wgx/wgx smoke
+
+      - name: Run guard task
+        run: ./wgx/wgx guard
+
+      - name: Run metrics task
+        run: ./wgx/wgx metrics
+
+      - name: Run snapshot task
+        run: ./wgx/wgx snapshot
