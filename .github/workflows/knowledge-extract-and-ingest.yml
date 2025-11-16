@@ -10,5 +10,5 @@ on:
   workflow_dispatch:
 
 jobs:
-  call-reusable-workflow:
+  wgx:
     uses: ./.github/workflows/wgx-reusable.yml

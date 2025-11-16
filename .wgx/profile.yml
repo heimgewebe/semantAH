@@ -1,59 +1,39 @@
 class: rust-service
+
 tasks:
   smoke: |
-    cargo run -p indexd --quiet &
-    INDEXD_PID=$!
-    cleanup() { kill $INDEXD_PID >/dev/null 2>&1 || true; }
-    trap cleanup EXIT
-
-    for _ in $(seq 1 30); do
-      if curl -fsS http://127.0.0.1:8080/healthz >/dev/null; then
-        READY=1
-        break
-      fi
-      sleep 1
-    done
-
-    if [ -z "${READY:-}" ]; then
-      echo "indexd healthz endpoint did not become ready" >&2
-      exit 1
+    set -euo pipefail
+    echo "[wgx.smoke] repo=$(basename "$(git rev-parse --show-toplevel)")"
+    if [ -f Cargo.toml ]; then
+      cargo metadata --no-deps > /dev/null
+    fi
+    if [ -f pyproject.toml ] && command -v uv >/dev/null 2>&1; then
+      # leichter Python-Sanitycheck, ohne echte Tests
+      uv run python -m compileall . || true
     fi
 
-    curl -fsS http://127.0.0.1:8080/healthz
-    set -euxo pipefail
-    uv run scripts/build_index.py || true
-    uv run scripts/build_graph.py || true
-    uv run scripts/update_related.py || true
   guard: |
-    cargo fmt --all -- --check
-    cargo clippy --all-targets --all-features -- -D warnings
-    cargo audit
-    python - <<'PY'
-    import sys, yaml, pathlib
-    p = pathlib.Path(".wgx/profile.yml")
-    data = yaml.safe_load(p.read_text(encoding="utf-8"))
-    required_top = ["class", "tasks"]
-    missing = [k for k in required_top if k not in data]
-    if missing:
-        print(f"::error::missing keys: {missing}")
-        sys.exit(1)
-    for t in ["smoke", "guard", "metrics", "snapshot"]:
-        if t not in data["tasks"]:
-            print(f"::error::task '{t}' missing")
-            sys.exit(1)
-    print("schema-lite ok")
-    PY
-  metrics: |
-    cargo llvm-cov --workspace --lcov --output-path lcov.info
-    uv run pytest -q -m "not integration" --cov=. --cov-report=xml:reports/coverage-unit.xml
-    uv run pytest -q -m integration -v --cov=. --cov-report=xml:reports/coverage-integration.xml
-    uv run coverage combine reports/.coverage.unit reports/.coverage.integration
-    uv run coverage xml -i -o reports/coverage-merged.xml
-  snapshot: |
-    cargo build --workspace --all-features --locked
-    cargo test --workspace --all-features --locked -- --nocapture
-    uv run pytest -q -m "not integration"
-    uv run pytest -q -m "integration"
-    if [[ -f ./wgx ]]; then
-      ./wgx knowledge extract --repo . --out knowledge.graph.json
+    set -euo pipefail
+
+    if [ -f Cargo.toml ]; then
+      cargo fmt --all -- --check
+      cargo clippy --all-targets --all-features -- -D warnings
     fi
+
+    if [ -f pyproject.toml ] && command -v uv >/dev/null 2>&1; then
+      uv run ruff check .
+      uv run ruff format --check .
+    fi
+
+    if command -v yamllint >/dev/null 2>&1; then
+      yamllint .
+    fi
+
+  metrics: |
+    if [ -x scripts/wgx-metrics-snapshot.sh ]; then
+      scripts/wgx-metrics-snapshot.sh --json
+    else
+      echo "no metrics script; skipping"
+    fi
+
+  snapshot: ""

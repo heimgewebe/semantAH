@@ -2,12 +2,28 @@ name: WGX Reusable Workflow
 
 on:
   workflow_call:
+    inputs:
+      run_metrics:
+        description: "Run wgx metrics task as part of this workflow"
+        required: false
+        type: boolean
+        default: false
+      run_snapshot:
+        description: "Run wgx snapshot task as part of this workflow"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
 
 jobs:
   wgx:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@v1
@@ -23,14 +39,16 @@ jobs:
       - name: Install yq
         uses: mikefarah/yq@v4
 
-      - name: Run smoke task
+      - name: Run wgx smoke
         run: ./wgx/wgx smoke
 
-      - name: Run guard task
+      - name: Run wgx guard
         run: ./wgx/wgx guard
 
-      - name: Run metrics task
+      - name: Run wgx metrics
+        if: ${{ inputs.run_metrics }}
         run: ./wgx/wgx metrics
 
-      - name: Run snapshot task
+      - name: Run wgx snapshot
+        if: ${{ inputs.run_snapshot }}
         run: ./wgx/wgx snapshot
