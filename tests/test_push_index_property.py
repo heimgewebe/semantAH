@@ -1,16 +1,22 @@
+from __future__ import annotations
+
 import collections
 from typing import Any, Dict, List, Tuple
 
 import pandas as pd
 import pytest
 
-hypothesis = pytest.importorskip("hypothesis")
-from hypothesis import given, settings, strategies as st  # type: ignore
-
 from scripts.push_index import to_batches
 
+hypothesis = pytest.importorskip("hypothesis")
+given = hypothesis.given  # type: ignore[attr-defined]
+settings = hypothesis.settings  # type: ignore[attr-defined]
+st = hypothesis.strategies  # type: ignore[attr-defined]
 
-def _entries_from_batches(batches: List[Dict[str, Any]]) -> List[Tuple[str, str, str, str]]:
+
+def _entries_from_batches(
+    batches: List[Dict[str, Any]],
+) -> List[Tuple[str, str, str, str]]:
     """Flacht die Batches auf (namespace, doc_id, chunk_id, text)."""
 
     flattened: List[Tuple[str, str, str, str]] = []
@@ -70,15 +76,21 @@ def test_chunk_ids_stable_across_permutations(records: List[Dict[str, Any]]):
     default_namespace = "ns-default"
 
     df = pd.DataFrame(records)
-    baseline_entries = _entries_from_batches(list(to_batches(df, default_namespace=default_namespace)))
+    baseline_entries = _entries_from_batches(
+        list(to_batches(df, default_namespace=default_namespace))
+    )
     baseline_counter = _counter(baseline_entries)
-    assert all("nan" not in chunk_id.lower() for (_, _, chunk_id, _) in baseline_entries)
+    assert all(
+        "nan" not in chunk_id.lower() for (_, _, chunk_id, _) in baseline_entries
+    )
 
     shuffled_df = df.sample(frac=1.0, random_state=123).reset_index(drop=True)
     reversed_df = df.iloc[::-1].reset_index(drop=True)
 
     for dframe in (shuffled_df, reversed_df):
-        entries = _entries_from_batches(list(to_batches(dframe, default_namespace=default_namespace)))
+        entries = _entries_from_batches(
+            list(to_batches(dframe, default_namespace=default_namespace))
+        )
         counter = _counter(entries)
         assert counter == baseline_counter
         assert all("nan" not in chunk_id.lower() for (_, _, chunk_id, _) in entries)

@@ -74,8 +74,10 @@ def ingest_intents(source_path: Path, nodes_path: Path, edges_path: Path):
             try:
                 record = json.loads(line)
                 elements = process_intent_record(record)
-                with nodes_path.open("a", encoding="utf-8") as nodes_file, \
-                     edges_path.open("a", encoding="utf-8") as edges_file:
+                with (
+                    nodes_path.open("a", encoding="utf-8") as nodes_file,
+                    edges_path.open("a", encoding="utf-8") as edges_file,
+                ):
                     for element in elements:
                         if "p" in element:  # It's an edge
                             edges_file.write(json.dumps(element) + "\n")

@@ -82,9 +82,7 @@ def read_last_records(path: Path, limit: int) -> list[dict]:
         except json.JSONDecodeError as exc:
             raise ValueError(f"Cannot parse line as JSON: {line[:80]}...") from exc
         if not isinstance(record, dict):
-            raise ValueError(
-                "Each JSONL record must be an object with insight fields"
-            )
+            raise ValueError("Each JSONL record must be an object with insight fields")
         records.append(record)
     return records
 
@@ -107,7 +105,9 @@ def shrink_to_size(payload: dict, max_bytes: int) -> dict:
 
 
 def _encode(payload: dict) -> bytes:
-    return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode(
+        "utf-8"
+    )
 
 
 def build_payload(insights: list[Insight]) -> dict:

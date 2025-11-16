@@ -1,0 +1,40 @@
+name: WGX Reusable Workflow
+
+on:
+  workflow_call:
+    inputs:
+      run_metrics:
+        type: boolean
+        required: false
+        default: false
+      run_snapshot:
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  wgx:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with: { python-version: "3.11" }
+      - uses: mikefarah/yq@v4
+
+      - name: Create uv virtualenv
+        run: uv venv
+
+      - name: Install ruff
+        run: uv pip install ruff
+
+      - run: ./wgx/wgx smoke
+      - run: ./wgx/wgx guard
+
+      - if: ${{ inputs.run_metrics }}
+        run: ./wgx/wgx metrics
+
+      - if: ${{ inputs.run_snapshot }}
+        run: ./wgx/wgx snapshot

@@ -1,11 +1,5 @@
 name: knowledge-extract-ingest
 on:
-  push:
-    paths:
-      - "**/*.rs"
-      - "**/*.py"
-      - "docs/**"
-      - ".github/workflows/knowledge-extract-ingest.yml"
   workflow_dispatch: {}
 permissions: { contents: read }
 jobs:
@@ -14,24 +8,18 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python (wgx runner needs it if scripts call py)
+      - name: Set up Python
         uses: actions/setup-python@v5
         with: { python-version: "3.11" }
-      - name: Install wgx deps (minimal)
-        run: |
-          echo "WGX bootstrap (minimal)"; true
-      - name: Extract knowledge graph
+      - name: Install yq
+        uses: mikefarah/yq@v4
+      - name: Run WGX knowledge task
         id: extract
         run: |
-          if [[ -f ./wgx ]]; then
-            ./wgx knowledge extract --repo . --out knowledge.graph.json
-            if [[ -f knowledge.graph.json ]]; then
-              echo "knowledge_graph_generated=true" >> $GITHUB_OUTPUT
-            else
-              echo "knowledge_graph_generated=false" >> $GITHUB_OUTPUT
-            fi
+          ./wgx/wgx knowledge
+          if [[ -f knowledge.graph.json ]]; then
+            echo "knowledge_graph_generated=true" >> $GITHUB_OUTPUT
           else
-            echo "wgx not found, skipping"
             echo "knowledge_graph_generated=false" >> $GITHUB_OUTPUT
           fi
       - name: Validate knowledge graph (contracts)
