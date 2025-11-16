@@ -1,9 +1,9 @@
 import json
 import os
+import shlex
 import signal
 import subprocess
 import sys
-import shlex
 import time
 import urllib.error
 import urllib.request
@@ -23,7 +23,9 @@ def _prebuild_indexd(timeout_s: float = 300.0) -> None:
         # Schneller Check: Wenn das Release/Debug-Binary schon existiert, überspringen wir den Build nicht,
         # sondern verlassen uns trotzdem auf cargo's inkrementellen Build (schnell, no-op).
         cmd = ["cargo", "build", "-q", "-p", "indexd"]
-        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout_s)
+        subprocess.run(
+            cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout_s
+        )
     except subprocess.CalledProcessError as e:
         out = e.stdout.decode("utf-8", "replace") if e.stdout else ""
         pytest.fail(f"Prebuild of indexd failed (rc={e.returncode}). Output:\n{out}")
@@ -126,13 +128,13 @@ def test_push_index_script_end_to_end(tmp_path: Path, monkeypatch: pytest.Monkey
         parquet = work / ".gewebe" / "embeddings.parquet"
         df = pd.DataFrame(
             [
-                dict(
-                    doc_id="D1",
-                    namespace="ns",
-                    id="c1",
-                    text="hello world",
-                    embedding=[1.0, 0.0],
-                )
+                {
+                    "doc_id": "D1",
+                    "namespace": "ns",
+                    "id": "c1",
+                    "text": "hello world",
+                    "embedding": [1.0, 0.0],
+                }
             ]
         )
         # pandas benötigt i.d.R. pyarrow/fastparquet – in diesem Projekt sollte pyarrow verfügbar sein.
@@ -150,12 +152,21 @@ def test_push_index_script_end_to_end(tmp_path: Path, monkeypatch: pytest.Monkey
             "--endpoint",
             f"{base}/index/upsert",
         ]
-        proc = subprocess.run(cmd, cwd=work, capture_output=True, text=True, timeout=25)
+        proc = subprocess.run(
+            cmd, cwd=work, capture_output=True, text=True, timeout=25
+        )
         if proc.returncode != 0:
-            pytest.fail(f"push_index.py failed: rc={proc.returncode}\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}")
+            pytest.fail(
+                f"push_index.py failed: rc={proc.returncode}\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
+            )
 
         # 4) Suche absetzen und Treffer prüfen
-        payload = dict(query="hello", k=5, namespace="ns", embedding=[1.0, 0.0])
+        payload = {
+            "query": "hello",
+            "k": 5,
+            "namespace": "ns",
+            "embedding": [1.0, 0.0],
+        }
         res = _http_json(f"{base}/index/search", payload, timeout=5.0)
         results = res.get("results", [])
         assert len(results) == 1

@@ -1,21 +1,40 @@
+from itertools import permutations
+
 import pandas as pd
 import pytest
 
-from itertools import permutations
 from scripts.push_index import (
-    to_batches,
-    _derive_doc_id,
     _derive_chunk_id,
+    _derive_doc_id,
     _is_missing,
+    to_batches,
 )
 
 
 def test_namespace_fallback_and_grouping():
     df = pd.DataFrame(
         [
-            {"doc_id": "d1", "namespace": "vault", "id": "c1", "text": "hello", "embedding": [0.1, 0.2]},
-            {"doc_id": "d1", "namespace": float("nan"), "id": "c2", "text": "world", "embedding": [0.3, 0.4]},
-            {"doc_id": "d2", "namespace": "   ", "id": "c3", "text": "!", "embedding": [0.5, 0.6]},
+            {
+                "doc_id": "d1",
+                "namespace": "vault",
+                "id": "c1",
+                "text": "hello",
+                "embedding": [0.1, 0.2],
+            },
+            {
+                "doc_id": "d1",
+                "namespace": float("nan"),
+                "id": "c2",
+                "text": "world",
+                "embedding": [0.3, 0.4],
+            },
+            {
+                "doc_id": "d2",
+                "namespace": "   ",
+                "id": "c3",
+                "text": "!",
+                "embedding": [0.5, 0.6],
+            },
         ]
     )
     batches = list(to_batches(df, default_namespace="defaultNS"))
@@ -79,7 +98,9 @@ def test_chunk_id_fallback_stable_across_reordering():
 
 def test_chunk_id_global_ids_and_bool_skip():
     assert _derive_chunk_id({"chunk_id": "G#abc", "embedding": [1, 0]}, doc_id="D") == "G#abc"
-    cid = _derive_chunk_id({"chunk_id": True, "text": "X", "embedding": [1, 0]}, doc_id="D")
+    cid = _derive_chunk_id(
+        {"chunk_id": True, "text": "X", "embedding": [1, 0]}, doc_id="D"
+    )
     assert cid.startswith("D#t")
 
 
@@ -95,7 +116,12 @@ def test_to_batches_end_to_end_no_nan_ids_and_namespace_default():
     df = pd.DataFrame(
         [
             {"doc_id": "D1", "text": "alpha", "embedding": [0.1, 0.2]},
-            {"doc_id": "D2", "namespace": float("nan"), "__row": 7, "embedding": [0.3, 0.4]},
+            {
+                "doc_id": "D2",
+                "namespace": float("nan"),
+                "__row": 7,
+                "embedding": [0.3, 0.4],
+            },
             {"doc_id": "D3", "namespace": "   ", "embedding": [0.5, 0.6]},
         ]
     )

@@ -15,6 +15,16 @@ tasks:
       uv run ruff format --check .
     fi
 
+  fmt: |
+    set -euo pipefail
+    echo "[wgx.fmt] format Python sources via ruff"
+    if [ -f pyproject.toml ] && command -v uv >/dev/null 2>&1; then
+      uv run ruff format .
+    else
+      echo "[wgx.fmt] no pyproject.toml or uv not available – skipping" >&2
+      exit 0
+    fi
+
   metrics: |
     if [ -f pyproject.toml ] && command -v uv >/dev/null 2>&1; then
       uv run pytest --cov=semantah --cov-report=xml:coverage.xml || true
