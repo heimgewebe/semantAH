@@ -24,6 +24,9 @@ jobs:
         with: { python-version: "3.11" }
       - uses: mikefarah/yq@v4
 
+      - name: Install ruff
+        run: uv pip install ruff
+
       - run: ./wgx/wgx smoke
       - run: ./wgx/wgx guard
 
