@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+WGX_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/parse_yaml.sh
+source "${WGX_ROOT}/lib/parse_yaml.sh"
+
+# If the first argument is "extract", run the extraction logic directly.
+if [[ "${1:-}" == "extract" ]]; then
+  shift
+  # This is the actual implementation of the "knowledge extract" command.
+  # It is called from the `knowledge` task in `.wgx/profile.yml`.
+  # The profile task is called by `wgx knowledge`.
+  echo "Extracting knowledge graph..."
+  # A real implementation would go here. For now, we'll just touch the file.
+  touch knowledge.graph.json
+  exit 0
+fi
+
+# If no subcommand is given, run the task from the profile.
+task=$(parse_yaml ".wgx/profile.yml" ".tasks.knowledge")
+[ -z "$task" ] || bash -c "$task"

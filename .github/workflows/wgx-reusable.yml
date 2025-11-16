@@ -39,6 +39,9 @@ jobs:
       - name: Install yq
         uses: mikefarah/yq@v4
 
+      - name: Bootstrap environment
+        run: ./wgx/wgx up
+
       - name: Run wgx smoke
         run: ./wgx/wgx smoke
 

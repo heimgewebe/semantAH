@@ -37,3 +37,9 @@ tasks:
     fi
 
   snapshot: ""
+
+  knowledge: |
+    set -euo pipefail
+    if [ -x ./wgx/wgx ]; then
+      ./wgx/wgx knowledge extract --repo . --out knowledge.graph.json
+    fi

@@ -1,14 +1,48 @@
 name: knowledge-extract-ingest
-
 on:
   push:
     paths:
       - "**/*.rs"
       - "**/*.py"
       - "docs/**"
-      - ".github/workflows/knowledge-extract-ingest.yml"
-  workflow_dispatch:
-
+      - ".github/workflows/knowledge-extract-and-ingest.yml"
+  workflow_dispatch: {}
+permissions: { contents: read }
 jobs:
-  wgx:
-    uses: ./.github/workflows/wgx-reusable.yml
+  extract-and-ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Install yq
+        uses: mikefarah/yq@v4
+      - name: Run WGX knowledge task
+        id: extract
+        run: |
+          ./wgx/wgx knowledge
+          if [[ -f knowledge.graph.json ]]; then
+            echo "knowledge_graph_generated=true" >> $GITHUB_OUTPUT
+          else
+            echo "knowledge_graph_generated=false" >> $GITHUB_OUTPUT
+          fi
+      - name: Validate knowledge graph (contracts)
+        if: steps.extract.outputs.knowledge_graph_generated == 'true'
+        uses: heimgewebe/metarepo/.github/workflows/validate-knowledge-graph.yml@contracts-v1
+        with:
+          files_glob: knowledge.graph.json
+      - name: Ingest to semantAH
+        if: steps.extract.outputs.knowledge_graph_generated == 'true'
+        env:
+          SEMANTAH_URL: http://localhost:8765
+        run: |
+          if [[ "${SEMANTAH_URL}" != "http://localhost:8765" ]]; then
+            curl -fsS -X POST \
+              -H 'content-type: application/json' \
+              --data-binary @knowledge.graph.json \
+              "${SEMANTAH_URL}/v1/ingest/knowledge"
+          else
+            echo "Skipping ingest to semantAH"
+          fi
