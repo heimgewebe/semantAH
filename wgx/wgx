@@ -24,7 +24,7 @@ if ! command -v yq >/dev/null 2>&1; then
   exit 1
 fi
 
-TASK=$(yq -r ".tasks.${COMMAND} // \"\"" "$PROFILE")
+TASK=$(yq -r ".tasks.\"${COMMAND}\" // \"\"" "$PROFILE")
 
 if [[ -z "$TASK" ]]; then
   echo "[wgx] unknown task: $COMMAND" >&2

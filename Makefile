@@ -16,13 +16,13 @@ venv: uv-sync
 sync: uv-sync
 
 index:
-	uv run scripts/build_index.py
+	uv run tools/build_index.py
 
 graph:
-	uv run scripts/build_graph.py
+	uv run tools/build_graph.py
 
 related:
-	uv run scripts/update_related.py
+	uv run tools/update_related.py
 
 push-index:
 	uv run scripts/push_index.py

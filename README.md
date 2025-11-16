@@ -10,7 +10,7 @@
 Es zerlegt Notizen (z. B. aus Obsidian), erstellt **Embeddings**, baut daraus einen **Index und Wissensgraphen** und schreibt „Related“-Blöcke direkt in die Markdown-Dateien zurück.
 
 - **Einbettung in HausKI:** dient dort als semantische Gedächtnis-Schicht (Memory Layer).
-- **Eigenständig nutzbar:** Skript-Pipeline (`scripts/`, `Makefile`) oder Rust-Dienst (`/index/*`).
+- **Eigenständig nutzbar:** Skript-Pipeline (`tools/`, `Makefile`) oder Rust-Dienst (`/index/*`).
 - **Artefakte:** `.gewebe/embeddings.parquet`, `nodes.jsonl`, `edges.jsonl`, Reports.
 - **KPIs:** Index-Suche top-k=20 in < 60 ms (p95).
 - **Integrationen:** Obsidian Canvas (Auto-Links), systemd-Timer, WGX-Recipes.
@@ -22,7 +22,7 @@ Mehr zur Integration: [docs/hauski.md](docs/hauski.md). Ergänzend:
 SemantAH ist eine lokal laufende Wissensgraph- und Semantik-Pipeline für Obsidian-Vaults. Das Projekt adaptiert die Blaupausen aus `semantAH.md` und `semantAH brainstorm.md` und zielt darauf ab, eine modulare, reproduzierbare Infrastruktur aufzubauen:
 
 - **Rust Workspace** mit eigenständigen Crates für Embeddings-Provider (`embeddings`) und Vektorindex/HTTP-Service (`indexd`).
-- **Python-Tooling** zum Erzeugen von Embeddings, Graph-Knoten/Kanten und automatischen Related-Blöcken in Markdown-Notizen (siehe [`scripts/README.md`](scripts/README.md)).
+- **Python-Tooling** zum Erzeugen von Embeddings, Graph-Knoten/Kanten und automatischen Related-Blöcken in Markdown-Notizen (siehe `tools/`).
 - **Konfigurierbare Policies** (Cutoffs, Boosts, Safe Mode) sowie Persistenz in `.gewebe/`.
 - **Automatisierung** via Makefile, `wgx`-Recipes und optional systemd-Timer.
 
@@ -47,10 +47,9 @@ SemantAH ist eine lokal laufende Wissensgraph- und Semantik-Pipeline für Obsidi
 │   ├── config-reference.md # Parametertabelle für semantah.yml
 │   ├── indexd-api.md    # HTTP-Referenz für den Rust-Dienst
 │   └── roadmap.md       # Umsetzungsschritte & Fortschritt
-├── scripts/
+├── tools/
 │   ├── build_index.py   # Stub für Index-Lauf
 │   ├── build_graph.py   # Stub für Graph-Aufbau
-│   ├── export_insights.py # Stub für Tages-Insights
 │   └── update_related.py# Stub für Related-Blöcke
 ├── Makefile             # Tasks (venv, index, graph, related)
 └── systemd/
@@ -211,7 +210,7 @@ make all         # embeddings → index → graph → related (Stub-Skripte)
 cargo run -p indexd
 ```
 
-Der Dienst dokumentiert seine Routen in [docs/indexd-api.md](docs/indexd-api.md); die Python-Schritte sind in [scripts/README.md](scripts/README.md) beschrieben.
+Der Dienst dokumentiert seine Routen in [docs/indexd-api.md](docs/indexd-api.md); die Python-Schritte sind in `tools/` beschrieben.
 
 ## Troubleshooting (kurz)
 - **Leere Notizen / Binärdateien** → werden übersprungen, Logs prüfen (`.gewebe/logs`)

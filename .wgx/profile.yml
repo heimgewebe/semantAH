@@ -36,11 +36,16 @@ tasks:
     set -euo pipefail
     echo "[wgx.snapshot] full pipeline"
     uv run pytest -q
-    uv run python scripts/build_index.py
-    uv run python scripts/build_graph.py
-    uv run python scripts/update_related.py
+    uv run python tools/build_index.py
+    uv run python tools/build_graph.py
+    uv run python tools/update_related.py
 
   knowledge: |
     set -euo pipefail
     echo "[wgx.knowledge] not yet implemented – skipping"
     exit 0
+
+  semantah.index: "uv run python tools/build_index.py"
+  semantah.graph: "uv run python tools/build_graph.py"
+  semantah.related: "uv run python tools/update_related.py"
+  semantah.all: "./wgx/wgx semantah.index && ./wgx/wgx semantah.graph && ./wgx/wgx semantah.related"
