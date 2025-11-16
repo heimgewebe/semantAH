@@ -1,20 +1,17 @@
 name: CI
 permissions:
   contents: read
-
 on:
   push:
-    branches: ["main"]
+    branches: [ main ]
   pull_request:
   workflow_dispatch:
   schedule:
-    - cron: "17 4 * * 1"   # wöchentlicher Lauf (z.B. mit Metrics)
+    - cron: "17 4 * * 1"
 
 jobs:
   wgx:
     uses: ./.github/workflows/wgx-reusable.yml
     with:
-      # Metrics nur bei geplanten Läufen oder manuellen Triggers:
-      run_metrics: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
-      # Snapshot vorerst aus; kannst du später bewusst aktivieren:
+      run_metrics: ${{ github.event_name == 'schedule' }}
       run_snapshot: false

@@ -1,45 +1,36 @@
-class: rust-service
+class: python-service
 
 tasks:
   smoke: |
     set -euo pipefail
-    echo "[wgx.smoke] repo=$(basename "$(git rev-parse --show-toplevel)")"
-    if [ -f Cargo.toml ]; then
-      cargo metadata --no-deps > /dev/null
-    fi
-    if [ -f pyproject.toml ] && command -v uv >/dev/null 2>&1; then
-      # leichter Python-Sanitycheck, ohne echte Tests
-      uv run python -m compileall . || true
+    echo "[wgx.smoke] semantAH"
+    if [ -f pyproject.toml ]; then
+      uv run python -m compileall semantah || true
     fi
 
   guard: |
     set -euo pipefail
-
-    if [ -f Cargo.toml ]; then
-      cargo fmt --all -- --check
-      cargo clippy --all-targets --all-features -- -D warnings
-    fi
-
     if [ -f pyproject.toml ] && command -v uv >/dev/null 2>&1; then
       uv run ruff check .
       uv run ruff format --check .
-    fi
-
-    if command -v yamllint >/dev/null 2>&1; then
-      yamllint .
+      uv run pytest -q --disable-warnings
     fi
 
   metrics: |
-    if [ -x scripts/wgx-metrics-snapshot.sh ]; then
-      scripts/wgx-metrics-snapshot.sh --json
+    if [ -f pyproject.toml ] && command -v uv >/dev/null 2>&1; then
+      uv run pytest --cov=semantah --cov-report=xml:coverage.xml || true
     else
-      echo "no metrics script; skipping"
+      echo "no metrics; skipping"
     fi
 
-  snapshot: ""
+  snapshot: |
+    set -euo pipefail
+    echo "[wgx.snapshot] full pipeline"
+    uv run python scripts/build_index.py
+    uv run python scripts/build_graph.py
+    uv run python scripts/update_related.py
 
   knowledge: |
     set -euo pipefail
-    if [ -x ./wgx/wgx ]; then
-      ./wgx/wgx knowledge extract --repo . --out knowledge.graph.json
-    fi
+    echo "[wgx.knowledge] extracting knowledge graph"
+    uv run python scripts/extract_knowledge.py --out knowledge.graph.json

@@ -4,14 +4,12 @@ on:
   workflow_call:
     inputs:
       run_metrics:
-        description: "Run wgx metrics task as part of this workflow"
-        required: false
         type: boolean
+        required: false
         default: false
       run_snapshot:
-        description: "Run wgx snapshot task as part of this workflow"
-        required: false
         type: boolean
+        required: false
         default: false
 
 permissions:
@@ -20,38 +18,17 @@ permissions:
 jobs:
   wgx:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with: { python-version: "3.11" }
+      - uses: mikefarah/yq@v4
 
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@v1
-        with:
-          toolchain: stable
-          components: clippy, rustfmt
+      - run: ./wgx/wgx smoke
+      - run: ./wgx/wgx guard
 
-      - name: Setup uv (Python)
-        uses: astral-sh/setup-uv@v4
-        with:
-          python-version: "3.11"
-
-      - name: Install yq
-        uses: mikefarah/yq@v4
-
-      - name: Bootstrap environment
-        run: ./wgx/wgx up
-
-      - name: Run wgx smoke
-        run: ./wgx/wgx smoke
-
-      - name: Run wgx guard
-        run: ./wgx/wgx guard
-
-      - name: Run wgx metrics
-        if: ${{ inputs.run_metrics }}
+      - if: ${{ inputs.run_metrics }}
         run: ./wgx/wgx metrics
 
-      - name: Run wgx snapshot
-        if: ${{ inputs.run_snapshot }}
+      - if: ${{ inputs.run_snapshot }}
         run: ./wgx/wgx snapshot

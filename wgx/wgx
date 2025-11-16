@@ -1,26 +1,36 @@
 #!/usr/bin/env bash
-
 set -euo pipefail
 
 WGX_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export WGX_ROOT
 
-# shellcheck source=lib/logging.bash
-source "${WGX_ROOT}/lib/logging.bash"
-
 if [[ $# -eq 0 ]]; then
-  log_error "Usage: $0 <command>"
+  echo "Usage: wgx <command>" >&2
   exit 1
 fi
 
 COMMAND="$1"
 shift
 
-CMD_PATH="${WGX_ROOT}/cmd/${COMMAND}"
+PROFILE="${WGX_ROOT}/../.wgx/profile.yml"
 
-if [[ ! -f "${CMD_PATH}" ]]; then
-  log_error "Unknown command: ${COMMAND}"
+if [[ ! -f "$PROFILE" ]]; then
+  echo "[wgx] profile missing: $PROFILE" >&2
   exit 1
 fi
 
-exec "${CMD_PATH}" "$@"
+if ! command -v yq >/dev/null 2>&1; then
+  echo "[wgx] yq missing" >&2
+  exit 1
+fi
+
+TASK=$(yq -r ".tasks.${COMMAND} // \"\"" "$PROFILE")
+
+if [[ -z "$TASK" ]]; then
+  echo "[wgx] unknown task: $COMMAND" >&2
+  exit 1
+fi
+
+cd "$WGX_ROOT/.."
+echo "[wgx] run: $COMMAND"
+bash -lc "$TASK"
