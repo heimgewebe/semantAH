@@ -4,10 +4,12 @@ from typing import Any, Dict, List, Tuple
 import pandas as pd
 import pytest
 
-hypothesis = pytest.importorskip("hypothesis")
-from hypothesis import given, settings, strategies as st  # type: ignore
-
 from scripts.push_index import to_batches
+
+hypothesis = pytest.importorskip("hypothesis")
+given = hypothesis.given        # type: ignore[attr-defined]
+settings = hypothesis.settings  # type: ignore[attr-defined]
+st = hypothesis.strategies      # type: ignore[attr-defined]
 
 
 def _entries_from_batches(batches: List[Dict[str, Any]]) -> List[Tuple[str, str, str, str]]:
