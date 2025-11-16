@@ -1,11 +1,5 @@
 name: knowledge-extract-ingest
 on:
-  push:
-    paths:
-      - "**/*.rs"
-      - "**/*.py"
-      - "docs/**"
-      - ".github/workflows/knowledge-extract-and-ingest.yml"
   workflow_dispatch: {}
 permissions: { contents: read }
 jobs:
