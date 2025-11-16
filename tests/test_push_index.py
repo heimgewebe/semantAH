@@ -97,7 +97,10 @@ def test_chunk_id_fallback_stable_across_reordering():
 
 
 def test_chunk_id_global_ids_and_bool_skip():
-    assert _derive_chunk_id({"chunk_id": "G#abc", "embedding": [1, 0]}, doc_id="D") == "G#abc"
+    assert (
+        _derive_chunk_id({"chunk_id": "G#abc", "embedding": [1, 0]}, doc_id="D")
+        == "G#abc"
+    )
     cid = _derive_chunk_id(
         {"chunk_id": True, "text": "X", "embedding": [1, 0]}, doc_id="D"
     )

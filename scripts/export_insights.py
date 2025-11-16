@@ -3,12 +3,14 @@
 Stub: exportiert Tages-Insights als JSON.
 Ziel: $VAULT_ROOT/.gewebe/insights/today.json
 """
+
 from __future__ import annotations
 import json
 import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
 
 def main() -> int:
     vault_root = os.environ.get("VAULT_ROOT", os.path.expanduser("~/Vaults/main"))
@@ -35,6 +37,7 @@ def main() -> int:
     out_file.write_text(json.dumps(payload, ensure_ascii=False, indent=2))
     print(f"Wrote insights → {out_file}")
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

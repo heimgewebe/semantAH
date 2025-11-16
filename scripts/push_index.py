@@ -28,7 +28,9 @@ DEFAULT_MAX_CHUNKS = 500
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Push vorhandene Embeddings in indexd.")
+    parser = argparse.ArgumentParser(
+        description="Push vorhandene Embeddings in indexd."
+    )
     parser.add_argument(
         "--embeddings",
         type=Path,
@@ -66,7 +68,9 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def to_batches(df: pd.DataFrame, default_namespace: str = "default") -> Iterable[Dict[str, Any]]:
+def to_batches(
+    df: pd.DataFrame, default_namespace: str = "default"
+) -> Iterable[Dict[str, Any]]:
     """
     Groups rows into batches by (namespace, doc_id) and converts them to chunks.
     - `doc_id` is robustly populated per *row* (even if the column exists but values are empty/NaN).
@@ -87,6 +91,7 @@ def to_batches(df: pd.DataFrame, default_namespace: str = "default") -> Iterable
             if _is_missing(raw) or (isinstance(raw, str) and not raw.strip()):
                 return _derive_doc_id(row)
             return str(raw).strip()
+
         df["doc_id"] = df.apply(_fill_doc_id, axis=1)
 
     # Namespace standardisieren
@@ -227,7 +232,9 @@ def post_upsert(
     endpoint: str, payload: Dict[str, Any], *, timeout: float
 ) -> Dict[str, Any] | None:
     data = json.dumps(payload).encode("utf-8")
-    req = request.Request(endpoint, data=data, headers={"Content-Type": "application/json"})
+    req = request.Request(
+        endpoint, data=data, headers={"Content-Type": "application/json"}
+    )
     with request.urlopen(req, timeout=timeout) as resp:
         body = resp.read().decode("utf-8").strip()
         if not body:
@@ -245,7 +252,9 @@ def main() -> int:
     try:
         df = pd.read_parquet(args.embeddings)
     except Exception as exc:  # pragma: no cover - IO-Fehler
-        print(f"[push-index] Konnte {args.embeddings} nicht lesen: {exc}", file=sys.stderr)
+        print(
+            f"[push-index] Konnte {args.embeddings} nicht lesen: {exc}", file=sys.stderr
+        )
         return 1
 
     if df.empty:
@@ -261,7 +270,9 @@ def main() -> int:
         for sub_batch in _split_batch(batch, args.max_chunks):
             for attempt in range(args.retries + 1):
                 try:
-                    response = post_upsert(args.endpoint, sub_batch, timeout=args.timeout)
+                    response = post_upsert(
+                        args.endpoint, sub_batch, timeout=args.timeout
+                    )
                 except error.HTTPError as exc:
                     if attempt >= args.retries:
                         print(
@@ -280,7 +291,9 @@ def main() -> int:
                     continue
                 else:
                     chunks = len(sub_batch["chunks"])
-                    status = response.get("status") if isinstance(response, dict) else "ok"
+                    status = (
+                        response.get("status") if isinstance(response, dict) else "ok"
+                    )
                     print(
                         f"[push-index] Upsert gesendet • doc={sub_batch['doc_id']} namespace={sub_batch['namespace']} chunks={chunks} status={status}",
                     )
