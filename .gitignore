@@ -2,6 +2,7 @@
 /target/
 .gewebe/
 vault/.gewebe/
+.test-indexd-state/
 .pytest_cache/
 .hypothesis/
 .ruff_cache/
