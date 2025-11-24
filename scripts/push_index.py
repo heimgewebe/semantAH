@@ -133,7 +133,7 @@ def _derive_doc_id(rec: Dict[str, Any]) -> str:
     # Fallback: generate a synthetic doc_id from text hash
     text = rec.get("text")
     if not _is_missing(text):
-        h = hashlib.blake2b(str(text).encode("utf-8"), digest_size=8).hexdigest()[:16]
+        h = hashlib.blake2b(str(text).encode("utf-8"), digest_size=8).hexdigest()
         return f"doc#{h}"
     raise ValueError("No valid doc_id/path/id field found")
 
@@ -175,7 +175,7 @@ def _derive_chunk_id(rec: Dict[str, Any], doc_id: str) -> str:
 
     # Use the "id" field if present as chunk_id
     id_val = rec.get("id")
-    if id_val is not None and not _is_missing(id_val) and not isinstance(id_val, bool):
+    if not _is_missing(id_val) and not isinstance(id_val, bool):
         return str(id_val)
 
     row_val = rec.get("__row")
