@@ -135,6 +135,11 @@ def _derive_doc_id(rec: Dict[str, Any]) -> str:
     if not _is_missing(text):
         h = hashlib.blake2b(str(text).encode("utf-8"), digest_size=8).hexdigest()
         return f"doc#{h}"
+    # Final fallback: if text field exists (even if missing), generate synthetic doc_id
+    if "text" in rec:
+        rec_str = str(sorted(rec.items()))
+        h = hashlib.blake2b(rec_str.encode("utf-8"), digest_size=8).hexdigest()
+        return f"doc#{h}"
     raise ValueError("No valid doc_id/path/id field found")
 
 
@@ -206,8 +211,10 @@ def _is_missing(x: Any) -> bool:
         return True
     if isinstance(x, float) and math.isnan(x):
         return True
-    if isinstance(x, str) and x.strip() == "":
-        return True
+    if isinstance(x, str):
+        stripped = x.strip()
+        if stripped == "" or stripped.lower() == "nan":
+            return True
     return False
 
 
