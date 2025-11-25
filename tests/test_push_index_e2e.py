@@ -147,7 +147,7 @@ def test_push_index_script_end_to_end(tmp_path: Path, monkeypatch: pytest.Monkey
         # 3) push_index.py gegen den laufenden Dienst ausführen
         # Hinweis: wir setzen CWD auf 'work', damit der Default-Pfad funktioniert;
         # übergeben aber explizit --embeddings zur Sicherheit.
-        script = Path("scripts") / "push_index.py"
+        script = Path(__file__).parent.parent / "scripts" / "push_index.py"
         cmd = [
             sys.executable,
             str(script),

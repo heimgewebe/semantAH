@@ -126,8 +126,20 @@ def to_batches(
 def _derive_doc_id(rec: Dict[str, Any]) -> str:
     for key in ("doc_id", "path", "id"):
         val = rec.get(key)
-        if not _is_missing(val):
-            return str(val).strip()
+        if not _is_missing(val) and not isinstance(val, bool):
+            stripped = str(val).strip()
+            if stripped:  # Ensure stripped value is not empty
+                return stripped
+    # Fallback: generate a synthetic doc_id from text hash
+    text = rec.get("text")
+    if not _is_missing(text):
+        h = hashlib.blake2b(str(text).encode("utf-8"), digest_size=8).hexdigest()
+        return f"doc#{h}"
+    # Final fallback: if text field exists (even if missing), generate synthetic doc_id
+    if "text" in rec:
+        rec_str = str(sorted(rec.items()))
+        h = hashlib.blake2b(rec_str.encode("utf-8"), digest_size=8).hexdigest()
+        return f"doc#{h}"
     raise ValueError("No valid doc_id/path/id field found")
 
 
@@ -166,6 +178,11 @@ def _derive_chunk_id(rec: Dict[str, Any], doc_id: str) -> str:
         # that the function continues with the __row fallback.
         pass
 
+    # Use the "id" field if present as chunk_id
+    id_val = rec.get("id")
+    if not _is_missing(id_val) and not isinstance(id_val, bool):
+        return str(id_val)
+
     row_val = rec.get("__row")
     if row_val is not None and not _is_missing(row_val):
         return f"{doc_id}#r{int(row_val)}"
@@ -194,8 +211,10 @@ def _is_missing(x: Any) -> bool:
         return True
     if isinstance(x, float) and math.isnan(x):
         return True
-    if isinstance(x, str) and x.strip() == "":
-        return True
+    if isinstance(x, str):
+        stripped = x.strip()
+        if stripped == "" or stripped.lower() == "nan":
+            return True
     return False
 
 
