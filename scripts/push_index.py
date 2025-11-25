@@ -126,7 +126,7 @@ def to_batches(
 def _derive_doc_id(rec: Dict[str, Any]) -> str:
     for key in ("doc_id", "path", "id"):
         val = rec.get(key)
-        if not _is_missing(val):
+        if not _is_missing(val) and not isinstance(val, bool):
             stripped = str(val).strip()
             if stripped:  # Ensure stripped value is not empty
                 return stripped
