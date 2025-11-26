@@ -24,9 +24,9 @@ jobs:
           fi
       - name: Validate knowledge graph (contracts)
         if: steps.extract.outputs.knowledge_graph_generated == 'true'
-        uses: heimgewebe/metarepo/.github/workflows/validate-knowledge-graph.yml@contracts-v1
-        with:
-          files_glob: knowledge.graph.json
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/knowledge.graph.schema.json -o /tmp/schema.json
+          npx --yes ajv-cli@5 validate --spec=draft2020 -s /tmp/schema.json -d knowledge.graph.json
       - name: Ingest to semantAH
         if: steps.extract.outputs.knowledge_graph_generated == 'true'
         env:
