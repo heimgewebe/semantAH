@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read Leitstand export and produce today's insights."""
+"""Read Chronik export and produce today's insights."""
 
 from __future__ import annotations
 
