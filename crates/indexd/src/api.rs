@@ -255,7 +255,7 @@ async fn handle_search(
 
         parse_embedding(value).map_err(bad_request)?
     } else if let Some(embedder) = embedder {
-        let vectors = embedder.embed(&[query_text_owned.clone()]).await
+        let vectors = embedder.embed(std::slice::from_ref(&query_text_owned)).await
             .map_err(|err| server_unavailable(format!("failed to generate embedding: {err}")))?;
         vectors.into_iter().next().ok_or_else(|| {
             server_unavailable("failed to generate embedding: embedder returned no embeddings")
