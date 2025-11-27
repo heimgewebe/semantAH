@@ -22,6 +22,8 @@ jobs:
           else
             echo "knowledge_graph_generated=false" >> $GITHUB_OUTPUT
           fi
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
       - name: Validate knowledge graph (contracts)
         if: steps.extract.outputs.knowledge_graph_generated == 'true'
         run: |
