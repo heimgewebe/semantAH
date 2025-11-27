@@ -22,11 +22,14 @@ jobs:
           else
             echo "knowledge_graph_generated=false" >> $GITHUB_OUTPUT
           fi
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
       - name: Validate knowledge graph (contracts)
         if: steps.extract.outputs.knowledge_graph_generated == 'true'
-        uses: heimgewebe/metarepo/.github/workflows/validate-knowledge-graph.yml@contracts-v1
-        with:
-          files_glob: knowledge.graph.json
+        run: |
+          # The schema URL is now sourced from the repository variable KNOWLEDGE_GRAPH_SCHEMA_URL
+          curl -fsSL "${{ vars.KNOWLEDGE_GRAPH_SCHEMA_URL }}" -o /tmp/schema.json
+          npx --yes ajv-cli@5 validate --spec=draft2020 -s /tmp/schema.json -d knowledge.graph.json
       - name: Ingest to semantAH
         if: steps.extract.outputs.knowledge_graph_generated == 'true'
         env:
