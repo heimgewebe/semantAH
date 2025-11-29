@@ -34,9 +34,10 @@ def _prebuild_indexd(timeout_s: float = 300.0) -> None:
         out = e.stdout.decode("utf-8", "replace") if e.stdout else ""
         pytest.fail(f"Prebuild of indexd failed (rc={e.returncode}). Output:\n{out}")
     except subprocess.TimeoutExpired as e:
+        cmd_str = shlex.join(e.cmd) if isinstance(e.cmd, (list, tuple)) else e.cmd
         pytest.fail(
-            "Prebuild of indexd timed out after "
-            f"{timeout_s:.0f}s. Command: {shlex.join(e.cmd) if isinstance(e.cmd, (list, tuple)) else e.cmd}"
+            f"Prebuild of indexd timed out after {timeout_s:.0f}s. "
+            f"Command: {cmd_str}"
         )
 
 
@@ -159,7 +160,8 @@ def test_push_index_script_end_to_end(tmp_path: Path, monkeypatch: pytest.Monkey
         proc = subprocess.run(cmd, cwd=work, capture_output=True, text=True, timeout=25)
         if proc.returncode != 0:
             pytest.fail(
-                f"push_index.py failed: rc={proc.returncode}\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
+                f"push_index.py failed: rc={proc.returncode}\n"
+                f"STDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
             )
 
         # 4) Suche absetzen und Treffer prüfen
