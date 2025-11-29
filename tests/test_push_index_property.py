@@ -35,10 +35,16 @@ _namespace_strategy = st.one_of(
     st.floats(allow_nan=True),
     st.just(""),
     st.just("   "),
-    st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs")), min_size=1, max_size=8),
+    st.text(
+        alphabet=st.characters(blacklist_categories=("Cc", "Cs")),
+        min_size=1,
+        max_size=8,
+    ),
 )
 
-_doc_id_strategy = st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs")), min_size=1, max_size=8)
+_doc_id_strategy = st.text(
+    alphabet=st.characters(blacklist_categories=("Cc", "Cs")), min_size=1, max_size=8
+)
 
 _maybe_chunk_id = st.one_of(
     st.none(),

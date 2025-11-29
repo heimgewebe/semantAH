@@ -36,8 +36,7 @@ def _prebuild_indexd(timeout_s: float = 300.0) -> None:
     except subprocess.TimeoutExpired as e:
         cmd_str = shlex.join(e.cmd) if isinstance(e.cmd, (list, tuple)) else e.cmd
         pytest.fail(
-            f"Prebuild of indexd timed out after {timeout_s:.0f}s. "
-            f"Command: {cmd_str}"
+            f"Prebuild of indexd timed out after {timeout_s:.0f}s. Command: {cmd_str}"
         )
 
 

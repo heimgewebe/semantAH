@@ -294,8 +294,8 @@ def main() -> int:
                     )
                 except error.HTTPError as exc:
                     if attempt >= args.retries:
-                        doc_id = sub_batch['doc_id']
-                        ns = sub_batch['namespace']
+                        doc_id = sub_batch["doc_id"]
+                        ns = sub_batch["namespace"]
                         print(
                             f"[push-index] HTTP-Fehler für doc={doc_id} "
                             f"namespace={ns}: {exc}",
@@ -317,8 +317,8 @@ def main() -> int:
                     status = (
                         response.get("status") if isinstance(response, dict) else "ok"
                     )
-                    doc_id = sub_batch['doc_id']
-                    ns = sub_batch['namespace']
+                    doc_id = sub_batch["doc_id"]
+                    ns = sub_batch["namespace"]
                     print(
                         f"[push-index] Upsert gesendet • doc={doc_id} "
                         f"namespace={ns} chunks={chunks} status={status}",
