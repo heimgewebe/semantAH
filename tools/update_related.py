@@ -24,8 +24,8 @@ def show_related_for_note(note: Path) -> None:
         return
 
     print(f"--- Changes for {note} ---")
-    print(text + "\\n" + RELATED_BLOCK)
-    print("--- End of changes ---\\n")
+    print(text + "\n" + RELATED_BLOCK)
+    print("--- End of changes ---\n")
 
 
 def main() -> None:
@@ -35,7 +35,7 @@ def main() -> None:
         print(f"Directory not found: {notes_dir}")
         return
 
-    print("[dry-run] Showing related blocks to be injected.\\n")
+    print("[dry-run] Showing related blocks to be injected.\n")
     for note in notes_dir.glob("*.md"):
         show_related_for_note(note)
 
