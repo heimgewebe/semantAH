@@ -27,39 +27,43 @@ def process_intent_record(record: Dict[str, Any]) -> List[Dict[str, Any]]:
 
     intent_node = {
         "id": intent_id,
-        "label": "Intent",
-        "ts": timestamp,
+        "type": "Intent",
+        "title": goal,
+        "updated_at": timestamp,
     }
     meta = record.get("meta", {})
     if isinstance(meta, dict):
-        intent_node.update(meta)
+        # Update with meta but preserve updated_at
+        for key, value in meta.items():
+            if key not in ("id", "type", "title", "updated_at"):
+                intent_node[key] = value
 
     nodes = [intent_node]
     edges = []
 
     # Create actor node and edge
     actor_id = f"actor:{actor}"
-    nodes.append({"id": actor_id, "label": "Actor"})
-    edges.append({"s": actor_id, "p": "declares", "o": intent_id})
+    nodes.append({"id": actor_id, "type": "Actor", "title": actor})
+    edges.append({"src": actor_id, "rel": "declares", "dst": intent_id})
 
     # Create scope nodes and edges
     scope = record.get("scope", {})
     if "repo" in scope:
         repo_id = f"repo:{scope['repo']}"
-        nodes.append({"id": repo_id, "label": "Repo"})
-        edges.append({"s": intent_id, "p": "scopes", "o": repo_id})
+        nodes.append({"id": repo_id, "type": "Repo", "title": scope["repo"]})
+        edges.append({"src": intent_id, "rel": "scopes", "dst": repo_id})
     if "path" in scope:
         path_id = f"path:{scope['path']}"
-        nodes.append({"id": path_id, "label": "Path"})
-        edges.append({"s": intent_id, "p": "scopes", "o": path_id})
+        nodes.append({"id": path_id, "type": "Path", "title": scope["path"]})
+        edges.append({"src": intent_id, "rel": "scopes", "dst": path_id})
 
     # Create tag nodes and edges
     context = record.get("context", {})
     tags = context.get("tags", [])
     for tag in tags:
         tag_id = f"tag:{tag}"
-        nodes.append({"id": tag_id, "label": "Tag"})
-        edges.append({"s": intent_id, "p": "mentions", "o": tag_id})
+        nodes.append({"id": tag_id, "type": "Tag", "title": tag})
+        edges.append({"src": intent_id, "rel": "mentions", "dst": tag_id})
 
     return nodes + edges
 
@@ -79,7 +83,7 @@ def ingest_intents(source_path: Path, nodes_path: Path, edges_path: Path):
                     edges_path.open("a", encoding="utf-8") as edges_file,
                 ):
                     for element in elements:
-                        if "p" in element:  # It's an edge
+                        if "rel" in element:  # It's an edge
                             edges_file.write(json.dumps(element) + "\n")
                         else:  # It's a node
                             nodes_file.write(json.dumps(element) + "\n")

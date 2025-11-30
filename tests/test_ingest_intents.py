@@ -43,9 +43,9 @@ def test_ingest_intents(intent_data):
         assert len(nodes) == 5
         assert len(edges) == 4
 
-        intent_node = next((n for n in nodes if n["label"] == "Intent"), None)
+        intent_node = next((n for n in nodes if n["type"] == "Intent"), None)
         assert intent_node is not None
-        assert intent_node["ts"] == "2024-01-01T12:00:00Z"
+        assert intent_node["updated_at"] == "2024-01-01T12:00:00Z"
 
 
 def test_main_with_valid_data(intent_data):
