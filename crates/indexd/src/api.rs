@@ -7,50 +7,82 @@ use tracing::{debug, info};
 
 use crate::AppState;
 
+/// Request to insert or update document chunks with embeddings.
+///
+/// All chunks for a document ID are replaced atomically. If any chunk fails
+/// validation, the entire operation is rolled back.
 #[derive(Debug, Deserialize)]
 pub struct UpsertRequest {
+    /// Unique identifier for the document.
     pub doc_id: String,
+    /// Logical namespace to isolate this document (e.g., "vault" or "notes").
     pub namespace: String,
+    /// List of chunks to be indexed. Each must contain an embedding.
     pub chunks: Vec<ChunkPayload>,
 }
 
+/// A single chunk of a document with its embedding and metadata.
 #[derive(Debug, Deserialize)]
 pub struct ChunkPayload {
+    /// Unique identifier for this chunk within the document.
     pub id: String,
+    /// Text content (stored for reference but not currently indexed).
     #[serde(rename = "text")]
     _text: String,
+    /// Metadata must include an "embedding" array and may include a "snippet" string.
     #[serde(default = "default_meta")]
     pub meta: Value,
 }
 
+/// Request to delete all chunks associated with a document.
 #[derive(Debug, Deserialize)]
 pub struct DeleteRequest {
+    /// Document identifier to delete.
     pub doc_id: String,
+    /// Namespace where the document is stored.
     pub namespace: String,
 }
 
+/// Request to search for similar chunks using vector similarity.
+///
+/// Embeddings can be provided in three ways (in order of precedence):
+/// 1. `query.meta.embedding` - Preferred location
+/// 2. `embedding` - Top-level field
+/// 3. `meta.embedding` - Legacy location
+///
+/// If no embedding is provided and an embedder is configured, the query text
+/// will be embedded automatically.
 #[derive(Debug, Deserialize)]
 pub struct SearchRequest {
-    /// TODO(server-side-embeddings): replace client-provided vectors with generated embeddings.
+    /// Query text and optional metadata.
     pub query: QueryPayload,
+    /// Maximum number of results to return (default: 10).
     #[serde(default = "default_k")]
     pub k: u32,
+    /// Namespace to search within.
     pub namespace: String,
+    /// Optional filters to apply (not yet implemented).
     #[serde(default)]
     pub filters: Option<Value>,
-    /// Optional top-level embedding payload until server-side embeddings are available.
+    /// Optional top-level embedding array.
     #[serde(default)]
     pub embedding: Option<Value>,
-    /// Legacy fallback: support former top-level `meta.embedding`
-    /// (kept optional to remain backward compatible).
+    /// Legacy location for embedding. Use `query.meta.embedding` or `embedding` instead.
     #[serde(default)]
     pub meta: Option<Value>,
 }
 
+/// Query payload that can be either plain text or text with metadata.
+///
+/// The untagged serde representation allows clients to send either:
+/// - A simple string: `"hello world"`
+/// - An object with text and metadata: `{"text": "hello", "meta": {"embedding": [...]}}`
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 pub enum QueryPayload {
+    /// Plain text query without metadata.
     Text(String),
+    /// Query text with optional metadata (including embedding).
     WithMeta {
         text: String,
         #[serde(default = "default_meta")]
@@ -59,6 +91,7 @@ pub enum QueryPayload {
 }
 
 impl QueryPayload {
+    /// Extract the text portion of the query regardless of variant.
     fn text(&self) -> &str {
         match self {
             QueryPayload::Text(text) => text,
@@ -67,17 +100,25 @@ impl QueryPayload {
     }
 }
 
+/// Response containing search results ordered by similarity score (descending).
 #[derive(Debug, Serialize)]
 pub struct SearchResponse {
+    /// List of matching chunks, ordered by score (highest first).
     pub results: Vec<SearchHit>,
 }
 
+/// A single search result representing a matching chunk.
 #[derive(Debug, Serialize)]
 pub struct SearchHit {
+    /// Document identifier.
     pub doc_id: String,
+    /// Chunk identifier within the document.
     pub chunk_id: String,
+    /// Cosine similarity score (0.0 to 1.0, where 1.0 is perfect match).
     pub score: f32,
+    /// Text snippet from the chunk metadata.
     pub snippet: String,
+    /// Reserved for future use (e.g., explaining why this result matched).
     pub rationale: Vec<String>,
 }
 
@@ -125,20 +166,24 @@ async fn handle_upsert(
 
         let mut meta = match meta {
             Value::Object(map) => map,
-            _ => return Err(bad_request("chunk meta must be an object")),
+            _ => return Err(bad_request(format!("chunk '{}' meta must be an object", id))),
         };
 
         let embedding_value = meta
             .remove("embedding")
-            .ok_or_else(|| bad_request("chunk meta must contain an embedding array"))?;
+            .ok_or_else(|| bad_request(format!(
+                "chunk '{}' meta must contain an 'embedding' array",
+                id
+            )))?;
 
-        let vector = parse_embedding(embedding_value).map_err(bad_request)?;
+        let vector = parse_embedding(embedding_value)
+            .map_err(|err| bad_request(format!("chunk '{}': {}", id, err)))?;
 
         if let Some(expected) = expected_dim {
             if expected != vector.len() {
                 return Err(bad_request(format!(
-                    "chunk embedding dimensionality mismatch: expected {expected}, got {}",
-                    vector.len()
+                    "chunk '{}' embedding dimensionality mismatch: expected {}, got {}",
+                    id, expected, vector.len()
                 )));
             }
         } else {
@@ -291,14 +336,22 @@ async fn handle_search(
 
 fn parse_embedding(value: Value) -> Result<Vec<f32>, String> {
     match value {
-        Value::Array(values) => values
-            .into_iter()
-            .map(|v| {
-                v.as_f64()
-                    .map(|num| num as f32)
-                    .ok_or_else(|| "embedding must be an array of numbers".to_string())
-            })
-            .collect(),
+        Value::Array(values) => {
+            if values.is_empty() {
+                return Err("embedding array cannot be empty".to_string());
+            }
+            values
+                .into_iter()
+                .enumerate()
+                .map(|(i, v)| {
+                    v.as_f64()
+                        .map(|num| num as f32)
+                        .ok_or_else(|| {
+                            format!("embedding[{}] must be a number, got {}", i, v)
+                        })
+                })
+                .collect()
+        }
         _ => Err("embedding must be an array of numbers".to_string()),
     }
 }
