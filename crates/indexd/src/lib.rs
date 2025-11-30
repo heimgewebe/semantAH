@@ -113,6 +113,11 @@ fn maybe_init_embedder() -> anyhow::Result<Option<Arc<dyn Embedder>>> {
                         anyhow::bail!("INDEXD_EMBEDDER_BASE_URL must start with http:// or https://, got: {}", base_url);
                     }
                     
+                    // Additional basic URL validation
+                    if base_url.contains(' ') || base_url.len() < 10 {
+                        anyhow::bail!("INDEXD_EMBEDDER_BASE_URL appears malformed: {}", base_url);
+                    }
+                    
                     let model = env::var("INDEXD_EMBEDDER_MODEL")
                         .unwrap_or_else(|_| "nomic-embed-text".to_string());
                     

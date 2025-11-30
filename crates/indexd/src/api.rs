@@ -340,17 +340,16 @@ fn parse_embedding(value: Value) -> Result<Vec<f32>, String> {
             if values.is_empty() {
                 return Err("embedding array cannot be empty".to_string());
             }
-            values
-                .into_iter()
-                .enumerate()
-                .map(|(i, v)| {
-                    v.as_f64()
-                        .map(|num| num as f32)
-                        .ok_or_else(|| {
-                            format!("embedding[{}] must be a number, got {}", i, v)
-                        })
-                })
-                .collect()
+            
+            let mut result = Vec::with_capacity(values.len());
+            for (i, v) in values.into_iter().enumerate() {
+                let num = v.as_f64()
+                    .ok_or_else(|| {
+                        format!("embedding[{}] must be a number, got {}", i, v)
+                    })?;
+                result.push(num as f32);
+            }
+            Ok(result)
         }
         _ => Err("embedding must be an array of numbers".to_string()),
     }
