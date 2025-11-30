@@ -50,11 +50,11 @@ def process_intent_record(record: Dict[str, Any]) -> List[Dict[str, Any]]:
     scope = record.get("scope", {})
     if "repo" in scope:
         repo_id = f"repo:{scope['repo']}"
-        nodes.append({"id": repo_id, "type": "Repo", "title": scope['repo']})
+        nodes.append({"id": repo_id, "type": "Repo", "title": scope["repo"]})
         edges.append({"src": intent_id, "rel": "scopes", "dst": repo_id})
     if "path" in scope:
         path_id = f"path:{scope['path']}"
-        nodes.append({"id": path_id, "type": "Path", "title": scope['path']})
+        nodes.append({"id": path_id, "type": "Path", "title": scope["path"]})
         edges.append({"src": intent_id, "rel": "scopes", "dst": path_id})
 
     # Create tag nodes and edges
