@@ -15,8 +15,9 @@ EDGES = GEWEBE / "edges.jsonl"
 
 def main() -> None:
     GEWEBE.mkdir(exist_ok=True)
-    NODES.write_text(f"{json.dumps({'id': 'stub:node'})}\n")
-    edge_data = {"s": "stub:node", "p": "related", "o": "stub:other", "w": 0.0}
+    node_data = {"id": "stub:node", "type": "Note", "title": "Stub Node"}
+    NODES.write_text(f"{json.dumps(node_data)}\n")
+    edge_data = {"src": "stub:node", "rel": "related", "dst": "stub:other", "weight": 0.0}
     EDGES.write_text(f"{json.dumps(edge_data)}\n")
     print("[stub] build_graph → wrote", NODES, "and", EDGES)
 
