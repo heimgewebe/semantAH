@@ -100,16 +100,43 @@ fn maybe_init_embedder() -> anyhow::Result<Option<Arc<dyn Embedder>>> {
     match env::var("INDEXD_EMBEDDER_PROVIDER") {
         Ok(provider) => {
             let provider = provider.trim();
+            if provider.is_empty() {
+                anyhow::bail!("INDEXD_EMBEDDER_PROVIDER cannot be empty");
+            }
             match provider {
                 "ollama" => {
                     let base_url = env::var("INDEXD_EMBEDDER_BASE_URL")
                         .unwrap_or_else(|_| "http://127.0.0.1:11434".to_string());
+                    
+                    // Validate URL format
+                    if !base_url.starts_with("http://") && !base_url.starts_with("https://") {
+                        anyhow::bail!("INDEXD_EMBEDDER_BASE_URL must start with http:// or https://, got: {}", base_url);
+                    }
+                    
+                    // Additional basic URL validation
+                    if base_url.contains(' ') || base_url.len() < 10 {
+                        anyhow::bail!("INDEXD_EMBEDDER_BASE_URL appears malformed: {}", base_url);
+                    }
+                    
                     let model = env::var("INDEXD_EMBEDDER_MODEL")
                         .unwrap_or_else(|_| "nomic-embed-text".to_string());
-                    let dim = env::var("INDEXD_EMBEDDER_DIM")
-                        .ok()
-                        .and_then(|value| value.parse::<usize>().ok())
-                        .unwrap_or(1536);
+                    
+                    if model.trim().is_empty() {
+                        anyhow::bail!("INDEXD_EMBEDDER_MODEL cannot be empty");
+                    }
+                    
+                    let dim = match env::var("INDEXD_EMBEDDER_DIM") {
+                        Ok(value) => {
+                            value.parse::<usize>().map_err(|_| {
+                                anyhow::anyhow!("INDEXD_EMBEDDER_DIM must be a positive integer, got: {}", value)
+                            })?
+                        }
+                        Err(_) => 1536, // Default dimension
+                    };
+                    
+                    if dim == 0 {
+                        anyhow::bail!("INDEXD_EMBEDDER_DIM must be greater than 0");
+                    }
 
                     info!(
                         provider = provider,
@@ -127,7 +154,7 @@ fn maybe_init_embedder() -> anyhow::Result<Option<Arc<dyn Embedder>>> {
                     Ok(Some(embedder))
                 }
                 other => {
-                    anyhow::bail!("unsupported embedder provider: {other}");
+                    anyhow::bail!("unsupported embedder provider: '{}' (supported: ollama)", other);
                 }
             }
         }
@@ -146,17 +173,21 @@ fn init_tracing() {
 
 async fn shutdown_signal() {
     let ctrl_c = async {
-        signal::ctrl_c()
-            .await
-            .expect("failed to install CTRL+C handler");
+        match signal::ctrl_c().await {
+            Ok(()) => info!("received CTRL+C signal"),
+            Err(err) => warn!("failed to listen for CTRL+C signal: {}", err),
+        }
     };
 
     #[cfg(unix)]
     let terminate = async {
-        signal::unix::signal(signal::unix::SignalKind::terminate())
-            .expect("failed to install signal handler")
-            .recv()
-            .await;
+        match signal::unix::signal(signal::unix::SignalKind::terminate()) {
+            Ok(mut stream) => {
+                stream.recv().await;
+                info!("received SIGTERM signal");
+            }
+            Err(err) => warn!("failed to listen for SIGTERM signal: {}", err),
+        }
     };
 
     #[cfg(not(unix))]

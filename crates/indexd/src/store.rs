@@ -6,13 +6,21 @@ use thiserror::Error;
 
 use crate::key::{make_chunk_key, split_chunk_key, KEY_SEPARATOR};
 
+/// In-memory vector store for embeddings with cosine similarity search.
+///
+/// All vectors in the store must have the same dimensionality, which is
+/// determined by the first insertion. The store organizes items by namespace
+/// and supports atomic document-level operations.
 #[derive(Debug, Default)]
 pub struct VectorStore {
+    /// Expected dimensionality of all vectors. Set by the first insertion.
     pub dims: Option<usize>,
+    /// Storage: (namespace, chunk_key) -> (embedding_vector, metadata)
     pub items: HashMap<(String, String), (Vec<f32>, Value)>,
 }
 
 impl VectorStore {
+    /// Create a new empty vector store.
     pub fn new() -> Self {
         Self {
             dims: None,
@@ -20,6 +28,15 @@ impl VectorStore {
         }
     }
 
+    /// Insert or update a chunk's embedding and metadata.
+    ///
+    /// The first insertion sets the expected dimensionality for all future
+    /// insertions. Subsequent insertions with mismatched dimensions will fail.
+    ///
+    /// # Errors
+    ///
+    /// Returns `VectorStoreError::DimensionalityMismatch` if the vector
+    /// dimensionality doesn't match the store's expected dimension.
     pub fn upsert(
         &mut self,
         namespace: &str,
@@ -44,6 +61,9 @@ impl VectorStore {
         Ok(())
     }
 
+    /// Delete all chunks belonging to a document within a namespace.
+    ///
+    /// If this leaves the store empty, the dimensionality constraint is reset.
     pub fn delete_doc(&mut self, namespace: &str, doc_id: &str) {
         let prefix = format!("{doc_id}{KEY_SEPARATOR}");
         self.items

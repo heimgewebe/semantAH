@@ -60,7 +60,7 @@ async fn upsert_with_dimension_mismatch_fails() {
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(
         json["error"],
-        "chunk embedding dimensionality mismatch: expected 2, got 3"
+        "chunk 'c2' embedding dimensionality mismatch: expected 2, got 3"
     );
 }
 
