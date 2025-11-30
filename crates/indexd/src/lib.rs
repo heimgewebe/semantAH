@@ -146,17 +146,21 @@ fn init_tracing() {
 
 async fn shutdown_signal() {
     let ctrl_c = async {
-        signal::ctrl_c()
-            .await
-            .expect("failed to install CTRL+C handler");
+        match signal::ctrl_c().await {
+            Ok(()) => info!("received CTRL+C signal"),
+            Err(err) => warn!("failed to listen for CTRL+C signal: {}", err),
+        }
     };
 
     #[cfg(unix)]
     let terminate = async {
-        signal::unix::signal(signal::unix::SignalKind::terminate())
-            .expect("failed to install signal handler")
-            .recv()
-            .await;
+        match signal::unix::signal(signal::unix::SignalKind::terminate()) {
+            Ok(mut stream) => {
+                stream.recv().await;
+                info!("received SIGTERM signal");
+            }
+            Err(err) => warn!("failed to listen for SIGTERM signal: {}", err),
+        }
     };
 
     #[cfg(not(unix))]
