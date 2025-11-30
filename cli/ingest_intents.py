@@ -29,12 +29,14 @@ def process_intent_record(record: Dict[str, Any]) -> List[Dict[str, Any]]:
         "id": intent_id,
         "type": "Intent",
         "title": goal,
+        "updated_at": timestamp,
     }
     meta = record.get("meta", {})
     if isinstance(meta, dict):
-        intent_node.update(meta)
-    # Store timestamp in updated_at for schema compliance
-    intent_node["updated_at"] = timestamp
+        # Update with meta but preserve updated_at
+        for key, value in meta.items():
+            if key not in ("id", "type", "title", "updated_at"):
+                intent_node[key] = value
 
     nodes = [intent_node]
     edges = []
