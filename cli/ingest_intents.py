@@ -70,7 +70,11 @@ def process_intent_record(record: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 def ingest_intents(source_path: Path, nodes_path: Path, edges_path: Path):
     """Ingest intents from the source file and append to nodes and edges files."""
-    with source_path.open("r", encoding="utf-8") as handle:
+    with (
+        source_path.open("r", encoding="utf-8") as handle,
+        nodes_path.open("a", encoding="utf-8") as nodes_file,
+        edges_path.open("a", encoding="utf-8") as edges_file,
+    ):
         for line in handle:
             line = line.strip()
             if not line:
@@ -78,15 +82,11 @@ def ingest_intents(source_path: Path, nodes_path: Path, edges_path: Path):
             try:
                 record = json.loads(line)
                 elements = process_intent_record(record)
-                with (
-                    nodes_path.open("a", encoding="utf-8") as nodes_file,
-                    edges_path.open("a", encoding="utf-8") as edges_file,
-                ):
-                    for element in elements:
-                        if "rel" in element:  # It's an edge
-                            edges_file.write(json.dumps(element) + "\n")
-                        else:  # It's a node
-                            nodes_file.write(json.dumps(element) + "\n")
+                for element in elements:
+                    if "rel" in element:  # It's an edge
+                        edges_file.write(json.dumps(element) + "\n")
+                    else:  # It's a node
+                        nodes_file.write(json.dumps(element) + "\n")
             except json.JSONDecodeError:
                 print(f"Warning: Could not decode JSON: {line}", file=sys.stderr)
 

@@ -196,11 +196,8 @@ async fn handle_search(
         return Err(bad_request("k must be greater than 0"));
     }
 
-    let query_text_owned = payload.query.text().to_owned();
-    let query_text = &query_text_owned;
-
     debug!(
-        query = %query_text,
+        query = %payload.query.text(),
         k = payload.k,
         namespace = %payload.namespace,
         filters = payload
@@ -222,14 +219,15 @@ async fn handle_search(
 
     let embedder = state.embedder();
 
-    let query_embedding_value = match query {
-        QueryPayload::Text(_) => None,
-        QueryPayload::WithMeta { meta, .. } => {
+    let (query_text, query_embedding_value) = match query {
+        QueryPayload::Text(text) => (text, None),
+        QueryPayload::WithMeta { text, meta } => {
             let mut meta_map = match meta {
                 Value::Object(map) => map,
                 _ => return Err(bad_request("query meta must be an object")),
             };
-            meta_map.remove("embedding")
+            let embedding = meta_map.remove("embedding");
+            (text, embedding)
         }
     };
 
@@ -255,7 +253,7 @@ async fn handle_search(
 
         parse_embedding(value).map_err(bad_request)?
     } else if let Some(embedder) = embedder {
-        let vectors = embedder.embed(std::slice::from_ref(&query_text_owned)).await
+        let vectors = embedder.embed(std::slice::from_ref(&query_text)).await
             .map_err(|err| server_unavailable(format!("failed to generate embedding: {err}")))?;
         vectors.into_iter().next().ok_or_else(|| {
             server_unavailable("failed to generate embedding: embedder returned no embeddings")
