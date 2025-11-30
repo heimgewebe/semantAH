@@ -1,4 +1,6 @@
-.PHONY: 	uv-sync venv sync index graph related push-index all demo clean py-freeze insights-today ingest-intents	test test-integration coverage coverage-clean 	test-rust lint-rust audit-rust cov-rust cov-rust-html cov-rust-clean
+.PHONY: uv-sync venv sync index graph related push-index all demo clean py-freeze insights-today ingest-intents \
+	test test-integration coverage coverage-clean \
+	test-rust lint-rust audit-rust cov-rust cov-rust-html cov-rust-clean
 
 UV := $(shell command -v uv 2>/dev/null)
 ifeq ($(UV),)

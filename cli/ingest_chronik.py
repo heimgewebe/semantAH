@@ -94,8 +94,10 @@ def shrink_to_size(payload: dict, max_bytes: int) -> dict:
         return payload
 
     encoded = _encode(payload)
-    while len(encoded) > max_bytes and items:
-        items.pop(0)
+    start_idx = 0
+    while len(encoded) > max_bytes and start_idx < len(items):
+        start_idx += 1
+        payload["items"] = items[start_idx:]
         encoded = _encode(payload)
     if len(encoded) > max_bytes:
         raise ValueError(

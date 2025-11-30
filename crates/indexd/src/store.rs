@@ -87,14 +87,10 @@ impl VectorStore {
 
         let mut scored: Vec<(String, String, f32)> = self
             .all_in_namespace(namespace)
-            .filter_map(|((_, key), (embedding, _meta))| {
-                if embedding.len() != query.len() {
-                    return None;
-                }
-
+            .map(|((_, key), (embedding, _meta))| {
                 let score = cosine(query, embedding);
                 let (doc_id, chunk_id) = split_chunk_key(key);
-                Some((doc_id, chunk_id, score))
+                (doc_id, chunk_id, score)
             })
             .collect();
 
