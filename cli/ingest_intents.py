@@ -21,6 +21,11 @@ def process_intent_record(record: Dict[str, Any]) -> List[Dict[str, Any]]:
     timestamp = record.get("ts")
 
     if not all([actor, goal, timestamp]):
+        print(
+            f"Warning: Skipping record with missing fields (actor={actor!r}, "
+            f"goal={goal!r}, ts={timestamp!r})",
+            file=sys.stderr,
+        )
         return []
 
     intent_id = f"intent:{sha256_hash(f'{timestamp}{actor}{goal}')}"
@@ -122,8 +127,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         ingest_intents(args.source, args.nodes_file, args.edges_file)
         return 0
-    except Exception as e:
+    except (OSError, ValueError) as e:
         print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(f"Unexpected error: {e}", file=sys.stderr)
         return 1
 
 
