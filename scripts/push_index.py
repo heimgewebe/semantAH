@@ -16,7 +16,7 @@ import pandas as pd
 
 try:  # NumPy ist optional, hilft aber beim Typ-Check der Embeddings
     import numpy as np  # type: ignore
-except Exception:  # pragma: no cover - fallback ohne NumPy
+except ImportError:  # pragma: no cover - fallback ohne NumPy
     np = None  # type: ignore
 
 DEFAULT_EMBEDDINGS = Path(".gewebe/embeddings.parquet")
@@ -161,7 +161,7 @@ def _record_to_chunk(record: Dict[str, Any], doc_id: str) -> Dict[str, Any]:
         if key == "chunk_id":
             try:
                 meta["chunk_id"] = int(value)
-            except Exception:
+            except (ValueError, TypeError):
                 meta["chunk_id"] = value
             continue
         meta[key] = _normalise_meta_value(value)
@@ -228,7 +228,7 @@ def _normalise_meta_value(value: Any) -> Any:
     if hasattr(value, "item"):
         try:
             return value.item()  # type: ignore[no-any-return]
-        except Exception:
+        except (ValueError, TypeError):
             pass
     return value
 
@@ -270,17 +270,28 @@ def main() -> int:
 
     try:
         df = pd.read_parquet(args.embeddings)
-    except Exception as exc:  # pragma: no cover - IO-Fehler
+    except (OSError, ValueError) as exc:  # pragma: no cover - IO-Fehler
         print(
             f"[push-index] Konnte {args.embeddings} nicht lesen: {exc}", file=sys.stderr
         )
+        return 1
+    except Exception as exc:
+        print(f"[push-index] Unerwarteter Fehler: {exc}", file=sys.stderr)
         return 1
 
     if df.empty:
         print("[push-index] Keine Embeddings gefunden — nichts zu tun.")
         return 0
 
-    batches = list(to_batches(df, args.namespace))
+    try:
+        batches = list(to_batches(df, args.namespace))
+    except ValueError as exc:
+        print(
+            f"[push-index] Fehler bei der Batch-Erstellung (doc_id?): {exc}",
+            file=sys.stderr,
+        )
+        return 1
+
     if not batches:
         print("[push-index] Keine gültigen Batches erzeugt.", file=sys.stderr)
         return 1

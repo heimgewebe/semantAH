@@ -36,6 +36,7 @@ all: uv-sync index graph related
 #   uv sync -E test
 
 test:
+	uv sync --extra test
 	uv run pytest -q -m "not integration"
 
 # Integration-Tests (nur @integration)
