@@ -131,7 +131,7 @@ fn maybe_init_embedder() -> anyhow::Result<Option<Arc<dyn Embedder>>> {
                                 anyhow::anyhow!("INDEXD_EMBEDDER_DIM must be a positive integer, got: {}", value)
                             })?
                         }
-                        Err(_) => 1536, // Default dimension
+                        Err(_) => 768, // Default dimension (matches nomic-embed-text)
                     };
                     
                     if dim == 0 {
