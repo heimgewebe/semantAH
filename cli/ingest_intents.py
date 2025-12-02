@@ -95,6 +95,10 @@ def ingest_intents(source_path: Path, nodes_path: Path, edges_path: Path):
                         nodes_file.write(json.dumps(element) + "\n")
             except json.JSONDecodeError:
                 print(f"Warning: Could not decode JSON: {line}", file=sys.stderr)
+            except Exception as e:
+                print(f"Warning: Failed to process record: {e}", file=sys.stderr)
+                # We do not print full traceback here to avoid log spam on bulk ingest,
+                # but we continue to the next record.
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
