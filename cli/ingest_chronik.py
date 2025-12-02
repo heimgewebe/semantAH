@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import traceback
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -180,6 +181,8 @@ def main(argv: list[str] | None = None) -> int:
         output_path = ingest(args)
     except Exception as exc:  # pragma: no cover - small CLI
         print(f"Error: {exc}", file=sys.stderr)
+        # Preserve full traceback for debugging unexpected failures
+        traceback.print_exc()
         return 1
 
     print(output_path)

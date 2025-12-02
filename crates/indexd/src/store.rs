@@ -114,6 +114,17 @@ impl VectorStore {
             })
             .collect();
 
+        // Guard against NaN scores from cosine() to keep ordering deterministic.
+        let original_len = scored.len();
+        scored.retain(|(_, _, score)| !score.is_nan());
+        let dropped = original_len - scored.len();
+        if dropped > 0 {
+            tracing::warn!(
+                dropped = dropped,
+                "dropped search hits with NaN scores before ranking"
+            );
+        }
+
         scored.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(Ordering::Equal));
         if scored.len() > k {
             scored.truncate(k);
