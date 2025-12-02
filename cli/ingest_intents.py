@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import sys
+import traceback
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -132,6 +133,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     except Exception as e:
         print(f"Unexpected error: {e}", file=sys.stderr)
+        traceback.print_exc()
         return 1
 
 

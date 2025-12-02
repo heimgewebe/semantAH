@@ -8,6 +8,7 @@ import hashlib
 import json
 import math
 import sys
+import traceback
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Set
 from urllib import error, request
@@ -277,6 +278,8 @@ def main() -> int:
         return 1
     except Exception as exc:
         print(f"[push-index] Unerwarteter Fehler: {exc}", file=sys.stderr)
+        # Preserve traceback for post-mortem analysis
+        traceback.print_exc()
         return 1
 
     if df.empty:
