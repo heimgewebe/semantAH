@@ -163,6 +163,7 @@ def main() -> int:
 
     insights_root = vault_root / ".gewebe" / "insights"
     daily_dir = insights_root / "daily"
+    # Creates both insights_root and daily_dir with parents=True
     daily_dir.mkdir(parents=True, exist_ok=True)
 
     daily_path = daily_dir / f"{insights['ts']}.json"
