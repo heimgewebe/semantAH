@@ -246,3 +246,38 @@ def test_export_insights_excludes_hidden_dirs(tmp_path, monkeypatch):
     topic_names = [name for name, _ in data["topics"]]
     assert "normal" in topic_names
     assert ".gewebe" not in topic_names
+
+
+def test_export_insights_topic_weights_normalization_truncation(tmp_path, monkeypatch):
+    """Test normalization when there are more topics than MAX_TOPICS."""
+    vault_root = tmp_path / "vault"
+    vault_root.mkdir()
+
+    # MAX_TOPICS is 16. Create 20 topics, each with 1 file.
+    # Total files = 20. Top 16 will be selected.
+    # If we normalized by 20, sum would be 16/20 = 0.8.
+    # We want sum to be 1.0.
+    for i in range(20):
+        topic_dir = vault_root / f"topic_{i:02d}"
+        topic_dir.mkdir()
+        (topic_dir / "note.md").write_text("content")
+
+    monkeypatch.setenv("VAULT_ROOT", str(vault_root))
+    script = _script_path()
+
+    subprocess.run(
+        [sys.executable, str(script)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    today_path = vault_root / ".gewebe" / "insights" / "today.json"
+    data = json.loads(today_path.read_text())
+
+    topics = data["topics"]
+    assert len(topics) == 16
+
+    total_weight = sum(w for _, w in topics)
+    # Allow small float error
+    assert abs(total_weight - 1.0) < 0.01, f"Weights sum to {total_weight}, expected ~1.0"

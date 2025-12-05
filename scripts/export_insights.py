@@ -126,11 +126,15 @@ def _derive_topics(root: Path, files: Iterable[Path]) -> List[Tuple[str, float]]
         # Fallback – Schema trotzdem bedienen
         return [("vault", 1.0)]
 
-    total = sum(counter.values())
     items = counter.most_common(MAX_TOPICS)
+    total_selected = sum(count for _, count in items)
 
     # Normiere auf 0..1, auf drei Nachkommastellen gerundet.
-    return [(name, round(count / total, WEIGHT_PRECISION)) for name, count in items]
+    # Wir teilen durch total_selected (nicht die globale Summe), damit
+    # die Gewichte der ausgegebenen Topics in Summe ~1 ergeben.
+    return [
+        (name, round(count / total_selected, WEIGHT_PRECISION)) for name, count in items
+    ]
 
 
 def _build_payload(vault_root: Path) -> DailyInsights:
