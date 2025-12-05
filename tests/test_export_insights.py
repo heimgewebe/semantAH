@@ -280,4 +280,6 @@ def test_export_insights_topic_weights_normalization_truncation(tmp_path, monkey
 
     total_weight = sum(w for _, w in topics)
     # Allow small float error
-    assert abs(total_weight - 1.0) < 0.01, f"Weights sum to {total_weight}, expected ~1.0"
+    assert abs(total_weight - 1.0) < 0.01, (
+        f"Weights sum to {total_weight}, expected ~1.0"
+    )
