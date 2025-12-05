@@ -68,11 +68,17 @@ def _get_vault_root() -> Path:
 
     root = Path(env).expanduser()
     if not root.exists():
-        print(f"{VAULT_ENV_VAR} verweist auf einen nicht existierenden Pfad: {root}", file=sys.stderr)
+        print(
+            f"{VAULT_ENV_VAR} verweist auf einen nicht existierenden Pfad: {root}",
+            file=sys.stderr,
+        )
         raise SystemExit(1)
 
     if not root.is_dir():
-        print(f"{VAULT_ENV_VAR} muss auf ein Verzeichnis zeigen, nicht auf eine Datei: {root}", file=sys.stderr)
+        print(
+            f"{VAULT_ENV_VAR} muss auf ein Verzeichnis zeigen, nicht auf eine Datei: {root}",
+            file=sys.stderr,
+        )
         raise SystemExit(1)
 
     return root
@@ -154,7 +160,9 @@ def main(argv: list[str] | None = None) -> int:
         with target.open("w", encoding="utf-8") as fh:
             json.dump(insights, fh, ensure_ascii=False, indent=2, sort_keys=True)
 
-    print(f"[export_insights] geschrieben: {daily_path} und {today_path}", file=sys.stderr)
+    print(
+        f"[export_insights] geschrieben: {daily_path} und {today_path}", file=sys.stderr
+    )
     return 0
 
 
