@@ -143,6 +143,15 @@ def _build_payload(vault_root: Path) -> DailyInsights:
     Returns:
         DailyInsights: Das generierte Insights-Objekt für den aktuellen Tag.
     """
+    """
+    Baut das Tages-Insights-Payload für den gegebenen Vault.
+
+    Args:
+        vault_root (Path): Wurzelverzeichnis des Vaults.
+
+    Returns:
+        DailyInsights: Das generierte Insights-Objekt für den aktuellen Tag.
+    """
     today = date.today().isoformat()
     files = _iter_markdown_files(vault_root)
     topics = _derive_topics(vault_root, files)
