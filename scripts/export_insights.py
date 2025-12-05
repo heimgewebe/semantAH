@@ -36,6 +36,8 @@ from typing import Iterable, List, Tuple
 
 
 VAULT_ENV_VAR = "VAULT_ROOT"
+MAX_TOPICS = 16
+WEIGHT_PRECISION = 3
 
 
 @dataclass
@@ -88,9 +90,14 @@ def _iter_markdown_files(root: Path) -> Iterable[Path]:
     """
     Liefert alle Markdown-Dateien unterhalb von root.
 
-    Bewusst simpel gehalten – keine Excludes, keine Format-Checks.
+    Schließt versteckte Verzeichnisse (beginnend mit '.') wie .gewebe aus.
     """
-    yield from root.rglob("*.md")
+    for path in root.rglob("*.md"):
+        rel = path.relative_to(root)
+        # Schließe Dateien aus, die in versteckten Verzeichnissen liegen
+        if any(part.startswith(".") for part in rel.parts):
+            continue
+        yield path
 
 
 def _derive_topics(root: Path, files: Iterable[Path]) -> List[Tuple[str, float]]:
@@ -120,15 +127,24 @@ def _derive_topics(root: Path, files: Iterable[Path]) -> List[Tuple[str, float]]
         return [("vault", 1.0)]
 
     total = sum(counter.values())
-    items = counter.most_common(16)
+    items = counter.most_common(MAX_TOPICS)
 
     # Normiere auf 0..1, auf drei Nachkommastellen gerundet.
-    return [(name, round(count / total, 3)) for name, count in items]
+    return [(name, round(count / total, WEIGHT_PRECISION)) for name, count in items]
 
 
 def _build_payload(vault_root: Path) -> DailyInsights:
+    """
+    Baut das Tages-Insights-Payload für den gegebenen Vault.
+
+    Args:
+        vault_root (Path): Wurzelverzeichnis des Vaults.
+
+    Returns:
+        DailyInsights: Das generierte Insights-Objekt für den aktuellen Tag.
+    """
     today = date.today().isoformat()
-    files = list(_iter_markdown_files(vault_root))
+    files = _iter_markdown_files(vault_root)
     topics = _derive_topics(vault_root, files)
 
     # Platzhalter: noch keine automatischen Fragen oder Deltas.
@@ -141,22 +157,19 @@ def _build_payload(vault_root: Path) -> DailyInsights:
     )
 
 
-def main(argv: list[str] | None = None) -> int:
-    # argv ist aktuell ungenutzt – später evtl. Flags wie --since oder --limit.
-    _ = argv
-
+def main() -> int:
     vault_root = _get_vault_root()
     insights = _build_payload(vault_root).to_json()
 
     insights_root = vault_root / ".gewebe" / "insights"
     daily_dir = insights_root / "daily"
+    # Creates both insights_root and daily_dir with parents=True
     daily_dir.mkdir(parents=True, exist_ok=True)
 
     daily_path = daily_dir / f"{insights['ts']}.json"
     today_path = insights_root / "today.json"
 
     for target in (daily_path, today_path):
-        target.parent.mkdir(parents=True, exist_ok=True)
         with target.open("w", encoding="utf-8") as fh:
             json.dump(insights, fh, ensure_ascii=False, indent=2, sort_keys=True)
 
