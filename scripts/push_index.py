@@ -13,7 +13,13 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Set
 from urllib import error, request
 
-import pandas as pd
+try:
+    import pandas as pd
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    from scripts import pandas_stub as pd
+
+    # Ensure subsequent imports resolve to the stub in environments without pandas.
+    sys.modules.setdefault("pandas", pd)
 
 try:  # NumPy ist optional, hilft aber beim Typ-Check der Embeddings
     import numpy as np  # type: ignore
