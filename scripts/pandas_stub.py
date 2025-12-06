@@ -5,6 +5,7 @@ This module implements a very small subset of the pandas API used by
 supports basic DataFrame construction from dictionaries, column access and
 assignment, `apply`, `groupby`, and conversion to records.
 """
+
 from __future__ import annotations
 
 import json
