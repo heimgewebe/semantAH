@@ -1,4 +1,12 @@
 import os
+import sys
+
+try:
+    import pandas  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    from scripts import pandas_stub
+
+    sys.modules.setdefault("pandas", pandas_stub)
 
 try:
     from hypothesis import settings
