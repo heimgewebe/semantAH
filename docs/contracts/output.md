@@ -8,6 +8,10 @@ Ausgaben von semantAH in menschenlesbarer Form.
 - Dieses Dokument ergänzt dieses Schema um Regeln zu Häufigkeit, Kardinalität,
   Fehlerverhalten und Verantwortlichkeiten.
 
+**Hinweis zu Schemas**: In älteren Versionen wurde in der Implementierung
+`insights.daily.schema.json` erwähnt. Diese Datei existiert nicht mehr;
+`insights.schema.json` ist das maßgebliche Schema für Daily-Insights.
+
 Primäre Konsumenten:
 - leitstand (UI / Visualisierung)
 
@@ -74,6 +78,8 @@ Regeln:
 - Neue Major-Versionen (z. B. `"2.0"`) dürfen nur eingeführt werden, wenn
   das zugrunde liegende Schema (`insights`) ebenfalls ein Major-Update
   erfährt und Konsumenten explizit darauf vorbereitet wurden.
+- Konsumenten sollten `metadata.contract_version` nicht hart parsen, sondern
+  nur grob Major/Minor interpretieren (z. B. `"1.x"` → Major 1).
 
 Hinweis: Die exakte Form und Pflicht/Optionalität von `metadata.contract_version`
 ist Sache des JSON-Schemas. Dieses Dokument beschreibt das empfohlene
@@ -113,6 +119,8 @@ Der einzige dauerhaft stabile Vertrag für Konsumenten sind die Dateien unter
   - semantAH erzeugt trotzdem eine gültige `insights.daily`-Datei.
   - `topics` enthält mindestens einen Eintrag, z. B. `"vault"` oder eine
     ähnliche Default-Kategorie (konkreter Wortlaut: gemäß Schema).
+  - (Schema-seitig ist eine leere Liste erlaubt, semantAH verpflichtet sich
+    aber, mindestens einen Default-Eintrag zu erzeugen.)
 - Falls Markdown-Dateien fehlerhaft sind:
   - Datei wird ignoriert (Fehler in Einzeldateien führen nicht zum Abbruch
     des gesamten Laufs).
@@ -132,7 +140,8 @@ semantAH stellt sicher, dass diese Dateien:
   - exakt dem Schema entsprechen,
   - täglich erneuert werden,
   - nie „teilbeschrieben" auftreten (Write-Operationen sind atomar:
-    erst nach vollständigem Schreiben ist die Datei für Konsumenten sichtbar).
+    erst nach vollständigem Schreiben ist die Datei für Konsumenten sichtbar,
+    z. B. durch Schreiben in eine temporäre Datei und anschließendes Umbenennen).
 
 ## 5. Beziehung zu hausKI und chronik
 
