@@ -229,3 +229,15 @@ Der Dienst dokumentiert seine Routen in [docs/indexd-api.md](docs/indexd-api.md)
 
 ## WGX-Integration (Stub)
 Siehe `docs/wgx-konzept.md` und `.wgx/profile.yml`. Ziel: reproduzierbare Orchestrierung (devcontainer/Devbox/mise/direnv bevorzugt).
+
+## Organismus-Kontext
+
+Dieses Repository ist Teil des **Heimgewebe-Organismus**.
+
+Die übergeordnete Architektur, Achsen, Rollen und Contracts sind zentral beschrieben im  
+👉 [`metarepo/docs/heimgewebe-organismus.md`](https://github.com/heimgewebe/metarepo/blob/main/docs/heimgewebe-organismus.md)  
+sowie im Zielbild  
+👉 [`metarepo/docs/heimgewebe-zielbild.md`](https://github.com/heimgewebe/metarepo/blob/main/docs/heimgewebe-zielbild.md).
+
+Alle Rollen-Definitionen, Datenflüsse und Contract-Zuordnungen dieses Repos
+sind dort verankert.
