@@ -1,5 +1,6 @@
 version: v1
 kind: semantah_feedback_loop
+status: draft
 description: >
   Zielbild-Policy für den semantAH-Feedback-Loop. Definiert, welche Signale
   semantAH liefern soll und wie Heimgewebe darauf reagieren kann.
@@ -14,9 +15,9 @@ signals:
   graph_density:
     description: Verhältnis von Knoten zu Kanten im Wissensgraph.
     # nur Richtwerte – müssen pro Vault kalibriert werden
-    min_edges_per_node: 1.2
-    warn_below: 0.8
-    critical_below: 0.5
+    target_min_edges_per_node: 1.2
+    warn_edges_per_node_below: 0.8
+    critical_edges_per_node_below: 0.5
 
   orphan_nodes:
     description: Anzahl Knoten ohne eingehende und ausgehende Kanten.
@@ -46,8 +47,9 @@ actions:
         signal: graph_density
         condition: below_warn
       effect: >
-        schlägt vor, Cutoffs/Boosts für sehr dichte oder sehr rauschende
-        Namespaces anzupassen.
+        schlägt vor, Cutoffs/Boosts für Bereiche mit zu dünner oder
+        strukturell auffälliger Graph-Dichte (viele Inseln / Rauschen)
+        anzupassen.
 
     - id: schedule_partial_rescan
       when:
