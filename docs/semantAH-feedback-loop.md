@@ -160,8 +160,9 @@ Mittelfristig:
 - konkrete Metriken in scripts/export_insights.py und
   scripts/wgx-metrics-snapshot.sh ergänzen,
   die mit der Policy-Datei korrespondieren.
-- Events/Contracts in contracts und chronik nachziehen
-  (z. B. semantah.feedback.snapshot).
+- Events/Contracts im contracts-Repo und in chronik nachziehen
+  (z. B. contracts/semantah.feedback.snapshot.schema.json),
+  sodass der hier beschriebene Loop vollständig contract-first angebunden ist.
 
 Langfristig:
 
