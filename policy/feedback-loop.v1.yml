@@ -1,0 +1,86 @@
+version: v1
+kind: semantah_feedback_loop
+description: >
+  Zielbild-Policy für den semantAH-Feedback-Loop. Definiert, welche Signale
+  semantAH liefern soll und wie Heimgewebe darauf reagieren kann.
+
+signals:
+  coverage:
+    description: Anteil der relevanten Dateien mit Embeddings/Graph-Nodes.
+    target_min: 0.80
+    warn_below: 0.70
+    critical_below: 0.50
+
+  graph_density:
+    description: Verhältnis von Knoten zu Kanten im Wissensgraph.
+    # nur Richtwerte – müssen pro Vault kalibriert werden
+    min_edges_per_node: 1.2
+    warn_below: 0.8
+    critical_below: 0.5
+
+  orphan_nodes:
+    description: Anzahl Knoten ohne eingehende und ausgehende Kanten.
+    warn_above: 100
+    critical_above: 500
+
+  search_health:
+    description: Proxy für Suchqualität und Stabilität.
+    p95_latency_ms:
+      warn_above: 150
+      critical_above: 300
+    error_rate:
+      warn_above: 0.05
+      critical_above: 0.10
+
+  pipeline_stability:
+    description: Wiederkehrende Fehler in semantAH-Skripten.
+    error_events_window:  # Anzahl Fehler-Events pro Beobachtungsfenster
+      warn_above: 5
+      critical_above: 20
+
+actions:
+  # Aktionen, die semantAH selbst vorschlagen darf (z. B. in Reports)
+  suggest:
+    - id: raise_cutoffs_for_noisy_namespaces
+      when:
+        signal: graph_density
+        condition: below_warn
+      effect: >
+        schlägt vor, Cutoffs/Boosts für sehr dichte oder sehr rauschende
+        Namespaces anzupassen.
+
+    - id: schedule_partial_rescan
+      when:
+        signal: orphan_nodes
+        condition: above_warn
+      effect: >
+        schlägt einen Teil-Rescan für Ordner/Namespaces mit vielen verwaisten
+        Knoten vor.
+
+  # Aktionen, die andere Organe (z. B. HausKI/Heimlern) auslösen sollen
+  escalate:
+    - id: notify_heimlern_on_critical_search_health
+      when:
+        signal: search_health
+        condition: critical
+      target: heimlern
+      effect: >
+        markiert den aktuellen Policy-Zustand als Lernbeispiel für Heimlern
+        (z. B. um bessere Default-Parameter oder Rescan-Strategien zu finden).
+
+export:
+  # Zielbild für Event-Typen, die in chronik landen könnten.
+  events:
+    feedback_snapshot:
+      event_type: semantah.feedback.snapshot
+      description: >
+        Aggregierter Snapshot der wichtigsten Feedback-Signale
+        (Coverage, Graph-Dichte, Suchgesundheit, Pipeline-Stabilität).
+      cadence: per_run   # mögliche Werte: per_run, hourly, daily
+
+    feedback_anomaly:
+      event_type: semantah.feedback.anomaly
+      description: >
+        Einzelne Auffälligkeit mit hohem Handlungsbedarf,
+        z. B. starke Einbrüche in Coverage oder Suchqualität.
+      cadence: on_change
