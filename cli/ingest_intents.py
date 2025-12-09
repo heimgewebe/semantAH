@@ -76,6 +76,9 @@ def process_intent_record(record: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 def ingest_intents(source_path: Path, nodes_path: Path, edges_path: Path):
     """Ingest intents from the source file and append to nodes and edges files."""
+    nodes_path.parent.mkdir(parents=True, exist_ok=True)
+    edges_path.parent.mkdir(parents=True, exist_ok=True)
+
     with (
         source_path.open("r", encoding="utf-8") as handle,
         nodes_path.open("a", encoding="utf-8") as nodes_file,
