@@ -86,3 +86,18 @@ def test_main_with_invalid_path():
         source_path = Path(temp_dir) / "non_existent.jsonl"
         argv = [str(source_path)]
         assert main(argv) == 1
+
+
+def test_ingest_intents_creates_output_dirs(intent_data, tmp_path):
+    source_path = tmp_path / "intents.jsonl"
+    nodes_path = tmp_path / ".gewebe" / "nodes.jsonl"
+    edges_path = tmp_path / ".gewebe" / "edges.jsonl"
+
+    with source_path.open("w", encoding="utf-8") as f:
+        for record in intent_data:
+            f.write(json.dumps(record) + "\n")
+
+    ingest_intents(source_path, nodes_path, edges_path)
+
+    assert nodes_path.is_file()
+    assert edges_path.is_file()
