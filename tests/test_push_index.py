@@ -115,6 +115,12 @@ def test_is_missing_covers_nan_none_and_whitespace():
     assert _is_missing("x") is False
 
 
+def test_is_missing_handles_pandas_and_numpy_na_types():
+    np = pytest.importorskip("numpy")
+    assert _is_missing(pd.NA) is True
+    assert _is_missing(np.nan) is True
+
+
 def test_to_batches_end_to_end_no_nan_ids_and_namespace_default():
     df = pd.DataFrame(
         [

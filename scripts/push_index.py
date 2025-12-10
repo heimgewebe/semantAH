@@ -16,7 +16,17 @@ from urllib import error, request
 try:
     import pandas as pd
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
-    from scripts import pandas_stub as pd
+    # Fallback: lade das pandas-Stub-Modul relativ zu diesem Skript, selbst
+    # wenn das Skript aus einem anderen Arbeitsverzeichnis aufgerufen wird.
+    import importlib.util
+
+    stub_path = Path(__file__).with_name("pandas_stub.py")
+    spec = importlib.util.spec_from_file_location("pandas", stub_path)
+    if spec is None or spec.loader is None:  # pragma: no cover - defensive
+        raise
+    pandas_stub = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(pandas_stub)
+    pd = pandas_stub  # type: ignore[assignment]
 
     # Ensure subsequent imports resolve to the stub in environments without pandas.
     sys.modules.setdefault("pandas", pd)
@@ -216,6 +226,29 @@ def _to_embedding(value: Any) -> List[float]:
 def _is_missing(x: Any) -> bool:
     if x is None:
         return True
+
+    # Pandas hat mitunter eigene Missing-Typen (z. B. pd.NA), die keine
+    # Floats sind und daher von math.isnan() nicht erfasst werden. Wir
+    # versuchen daher zuerst den generischen isna/isnan-Pfad, bevor wir auf
+    # Typprüfungen herunterfallen.
+    try:  # pragma: no cover - pandas ist optional
+        import pandas as pd  # type: ignore
+
+        try:
+            if pd.isna(x):
+                return True
+        except Exception:
+            pass
+    except ModuleNotFoundError:  # pragma: no cover - optional dependency
+        pd = None  # type: ignore[assignment]
+
+    if np is not None:
+        try:
+            if np.isnan(x):  # type: ignore[arg-type]
+                return True
+        except Exception:
+            pass
+
     if isinstance(x, float) and math.isnan(x):
         return True
     if isinstance(x, str):
