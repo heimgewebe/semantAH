@@ -33,7 +33,7 @@ jobs:
         shell: bash
         env:
           SCHEMA_URL: >-
-            https://raw.githubusercontent.com/heimgewebe/metarepo/main/contracts/knowledge.graph.schema.json
+            https://raw.githubusercontent.com/heimgewebe/metarepo/53edb0606fb404cc7e65ec680ed68b6e849cc218/contracts/knowledge.graph.schema.json
         run: |
           set -euo pipefail
           shopt -s nullglob
