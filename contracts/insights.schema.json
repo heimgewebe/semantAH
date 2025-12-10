@@ -16,7 +16,7 @@
     "score":         { "type":"integer", "minimum": 0, "maximum": 100 },
     "verdict":       { "type":"string", "minLength": 1 },
     "pr":            { "type":"string" },
-    "tags":          { "type":"array", "items": { "type":"string" } },
+    "tags":          { "type":"array", "items": { "type":"string", "minLength": 1 } },
     "ingested_at":   { "type":"string", "format": "date-time" },
     "schema_version":{ "type":"string" },
     "source_version":{ "type":"string" },
