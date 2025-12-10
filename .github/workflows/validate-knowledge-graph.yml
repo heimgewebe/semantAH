@@ -8,6 +8,10 @@ name: validate-knowledge-graph
       - "docs/**/knowledge.graph.json"
       - ".github/workflows/validate-knowledge-graph.yml"
   pull_request:
+    paths:
+      - "knowledge.graph.json"
+      - "docs/**/knowledge.graph.json"
+      - ".github/workflows/validate-knowledge-graph.yml"
   workflow_dispatch:
 jobs:
   validate:
