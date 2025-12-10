@@ -1,36 +1,58 @@
+---
 name: validate-knowledge-graph
-permissions:
-  contents: read
-on:
-  workflow_dispatch:
-  pull_request:
-    paths:
-      - "knowledge.graph.json"
-      - "docs/**/knowledge.graph.json"
+
+"on":
   push:
     paths:
       - "knowledge.graph.json"
       - "docs/**/knowledge.graph.json"
+      - ".github/workflows/validate-knowledge-graph.yml"
+  pull_request:
+    paths:
+      - "knowledge.graph.json"
+      - "docs/**/knowledge.graph.json"
+      - ".github/workflows/validate-knowledge-graph.yml"
+  workflow_dispatch:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-      - run: npm i -g ajv-cli@5
-      - run: |
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+
+      - name: Install ajv-cli
+        run: npm i -g ajv-cli@5.0.0
+
+      - name: Validate knowledge.graph.json
+        shell: bash
+        env:
+          SCHEMA_URL: >-
+            https://raw.githubusercontent.com/heimgewebe/metarepo/53edb0606fb404cc7e65ec680ed68b6e849cc218/contracts/knowledge.graph.schema.json
+        run: |
           set -euo pipefail
-          curl -fsSL https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/knowledge.graph.schema.json -o /tmp/schema.json
           shopt -s nullglob
-          files=()
+          declare -a FILES=()
           if [[ -f knowledge.graph.json ]]; then
-            files+=("knowledge.graph.json")
+            FILES+=("knowledge.graph.json")
           fi
-          while IFS= read -r -d '' f; do files+=("$f"); done < <(find docs -type f -name 'knowledge.graph.json' -print0 || true)
-          if (( ${#files[@]} == 0 )); then
-            echo "::notice::Keine knowledge.graph.json gefunden – skip."
+          # zusätzliche Standardpfade
+          while IFS= read -r -d '' f; do
+            FILES+=("$f")
+          done < <(find docs -type f -name 'knowledge.graph.json' -print0 2>/dev/null || true)
+          if (( ${#FILES[@]} == 0 )); then
+            echo "::notice::Keine knowledge.graph.json gefunden – übersprungen."
             exit 0
           fi
-          for f in "${files[@]}"; do
-            echo "→ $f"; ajv validate --spec=draft2020 -s /tmp/schema.json -d "$f"
+          echo "Prüfe ${#FILES[@]} Datei(en)…"
+          curl -fsSL "$SCHEMA_URL" -o /tmp/schema.json
+          for f in "${FILES[@]}"; do
+            echo "→ $f"
+            ajv validate --spec=draft2020 --strict=true --validate-formats=true -s /tmp/schema.json -d "$f"
           done
+          echo "OK."
