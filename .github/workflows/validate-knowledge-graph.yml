@@ -27,7 +27,7 @@ jobs:
         shell: bash
         env:
           SCHEMA_URL: >-
-            https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/knowledge.graph.schema.json
+            https://raw.githubusercontent.com/heimgewebe/metarepo/main/contracts/knowledge.graph.schema.json
         run: |
           set -euo pipefail
           shopt -s nullglob
