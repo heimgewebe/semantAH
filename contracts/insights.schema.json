@@ -14,7 +14,7 @@
     "source":        { "type":"string", "enum": ["hauski","ci","manual"] },
     "file":          { "type":"string", "minLength": 1 },
     "score":         { "type":"integer", "minimum": 0, "maximum": 100 },
-    "verdict":       { "type":"string" },
+    "verdict":       { "type":"string", "minLength": 1 },
     "pr":            { "type":"string" },
     "tags":          { "type":"array", "items": { "type":"string" } },
     "ingested_at":   { "type":"string", "format": "date-time" },
