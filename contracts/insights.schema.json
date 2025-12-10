@@ -8,7 +8,7 @@
   "additionalProperties": false,
   "required": ["type","repo","source","file","score","verdict","ingested_at"],
   "properties": {
-    "id":            { "type":"string", "description":"stable hash/id (optional)" },
+    "id":            { "type":"string", "description":"stable hash/id (optional)", "minLength": 1 },
     "type":          { "type":"string", "const": "review.insight" },
     "repo":          { "type":"string", "minLength": 1 },
     "source":        { "type":"string", "enum": ["hausKI","ci","manual"] },
