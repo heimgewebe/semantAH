@@ -11,7 +11,7 @@
     "id":            { "type":"string", "description":"stable hash/id (optional)" },
     "type":          { "type":"string", "const": "review.insight" },
     "repo":          { "type":"string", "minLength": 1 },
-    "source":        { "type":"string", "enum": ["hauski","ci","manual"] },
+    "source":        { "type":"string", "enum": ["hausKI","ci","manual"] },
     "file":          { "type":"string", "minLength": 1 },
     "score":         { "type":"integer", "minimum": 0, "maximum": 100 },
     "verdict":       { "type":"string", "minLength": 1 },
