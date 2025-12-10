@@ -1,46 +1,26 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Daily Insights",
+  "$id": "https://schemas.heimgewebe.org/contracts/insights.schema.json",
+  "title": "Heimgewebe Review Insight",
+  "x-producers": ["semantAH"],
+  "x-consumers": ["hausKI", "chronik"],
   "type": "object",
   "additionalProperties": false,
-  "required": ["generated_at", "source", "items"],
+  "required": ["type","repo","source","file","score","verdict","ingested_at"],
   "properties": {
-    "generated_at": {
-      "type": "string",
-      "format": "date-time"
-    },
-    "source": {
-      "type": "string",
-      "minLength": 1
-    },
-    "items": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["title", "summary", "url", "tags"],
-        "properties": {
-          "title": {
-            "type": "string",
-            "minLength": 1
-          },
-          "summary": {
-            "type": "string",
-            "minLength": 1
-          },
-          "url": {
-            "type": "string",
-            "format": "uri"
-          },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "minLength": 1
-            }
-          }
-        }
-      }
-    }
+    "id":            { "type":"string", "description":"stable hash/id (optional)" },
+    "type":          { "type":"string", "const": "review.insight" },
+    "repo":          { "type":"string", "minLength": 1 },
+    "source":        { "type":"string", "enum": ["hauski","ci","manual"] },
+    "file":          { "type":"string" },
+    "score":         { "type":"integer", "minimum": 0, "maximum": 100 },
+    "verdict":       { "type":"string" },
+    "pr":            { "type":"string" },
+    "tags":          { "type":"array", "items": { "type":"string" } },
+    "ingested_at":   { "type":"string", "format": "date-time" },
+    "schema_version":{ "type":"string" },
+    "source_version":{ "type":"string" },
+    "runner_host":   { "type":"string" },
+    "bucket":        { "type":"string", "enum": ["info","warn","fail"] }
   }
 }
