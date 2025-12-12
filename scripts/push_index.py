@@ -263,7 +263,11 @@ def _normalise_meta_value(value: Any) -> Any:
         return str(value)
     if hasattr(value, "tolist"):
         return value.tolist()  # type: ignore[no-any-return]
-    if isinstance(value, (pd.Timestamp,)):
+    # Some environments use the lightweight pandas stub, which does not expose
+    # a `Timestamp` type. Guard the isinstance check to avoid AttributeError
+    # when pandas is missing.
+    pd_timestamp = getattr(pd, "Timestamp", None)
+    if pd_timestamp is not None and isinstance(value, pd_timestamp):
         return value.isoformat()
     if hasattr(value, "item"):
         try:
