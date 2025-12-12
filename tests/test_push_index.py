@@ -3,6 +3,8 @@ from itertools import permutations
 import pandas as pd
 import pytest
 
+import scripts.push_index
+
 from scripts.push_index import (
     _derive_chunk_id,
     _derive_doc_id,
@@ -119,6 +121,19 @@ def test_is_missing_handles_pandas_and_numpy_na_types():
     np = pytest.importorskip("numpy")
     assert _is_missing(pd.NA) is True
     assert _is_missing(np.nan) is True
+
+
+def test_normalise_meta_value_handles_stub_pandas(monkeypatch):
+    """_normalise_meta_value sollte ohne echte pandas.Timestamp laufen."""
+
+    class DummyPandas:
+        pass
+
+    monkeypatch.setattr(scripts.push_index, "pd", DummyPandas())
+
+    value = "2024-01-01"
+    # Should simply return the value without raising AttributeError
+    assert scripts.push_index._normalise_meta_value(value) == value
 
 
 def test_to_batches_end_to_end_no_nan_ids_and_namespace_default():
