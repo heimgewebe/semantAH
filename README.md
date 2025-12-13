@@ -80,6 +80,10 @@ Für ein ausführliches Step-by-Step siehe **docs/quickstart.md**. Kurzform:
 6. **Service testen**
    - `cargo run -p indexd`
 
+7. **Observatory Report (MVP)**
+   - `python scripts/observatory_mvp.py`
+   - Erzeugt JSON-Report in `data/observatory/` (Schema: metarepo `observatory.report.schema.json`)
+
 ### Tests & Coverage (Python)
 
 Lokal kannst du die Test-Extras mit `uv` aktivieren:

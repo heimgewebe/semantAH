@@ -29,3 +29,4 @@ metrics.json
 
 # Local symlinks (user-specific paths)
 .hauski-reports
+data/
