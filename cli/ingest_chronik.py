@@ -69,6 +69,11 @@ def _coerce_tags(value) -> List[str]:
 
 
 def read_last_records(path: Path, limit: int) -> list[dict]:
+    if limit < 0:
+        raise ValueError("limit must be non-negative")
+    if limit == 0:
+        return []
+
     lines = deque(maxlen=limit)
     with path.open("r", encoding="utf-8") as handle:
         for raw_line in handle:
