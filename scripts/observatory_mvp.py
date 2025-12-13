@@ -54,7 +54,9 @@ def _pick_repo_sources() -> list[dict]:
     # Fallback: wenn nichts existiert, wenigstens die Repo-Root als Referenz,
     # damit das Feld nicht leer ist (Schema erlaubt leer, aber das ist useless).
     if not sources:
-        sources.append({"source_type": "repo_file", "ref": ".", "tags": ["mvp", "fallback"]})
+        sources.append(
+            {"source_type": "repo_file", "ref": ".", "tags": ["mvp", "fallback"]}
+        )
 
     return sources
 
@@ -97,7 +99,9 @@ def main() -> None:
     payload = build_payload(now)
 
     output_file = output_dir / f"observatory-{ts_str}.json"
-    output_file.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    output_file.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
 
     print(f"Observatory report generated at: {output_file}")
 
