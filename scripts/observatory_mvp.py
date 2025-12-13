@@ -1,77 +1,109 @@
+"""
+observatory_mvp.py
+
+Minimaler Producer für Capability C1 "Semantisches Observatorium".
+Absichtlich ohne Embeddings/Clustering/Heuristik: nur Existenz + Contract-Konformität.
+
+Output: data/observatory/observatory-<timestamp>.json
+Contract: knowledge.observatory.schema.json (kanonisch im heimgewebe/metarepo)
+"""
+
+from __future__ import annotations
+
+import datetime as _dt
 import json
-import datetime
+import uuid
 from pathlib import Path
 
 
-def main():
-    # 1. Output directory
-    output_dir = Path("data/observatory")
-    output_dir.mkdir(parents=True, exist_ok=True)
+def _utc_now() -> _dt.datetime:
+    return _dt.datetime.now(_dt.timezone.utc)
 
-    # 2. Timestamp
-    now = datetime.datetime.now(datetime.timezone.utc)
-    ts_str = now.strftime("%Y%m%d-%H%M%S")
-    iso_ts = now.isoformat()
 
-    # 3. Construct minimal content
-    # Schema requires: observatory_id, generated_at, source, topics
+def _iso(ts: _dt.datetime) -> str:
+    # ISO 8601 with timezone
+    return ts.isoformat()
 
-    # Try to find a roadmap file
-    roadmap_path = "docs/roadmaps/heimgewebe-capabilities-2026.md"
-    readme_path = "README.md"
 
-    sources = []
+def _pick_repo_sources() -> list[dict]:
+    """
+    Sehr dumm: wir picken ein paar typische Dateien, wenn sie existieren.
+    Das erfüllt 'reale Repo-Quellen', ohne irgendwelche Semantik zu behaupten.
+    """
+    candidates = [
+        "README.md",
+        "pyproject.toml",
+        "docs/roadmap.md",
+        "docs/ist-stand-vs-roadmap.md",
+        "docs/README.md",
+    ]
 
-    # Check for roadmap (fallback to docs/roadmap.md if not found, as per my discovery)
-    if not Path(roadmap_path).exists():
-        # Fallback
-        roadmap_path = "docs/roadmap.md"
-
-    if Path(roadmap_path).exists():
-        sources.append({"source_type": "repo_file", "ref": roadmap_path})
-
-    # Check for README
-    if Path(readme_path).exists():
-        sources.append({"source_type": "repo_file", "ref": readme_path})
-
-    # Ensure at least 2 sources as requested (if files missing, add dummies or duplicates to satisfy MVP)
-    # The request said: "sources: mindestens 2 Quellen"
-    if len(sources) < 2:
-        # Just in case one is missing, add a fallback dummy to ensure structure
-        fallback_ref = "docs/semantAH.md"
-        if Path(fallback_ref).exists():
-            sources.append({"source_type": "repo_file", "ref": fallback_ref})
-        else:
-            # Last resort if even that is missing
+    sources: list[dict] = []
+    for rel in candidates:
+        p = Path(rel)
+        if p.exists() and p.is_file():
             sources.append(
                 {
                     "source_type": "repo_file",
-                    "ref": "CONTRIBUTING.md",  # Should exist
+                    "ref": rel,
+                    # optional fields per schema:
+                    "tags": ["mvp"],
                 }
             )
 
-    payload = {
-        "observatory_id": f"obs-{ts_str}",
-        "generated_at": iso_ts,
-        "source": "semantAH-observatory-mvp",
+    # Fallback: wenn nichts existiert, wenigstens die Repo-Root als Referenz,
+    # damit das Feld nicht leer ist (Schema erlaubt leer, aber das ist useless).
+    if not sources:
+        sources.append(
+            {"source_type": "repo_file", "ref": ".", "tags": ["mvp", "fallback"]}
+        )
+
+    return sources
+
+
+def build_payload(now: _dt.datetime) -> dict:
+    obs_id = f"obs-{now.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:8]}"
+    topic_id = f"topic-mvp-{now.strftime('%Y%m%d')}"
+
+    return {
+        "observatory_id": obs_id,
+        "generated_at": _iso(now),
+        "source": "semantAH",
         "topics": [
             {
-                "topic_id": "topic-heimgewebe",
-                "title": "Heimgewebe – aktuelle Themen",
-                "sources": sources,
+                "topic_id": topic_id,
+                "title": "MVP Observatory Snapshot",
+                "summary": "Minimaler, schema-konformer Snapshot aus Repo-Dateien (ohne Semantik).",
+                "sources": _pick_repo_sources(),
+                "suggested_questions": [
+                    "Welche Quellen sollen künftig priorisiert werden (Vault, Chronik, Repos)?",
+                    "Welche minimale Heuristik wäre als nächstes erlaubt, ohne die Kette zu brechen?",
+                ],
+                "suggested_next_steps": [
+                    "Leitstand: Fixture und Renderer auf den gleichen Contract ziehen.",
+                    "Metarepo: optional Fixture-Validation erweitern (falls gewünscht).",
+                ],
+                "meta": {"mvp": True},
             }
         ],
     }
 
-    # 4. Write output
-    output_file = output_dir / f"observatory-{ts_str}.json"
 
-    with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, ensure_ascii=False)
+def main() -> None:
+    output_dir = Path("data/observatory")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    now = _utc_now()
+    ts_str = now.strftime("%Y%m%d-%H%M%S")
+
+    payload = build_payload(now)
+
+    output_file = output_dir / f"observatory-{ts_str}.json"
+    output_file.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
 
     print(f"Observatory report generated at: {output_file}")
-
-    # 5. Optional: Validate? (Manual check for now as requested)
 
 
 if __name__ == "__main__":
