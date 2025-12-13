@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Minimal wrapper so humans and bots can run the MVP without guessing.
+# Writes: data/observatory/obs-<timestamp>.json
+
+python3 scripts/observatory_mvp.py
