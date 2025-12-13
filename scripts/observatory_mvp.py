@@ -1,8 +1,7 @@
 import json
 import datetime
-import os
-import sys
 from pathlib import Path
+
 
 def main():
     # 1. Output directory
@@ -29,17 +28,11 @@ def main():
         roadmap_path = "docs/roadmap.md"
 
     if Path(roadmap_path).exists():
-        sources.append({
-            "source_type": "repo_file",
-            "ref": roadmap_path
-        })
+        sources.append({"source_type": "repo_file", "ref": roadmap_path})
 
     # Check for README
     if Path(readme_path).exists():
-        sources.append({
-            "source_type": "repo_file",
-            "ref": readme_path
-        })
+        sources.append({"source_type": "repo_file", "ref": readme_path})
 
     # Ensure at least 2 sources as requested (if files missing, add dummies or duplicates to satisfy MVP)
     # The request said: "sources: mindestens 2 Quellen"
@@ -47,16 +40,15 @@ def main():
         # Just in case one is missing, add a fallback dummy to ensure structure
         fallback_ref = "docs/semantAH.md"
         if Path(fallback_ref).exists():
-            sources.append({
-                "source_type": "repo_file",
-                "ref": fallback_ref
-            })
+            sources.append({"source_type": "repo_file", "ref": fallback_ref})
         else:
             # Last resort if even that is missing
-            sources.append({
-                 "source_type": "repo_file",
-                 "ref": "CONTRIBUTING.md" # Should exist
-            })
+            sources.append(
+                {
+                    "source_type": "repo_file",
+                    "ref": "CONTRIBUTING.md",  # Should exist
+                }
+            )
 
     payload = {
         "observatory_id": f"obs-{ts_str}",
@@ -66,9 +58,9 @@ def main():
             {
                 "topic_id": "topic-heimgewebe",
                 "title": "Heimgewebe – aktuelle Themen",
-                "sources": sources
+                "sources": sources,
             }
-        ]
+        ],
     }
 
     # 4. Write output
@@ -80,6 +72,7 @@ def main():
     print(f"Observatory report generated at: {output_file}")
 
     # 5. Optional: Validate? (Manual check for now as requested)
+
 
 if __name__ == "__main__":
     main()
