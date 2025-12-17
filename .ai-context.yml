@@ -5,7 +5,7 @@
 system_context:
   heimgeist: "../metarepo/ai-contexts/heimgeist.ai-context.yml"
 
-ai_context_version: 1.0
+ai_context_version: 1.1
 
 project:
   name: semantah
@@ -13,6 +13,28 @@ project:
   role: knowledge_index_retrieval
   primary_language: python
   visibility: internal
+
+heimgewebe:
+  axis:
+    - Semantik
+  fleet:
+    enabled: true
+  wgx:
+    profile_expected: true
+    guard_smoke_expected: true
+
+interfaces:
+  consumes:
+    - "document_exports"
+    - "knowledge_graph_schemas"
+  produces:
+    - "search APIs"
+    - "embeddings"
+
+contracts:
+  schemas:
+    - path: "contracts/*.schema.json"
+      note: "Use local contracts for insights and semantics."
 
 dependencies:
   internal:
@@ -47,6 +69,12 @@ architecture:
     processing: chunk → embed → index
     output: search APIs
 
+boundaries:
+  not_responsible_for:
+    - "Raw network ingest (see aussensensor)"
+  dangerous_assumptions:
+    - "Assume model download is instant"
+
 conventions:
   branching: "main, feature/*"
   commit_prefix: "semantah"
@@ -59,5 +87,7 @@ documentation:
 ai_guidance:
   do:
     - store embeddings deterministically for reproducible tests
+    - "Start with entrypoints and key_paths."
   dont:
     - mix model versions within the same index without tagging
+    - "Invent missing schemas."
