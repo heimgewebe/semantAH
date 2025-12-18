@@ -1,71 +1,78 @@
-class: python-service
+wgx:
+  apiVersion: v1
+  requiredWgx: "^2.0.0"
+  repoKind: python-service
 
-tasks:
-  smoke: |
-    set -euo pipefail
-    echo "[wgx.smoke] semantAH"
-    if [ -f pyproject.toml ]; then
-      uv run python -m compileall semantah || true
-    fi
-    if [ -f Cargo.toml ] && command -v cargo >/dev/null 2>&1; then
-       cargo check --workspace
-    fi
+  tooling:
+    shell:
+      default: bash
 
-  guard: |
-    set -euo pipefail
-    if [ -f pyproject.toml ] && command -v uv >/dev/null 2>&1; then
-      uv run ruff check .
-      uv run ruff format --check .
-    fi
-    if [ -f Cargo.toml ] && command -v cargo >/dev/null 2>&1; then
-       cargo clippy --workspace --all-features -- -D warnings
-    fi
+  tasks:
+    smoke: |
+      set -euo pipefail
+      echo "[wgx.smoke] semantAH"
+      if [ -f pyproject.toml ]; then
+        uv run python -m compileall semantah || true
+      fi
+      if [ -f Cargo.toml ] && command -v cargo >/dev/null 2>&1; then
+         cargo check --workspace
+      fi
 
-  fmt: |
-    set -euo pipefail
-    echo "[wgx.fmt] format sources"
-    if [ -f pyproject.toml ] && command -v uv >/dev/null 2>&1; then
-      uv run ruff format .
-    fi
-    if [ -f Cargo.toml ] && command -v cargo >/dev/null 2>&1; then
-       cargo fmt
-    fi
+    guard: |
+      set -euo pipefail
+      if [ -f pyproject.toml ] && command -v uv >/dev/null 2>&1; then
+        uv run ruff check .
+        uv run ruff format --check .
+      fi
+      if [ -f Cargo.toml ] && command -v cargo >/dev/null 2>&1; then
+         cargo clippy --workspace --all-features -- -D warnings
+      fi
 
-  metrics: |
-    if [ -f pyproject.toml ] && command -v uv >/dev/null 2>&1; then
-      uv sync --extra test
-      uv run pytest --cov=semantah --cov-report=xml:coverage.xml || true
-    else
-      echo "no metrics; skipping"
-    fi
+    fmt: |
+      set -euo pipefail
+      echo "[wgx.fmt] format sources"
+      if [ -f pyproject.toml ] && command -v uv >/dev/null 2>&1; then
+        uv run ruff format .
+      fi
+      if [ -f Cargo.toml ] && command -v cargo >/dev/null 2>&1; then
+         cargo fmt
+      fi
 
-  snapshot: |
-    set -euo pipefail
-    echo "[wgx.snapshot] full pipeline"
-    # Ensure environment is consistent
-    if [ -f pyproject.toml ] && command -v uv >/dev/null 2>&1; then
-      uv sync --extra test
-    fi
+    metrics: |
+      if [ -f pyproject.toml ] && command -v uv >/dev/null 2>&1; then
+        uv sync --extra test
+        uv run pytest --cov=semantah --cov-report=xml:coverage.xml || true
+      else
+        echo "no metrics; skipping"
+      fi
 
-    # Python tests
-    uv run pytest -q
+    snapshot: |
+      set -euo pipefail
+      echo "[wgx.snapshot] full pipeline"
+      # Ensure environment is consistent
+      if [ -f pyproject.toml ] && command -v uv >/dev/null 2>&1; then
+        uv sync --extra test
+      fi
 
-    # Rust tests
-    if [ -f Cargo.toml ] && command -v cargo >/dev/null 2>&1; then
-       cargo test --workspace --all-features --locked
-    fi
+      # Python tests
+      uv run pytest -q
 
-    # Tool execution
-    uv run python tools/build_index.py
-    uv run python tools/build_graph.py
-    uv run python tools/update_related.py
+      # Rust tests
+      if [ -f Cargo.toml ] && command -v cargo >/dev/null 2>&1; then
+         cargo test --workspace --all-features --locked
+      fi
 
-  knowledge: |
-    set -euo pipefail
-    echo "[wgx.knowledge] not yet implemented – skipping"
-    exit 0
+      # Tool execution
+      uv run python tools/build_index.py
+      uv run python tools/build_graph.py
+      uv run python tools/update_related.py
 
-  semantah.index: "uv run python tools/build_index.py"
-  semantah.graph: "uv run python tools/build_graph.py"
-  semantah.related: "uv run python tools/update_related.py"
-  semantah.all: "./wgx/wgx semantah.index && ./wgx/wgx semantah.graph && ./wgx/wgx semantah.related"
+    knowledge: |
+      set -euo pipefail
+      echo "[wgx.knowledge] not yet implemented – skipping"
+      exit 0
+
+    semantah.index: "uv run python tools/build_index.py"
+    semantah.graph: "uv run python tools/build_graph.py"
+    semantah.related: "uv run python tools/update_related.py"
+    semantah.all: "./wgx/wgx semantah.index && ./wgx/wgx semantah.graph && ./wgx/wgx semantah.related"

@@ -33,7 +33,7 @@ interfaces:
 
 contracts:
   schemas:
-    - path: "contracts/*.schema.json"
+    - path: "contracts/**/*.schema.json"
       note: "Use local contracts for insights and semantics."
 
 dependencies:
@@ -72,6 +72,7 @@ architecture:
 boundaries:
   not_responsible_for:
     - "Raw network ingest (see aussensensor)"
+    - "Not a contracts repo"
   dangerous_assumptions:
     - "Assume model download is instant"
 

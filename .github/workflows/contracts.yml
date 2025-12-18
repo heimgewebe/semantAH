@@ -109,7 +109,7 @@ jobs:
       GH_DEFAULT_BRANCH: ${{ github.event.repository.default_branch || 'main' }}
       GH_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
       GH_PUSH_BEFORE: ${{ github.event.before }}
-      PROTECTED_REGEX: '^(contracts|schemas)/'
+      PROTECTED_REGEX: '^(contracts|schemas|json|proto)/'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -192,3 +192,4 @@ jobs:
     secrets: inherit
     with:
       fixtures_glob: ${{ vars.FIXTURES_GLOB || 'fixtures/valid/**/*.jsonl' }}
+      schemas_glob: 'contracts/**/*.schema.json'
