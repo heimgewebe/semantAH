@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::{env, sync::Once};
 
 use anyhow::Result;
 use axum::{http::StatusCode, routing::post, Json, Router};
@@ -6,6 +7,15 @@ use serde_json::json;
 use tokio::net::TcpListener;
 
 use embeddings::{Embedder, OllamaConfig, OllamaEmbedder};
+
+fn disable_proxies() {
+    static INIT: Once = Once::new();
+    INIT.call_once(|| {
+        // cfg(test) already disables proxies in the embedder, but setting the env
+        // keeps behaviour consistent for any non-test builds invoked from tests.
+        env::set_var("SEMANTAH_HTTP_NO_PROXY", "1");
+    });
+}
 
 /// Minimaler Mock für /api/embeddings:
 /// Ignoriert den Request-Body und liefert für jede Eingabe
@@ -46,6 +56,7 @@ async fn mock_bad_dim(Json(_body): Json<serde_json::Value>) -> Json<serde_json::
 
 #[tokio::test]
 async fn ollama_embedder_happy_path_against_mock() -> Result<()> {
+    disable_proxies();
     // --- Mock-Server auf zufälligem Port hochfahren
     let app = Router::new().route("/api/embeddings", post(mock_embeddings));
     let listener = TcpListener::bind(("127.0.0.1", 0)).await?;
@@ -68,7 +79,10 @@ async fn ollama_embedder_happy_path_against_mock() -> Result<()> {
 
     // --- Assertions
     assert_eq!(embeddings.len(), 2, "expected two embedding rows");
-    assert!(embeddings.iter().all(|v| v.len() == 2), "each vector must have dim=2");
+    assert!(
+        embeddings.iter().all(|v| v.len() == 2),
+        "each vector must have dim=2"
+    );
 
     // Inhalt grob prüfen (entspricht Mock)
     assert_eq!(embeddings[0], vec![1.0, 0.0]);
@@ -82,6 +96,7 @@ async fn ollama_embedder_happy_path_against_mock() -> Result<()> {
 /// Negativtest: Server liefert 500 → Embedder muss mit Status-Fehler (inkl. Body) abbrechen.
 #[tokio::test]
 async fn ollama_embedder_propagates_http_status_error() -> Result<()> {
+    disable_proxies();
     // Mock, der 500 zurückgibt
     let app = Router::new().route("/api/embeddings", post(mock_500));
     let listener = TcpListener::bind(("127.0.0.1", 0)).await?;
@@ -99,8 +114,14 @@ async fn ollama_embedder_propagates_http_status_error() -> Result<()> {
 
     let err = embedder.embed(&["x".to_string()]).await.unwrap_err();
     let msg = err.to_string();
-    assert!(msg.contains("status 500"), "error should mention status 500, got: {msg}");
-    assert!(msg.contains("boom"), "error should include server message body, got: {msg}");
+    assert!(
+        msg.contains("status 500"),
+        "error should mention status 500, got: {msg}"
+    );
+    assert!(
+        msg.contains("boom"),
+        "error should include server message body, got: {msg}"
+    );
 
     server.abort();
     Ok(())
@@ -109,6 +130,7 @@ async fn ollama_embedder_propagates_http_status_error() -> Result<()> {
 /// Negativtest: Falsche Dimensionalität (Server liefert 3, Embedder erwartet 2).
 #[tokio::test]
 async fn ollama_embedder_rejects_wrong_dimensions() -> Result<()> {
+    disable_proxies();
     let app = Router::new().route("/api/embeddings", post(mock_bad_dim));
     let listener = TcpListener::bind(("127.0.0.1", 0)).await?;
     let addr: SocketAddr = listener.local_addr()?;
@@ -137,6 +159,7 @@ async fn ollama_embedder_rejects_wrong_dimensions() -> Result<()> {
 /// Optional: Test für Einzeleingabe — Mock liefert trotzdem "embeddings" (Mehrfachform).
 #[tokio::test]
 async fn ollama_embedder_single_input_against_mock() -> Result<()> {
+    disable_proxies();
     let app = Router::new().route("/api/embeddings", post(mock_single_embedding));
     let listener = TcpListener::bind(("127.0.0.1", 0)).await?;
     let addr: SocketAddr = listener.local_addr()?;

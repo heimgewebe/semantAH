@@ -22,7 +22,10 @@ async fn upsert_and_search_over_http() {
     });
 
     let base = format!("http://{}", addr);
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .build()
+        .expect("failed to build HTTP client without proxy");
 
     // --- healthz
     let health = client

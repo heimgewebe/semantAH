@@ -166,15 +166,20 @@ async fn handle_upsert(
 
         let mut meta = match meta {
             Value::Object(map) => map,
-            _ => return Err(bad_request(format!("chunk '{}' meta must be an object", id))),
+            _ => {
+                return Err(bad_request(format!(
+                    "chunk '{}' meta must be an object",
+                    id
+                )))
+            }
         };
 
-        let embedding_value = meta
-            .remove("embedding")
-            .ok_or_else(|| bad_request(format!(
+        let embedding_value = meta.remove("embedding").ok_or_else(|| {
+            bad_request(format!(
                 "chunk '{}' meta must contain an 'embedding' array",
                 id
-            )))?;
+            ))
+        })?;
 
         let vector = parse_embedding(embedding_value)
             .map_err(|err| bad_request(format!("chunk '{}': {}", id, err)))?;
@@ -183,7 +188,9 @@ async fn handle_upsert(
             if expected != vector.len() {
                 return Err(bad_request(format!(
                     "chunk '{}' embedding dimensionality mismatch: expected {}, got {}",
-                    id, expected, vector.len()
+                    id,
+                    expected,
+                    vector.len()
                 )));
             }
         } else {
@@ -298,7 +305,9 @@ async fn handle_search(
 
         parse_embedding(value).map_err(bad_request)?
     } else if let Some(embedder) = embedder {
-        let vectors = embedder.embed(std::slice::from_ref(&query_text)).await
+        let vectors = embedder
+            .embed(std::slice::from_ref(&query_text))
+            .await
             .map_err(|err| server_unavailable(format!("failed to generate embedding: {err}")))?;
         vectors.into_iter().next().ok_or_else(|| {
             server_unavailable("failed to generate embedding: embedder returned no embeddings")
@@ -340,13 +349,12 @@ fn parse_embedding(value: Value) -> Result<Vec<f32>, String> {
             if values.is_empty() {
                 return Err("embedding array cannot be empty".to_string());
             }
-            
+
             let mut result = Vec::with_capacity(values.len());
             for (i, v) in values.into_iter().enumerate() {
-                let num = v.as_f64()
-                    .ok_or_else(|| {
-                        format!("embedding[{}] must be a number, got {}", i, v)
-                    })?;
+                let num = v
+                    .as_f64()
+                    .ok_or_else(|| format!("embedding[{}] must be a number, got {}", i, v))?;
                 result.push(num as f32);
             }
             Ok(result)
@@ -607,9 +615,7 @@ mod tests {
         let (status, body) = result.expect_err("search should fail when embedder returns an error");
         assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
         assert_eq!(
-            body.0.get("error")
-                .and_then(|v| v.as_str())
-                .unwrap_or(""),
+            body.0.get("error").and_then(|v| v.as_str()).unwrap_or(""),
             "failed to generate embedding: provider unavailable"
         );
     }

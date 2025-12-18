@@ -130,8 +130,7 @@ fn read_jsonl(path: &Path) -> anyhow::Result<Vec<RowOwned>> {
 
 fn write_jsonl_atomic(path: &Path, rows: &[RowOwned]) -> anyhow::Result<()> {
     if let Some(dir) = path.parent() {
-        fs::create_dir_all(dir)
-            .with_context(|| format!("create_dir_all {}", dir.display()))?;
+        fs::create_dir_all(dir).with_context(|| format!("create_dir_all {}", dir.display()))?;
     }
 
     let tmp = path.with_extension("tmp");

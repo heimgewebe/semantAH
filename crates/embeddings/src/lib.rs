@@ -4,6 +4,29 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+#[cfg(not(test))]
+use std::env;
+
+#[cfg(not(test))]
+fn env_allows_no_proxy() -> bool {
+    // Allow a neutral var for the embeddings crate and retain backward compatibility
+    // with the indexd-specific toggle.
+    const NO_PROXY_VARS: &[&str] = &[
+        "SEMANTAH_HTTP_NO_PROXY",
+        "EMBEDDINGS_HTTP_NO_PROXY",
+        "INDEXD_HTTP_NO_PROXY",
+    ];
+
+    NO_PROXY_VARS.iter().any(|key| {
+        env::var(key)
+            .ok()
+            .map(|v| {
+                let trimmed = v.trim();
+                trimmed.eq_ignore_ascii_case("1") || trimmed.eq_ignore_ascii_case("true")
+            })
+            .unwrap_or(false)
+    })
+}
 
 /// Public trait that every embedder implementation must fulfill.
 #[async_trait]
@@ -43,8 +66,25 @@ impl OllamaEmbedder {
             model,
             dim,
         } = config;
+        let mut builder = Client::builder();
+
+        // Tests should be deterministic even if the environment has proxy vars set.
+        // In production, keep proxy behavior by default; allow opt-in via env.
+        #[cfg(test)]
+        {
+            builder = builder.no_proxy();
+        }
+
+        #[cfg(not(test))]
+        {
+            if env_allows_no_proxy() {
+                builder = builder.no_proxy();
+            }
+        }
+
+        let client = builder.build().expect("failed to build HTTP client");
         Self {
-            client: Client::new(),
+            client,
             url: base_url,
             model,
             dim,

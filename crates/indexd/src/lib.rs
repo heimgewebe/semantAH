@@ -107,33 +107,37 @@ fn maybe_init_embedder() -> anyhow::Result<Option<Arc<dyn Embedder>>> {
                 "ollama" => {
                     let base_url = env::var("INDEXD_EMBEDDER_BASE_URL")
                         .unwrap_or_else(|_| "http://127.0.0.1:11434".to_string());
-                    
+
                     // Validate URL format
                     if !base_url.starts_with("http://") && !base_url.starts_with("https://") {
-                        anyhow::bail!("INDEXD_EMBEDDER_BASE_URL must start with http:// or https://, got: {}", base_url);
+                        anyhow::bail!(
+                            "INDEXD_EMBEDDER_BASE_URL must start with http:// or https://, got: {}",
+                            base_url
+                        );
                     }
-                    
+
                     // Additional basic URL validation
                     if base_url.contains(' ') || base_url.len() < 10 {
                         anyhow::bail!("INDEXD_EMBEDDER_BASE_URL appears malformed: {}", base_url);
                     }
-                    
+
                     let model = env::var("INDEXD_EMBEDDER_MODEL")
                         .unwrap_or_else(|_| "nomic-embed-text".to_string());
-                    
+
                     if model.trim().is_empty() {
                         anyhow::bail!("INDEXD_EMBEDDER_MODEL cannot be empty");
                     }
-                    
+
                     let dim = match env::var("INDEXD_EMBEDDER_DIM") {
-                        Ok(value) => {
-                            value.parse::<usize>().map_err(|_| {
-                                anyhow::anyhow!("INDEXD_EMBEDDER_DIM must be a positive integer, got: {}", value)
-                            })?
-                        }
+                        Ok(value) => value.parse::<usize>().map_err(|_| {
+                            anyhow::anyhow!(
+                                "INDEXD_EMBEDDER_DIM must be a positive integer, got: {}",
+                                value
+                            )
+                        })?,
                         Err(_) => 768, // Default dimension (matches nomic-embed-text)
                     };
-                    
+
                     if dim == 0 {
                         anyhow::bail!("INDEXD_EMBEDDER_DIM must be greater than 0");
                     }
@@ -154,7 +158,10 @@ fn maybe_init_embedder() -> anyhow::Result<Option<Arc<dyn Embedder>>> {
                     Ok(Some(embedder))
                 }
                 other => {
-                    anyhow::bail!("unsupported embedder provider: '{}' (supported: ollama)", other);
+                    anyhow::bail!(
+                        "unsupported embedder provider: '{}' (supported: ollama)",
+                        other
+                    );
                 }
             }
         }
