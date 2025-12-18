@@ -192,3 +192,4 @@ jobs:
     secrets: inherit
     with:
       fixtures_glob: ${{ vars.FIXTURES_GLOB || 'fixtures/valid/**/*.jsonl' }}
+      schemas_glob: 'contracts/**/*.schema.json'

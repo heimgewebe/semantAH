@@ -10,7 +10,7 @@ ai_context_version: 1.1
 project:
   name: semantah
   summary: Semantic ingest/index & retrieval services.
-  role: knowledge_index_retrieval
+  role: service
   primary_language: python
   visibility: internal
 
@@ -33,7 +33,7 @@ interfaces:
 
 contracts:
   schemas:
-    - path: "contracts/*.schema.json"
+    - path: "contracts/**/*.schema.json"
       note: "Use local contracts for insights and semantics."
 
 dependencies:
