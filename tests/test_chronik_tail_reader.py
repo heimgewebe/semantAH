@@ -8,12 +8,12 @@ from io import BytesIO
 # Import the module to test.
 # We need to add scripts/ to path to import it easily or use importlib.
 # Given the structure, we can append to path.
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../scripts')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../scripts")))
 
 import chronik_tail_reader
 
-class TestChronikTailReader(unittest.TestCase):
 
+class TestChronikTailReader(unittest.TestCase):
     def test_parse_ts(self):
         """Test robust timestamp parsing."""
         # Valid ISO with Z
@@ -44,9 +44,9 @@ class TestChronikTailReader(unittest.TestCase):
         self.assertEqual(cm.exception.code, 2)
 
     @patch.dict(os.environ, {"CHRONIK_AUTH": "secret-token"}, clear=True)
-    @patch('urllib.request.urlopen')
-    @patch('sys.argv', ['script_name', '--output', 'test_out.json'])
-    @patch('builtins.open', new_callable=mock_open)
+    @patch("urllib.request.urlopen")
+    @patch("sys.argv", ["script_name", "--output", "test_out.json"])
+    @patch("builtins.open", new_callable=mock_open)
     def test_process_data_counts(self, mock_file, mock_urlopen):
         """Test counting logic and sorting."""
         # Mock response data
@@ -54,12 +54,12 @@ class TestChronikTailReader(unittest.TestCase):
             {"event": "login", "status": "success", "ts": "2023-01-01T10:00:00Z"},
             {"event": "login", "status": "failure", "ts": "2023-01-02T10:00:00Z"},
             {"event": "logout", "status": "success", "ts": "2023-01-03T10:00:00Z"},
-            {"event": "nodate", "status": "unknown"} # No TS
+            {"event": "nodate", "status": "unknown"},  # No TS
         ]
 
         # Mock response object
         mock_resp = MagicMock()
-        mock_resp.read.return_value = json.dumps(mock_data).encode('utf-8')
+        mock_resp.read.return_value = json.dumps(mock_data).encode("utf-8")
         mock_resp.getheader.return_value = "0"
         mock_resp.__enter__.return_value = mock_resp
         mock_resp.__exit__.return_value = None
@@ -88,9 +88,12 @@ class TestChronikTailReader(unittest.TestCase):
         self.assertEqual(output_json["sample"][2]["ts"], "2023-01-01T10:00:00Z")
 
     @patch.dict(os.environ, {"CHRONIK_AUTH": "secret-token"}, clear=True)
-    @patch('urllib.request.urlopen')
-    @patch('builtins.open', new_callable=mock_open)
-    @patch('sys.argv', ['script_name', '--output', 'test_out.json', '--domain', 'my domain'])
+    @patch("urllib.request.urlopen")
+    @patch("builtins.open", new_callable=mock_open)
+    @patch(
+        "sys.argv",
+        ["script_name", "--output", "test_out.json", "--domain", "my domain"],
+    )
     def test_full_flow(self, mock_file, mock_urlopen):
         """Test the full flow with mocked network and file I/O."""
 
@@ -98,14 +101,16 @@ class TestChronikTailReader(unittest.TestCase):
         response_data = [
             {"event": "A", "status": "ok", "ts": "2023-01-01T00:00:00Z"},
             {"event": "B", "status": "err", "ts": "2023-01-02T00:00:00Z"},
-            {"event": "A", "status": "ok", "ts": "2023-01-03T00:00:00Z"}
+            {"event": "A", "status": "ok", "ts": "2023-01-03T00:00:00Z"},
         ]
-        json_bytes = json.dumps(response_data).encode('utf-8')
+        json_bytes = json.dumps(response_data).encode("utf-8")
 
         # Mock response
         # We need a mock that behaves like a context manager AND like a file-like object AND has getheader
         mock_resp = MagicMock()
-        mock_resp.read.side_effect = BytesIO(json_bytes).read # Map read to BytesIO read
+        mock_resp.read.side_effect = BytesIO(
+            json_bytes
+        ).read  # Map read to BytesIO read
         # Alternatively, just return the bytes for the first call if json.load reads all at once?
         # json.load calls .read().
         # mock_resp.read.return_value = json_bytes # This works if called once.
@@ -114,7 +119,9 @@ class TestChronikTailReader(unittest.TestCase):
         # Safer:
         mock_resp.read = BytesIO(json_bytes).read
 
-        mock_resp.getheader.side_effect = lambda k: "100" if k == "X-Chronik-Lines-Returned" else "0"
+        mock_resp.getheader.side_effect = (
+            lambda k: "100" if k == "X-Chronik-Lines-Returned" else "0"
+        )
         mock_resp.__enter__.return_value = mock_resp
         mock_resp.__exit__.return_value = None
 
@@ -145,5 +152,6 @@ class TestChronikTailReader(unittest.TestCase):
         self.assertEqual(output_json["sample"][0]["ts"], "2023-01-03T00:00:00Z")
         self.assertEqual(output_json["last_seen_ts"], "2023-01-03T00:00:00+00:00")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()
