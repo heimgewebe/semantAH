@@ -16,11 +16,19 @@ import uuid
 from pathlib import Path
 import sys
 
+# Dependencies
+try:
+    import jsonschema
+except ImportError:
+    print("Error: jsonschema is missing. Install it via 'uv sync'.", file=sys.stderr)
+    sys.exit(1)
+
 # Canonical output paths
 ARTIFACTS_DIR = Path("artifacts")
 OUTPUT_FILE = ARTIFACTS_DIR / "insights.daily.json"
 BASELINE_FILE = Path("tests/fixtures/observatory.baseline.json")
 DIFF_FILE = ARTIFACTS_DIR / "observatory.diff.json"
+SCHEMA_FILE = Path("contracts/knowledge.observatory.schema.json")
 
 
 def _utc_now() -> _dt.datetime:
@@ -95,8 +103,25 @@ def build_payload(now: _dt.datetime) -> dict:
         ],
         "considered_but_rejected": [],
         "low_confidence_patterns": [],
-        "blind_spots": [],
+        "blind_spots": []
     }
+
+
+def validate_payload(payload: dict):
+    if not SCHEMA_FILE.exists():
+        print(f"Error: Schema file not found at {SCHEMA_FILE}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        schema = json.loads(SCHEMA_FILE.read_text(encoding="utf-8"))
+        jsonschema.validate(instance=payload, schema=schema)
+        print("Schema validation passed.")
+    except json.JSONDecodeError as e:
+        print(f"Error: Failed to parse schema JSON: {e}", file=sys.stderr)
+        sys.exit(1)
+    except jsonschema.ValidationError as e:
+        print(f"Error: Payload failed schema validation: {e.message}", file=sys.stderr)
+        sys.exit(1)
 
 
 def compare_with_baseline(current: dict):
@@ -115,9 +140,8 @@ def compare_with_baseline(current: dict):
     diff = {
         "baseline_generated_at": baseline.get("generated_at"),
         "current_generated_at": current.get("generated_at"),
-        "topic_count_diff": len(current.get("topics", []))
-        - len(baseline.get("topics", [])),
-        "topics_changed": False,  # Placeholder
+        "topic_count_diff": len(current.get("topics", [])) - len(baseline.get("topics", [])),
+        "topics_changed": False # Placeholder
     }
 
     # We can do a slightly deeper check
@@ -141,6 +165,9 @@ def main() -> None:
     now = _utc_now()
     payload = build_payload(now)
 
+    # Validate before writing
+    validate_payload(payload)
+
     OUTPUT_FILE.write_text(
         json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
@@ -148,16 +175,6 @@ def main() -> None:
     print(f"Observatory report generated at: {OUTPUT_FILE}")
 
     compare_with_baseline(payload)
-
-    # Verify mandatory fields (redundant with schema but good for immediate feedback)
-    missing = []
-    for field in ["considered_but_rejected", "low_confidence_patterns", "blind_spots"]:
-        if field not in payload:
-            missing.append(field)
-
-    if missing:
-        print(f"ERROR: Missing mandatory fields: {missing}", file=sys.stderr)
-        sys.exit(1)
 
 
 if __name__ == "__main__":
