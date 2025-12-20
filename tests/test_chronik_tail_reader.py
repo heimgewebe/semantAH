@@ -89,6 +89,7 @@ class TestChronikTailReader(unittest.TestCase):
         self.assertEqual(output_json["meta"]["missing_event_field"], 1)
         self.assertEqual(output_json["meta"]["missing_status_field"], 1)
         self.assertEqual(output_json["meta"]["missing_ts_field"], 1)
+        self.assertEqual(output_json["meta"]["invalid_ts_field"], 0)
 
         # Sort verification: newest first (2023-01-03 from timestamp fallback)
         self.assertEqual(len(output_json["sample"]), 3)
@@ -135,7 +136,9 @@ class TestChronikTailReader(unittest.TestCase):
 
         # generated_at should be recent
         generated_at = output_json["generated_at"]
-        self.assertTrue(generated_at.endswith("+00:00")) # UTC check
+        dt = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+        self.assertIsNotNone(dt.tzinfo)
+        self.assertEqual(dt.utcoffset().total_seconds(), 0)  # UTC check
 
 if __name__ == '__main__':
     unittest.main()

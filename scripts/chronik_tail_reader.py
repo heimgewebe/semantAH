@@ -84,6 +84,7 @@ def main():
     missing_event_field = 0
     missing_status_field = 0
     missing_ts_field = 0
+    invalid_ts_field = 0
 
     raw_events = data if isinstance(data, list) else []
 
@@ -103,13 +104,18 @@ def main():
 
         # Timestamp fallback
         ts_str = item.get("ts") or item.get("timestamp")
-        dt = parse_ts(ts_str)
+
+        if ts_str is None:
+            missing_ts_field += 1
+            dt = None
+        else:
+            dt = parse_ts(ts_str)
+            if dt is None:
+                invalid_ts_field += 1
 
         if dt:
             # item with parsed datetime for sorting
             valid_events.append({"dt": dt, "item": item})
-        else:
-            missing_ts_field += 1
 
     # Sort by dt desc
     valid_events.sort(key=lambda x: x["dt"], reverse=True)
@@ -137,7 +143,8 @@ def main():
             "lines_dropped": meta_dropped,
             "missing_event_field": missing_event_field,
             "missing_status_field": missing_status_field,
-            "missing_ts_field": missing_ts_field
+            "missing_ts_field": missing_ts_field,
+            "invalid_ts_field": invalid_ts_field
         }
     }
 
