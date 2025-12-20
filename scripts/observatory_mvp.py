@@ -107,20 +107,23 @@ def build_payload(now: _dt.datetime) -> dict:
     }
 
 
-def validate_payload(payload: dict):
+def validate_payload(payload: dict, label: str = "Payload"):
     if not SCHEMA_FILE.exists():
         print(f"Error: Schema file not found at {SCHEMA_FILE}", file=sys.stderr)
         sys.exit(1)
 
     try:
         schema = json.loads(SCHEMA_FILE.read_text(encoding="utf-8"))
-        jsonschema.validate(instance=payload, schema=schema)
-        print("Schema validation passed.")
+        validator = jsonschema.Draft202012Validator(
+            schema, format_checker=jsonschema.FormatChecker()
+        )
+        validator.validate(payload)
+        print(f"{label} schema validation passed.")
     except json.JSONDecodeError as e:
         print(f"Error: Failed to parse schema JSON: {e}", file=sys.stderr)
         sys.exit(1)
     except jsonschema.ValidationError as e:
-        print(f"Error: Payload failed schema validation: {e.message}", file=sys.stderr)
+        print(f"Error: {label} failed schema validation: {e.message}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -135,6 +138,9 @@ def compare_with_baseline(current: dict):
     except Exception as e:
         print(f"Failed to read baseline data: {e}. Skipping diff.")
         return
+
+    # Validate baseline as well to ensure valid contract comparison
+    validate_payload(baseline, label="Baseline")
 
     # Simple metric comparison
     diff = {
