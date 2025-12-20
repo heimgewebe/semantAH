@@ -1,0 +1,56 @@
+{
+  "observatory_id": "obs-20251220-123556-f01ee5a8",
+  "generated_at": "2025-12-20T12:35:56.057765+00:00",
+  "source": "semantAH",
+  "topics": [
+    {
+      "topic_id": "topic-mvp-20251220",
+      "title": "MVP Observatory Snapshot",
+      "summary": "Minimaler, schema-konformer Snapshot aus Repo-Dateien (ohne Semantik).",
+      "sources": [
+        {
+          "source_type": "repo_file",
+          "ref": "README.md",
+          "tags": [
+            "mvp"
+          ]
+        },
+        {
+          "source_type": "repo_file",
+          "ref": "pyproject.toml",
+          "tags": [
+            "mvp"
+          ]
+        },
+        {
+          "source_type": "repo_file",
+          "ref": "docs/roadmap.md",
+          "tags": [
+            "mvp"
+          ]
+        },
+        {
+          "source_type": "repo_file",
+          "ref": "docs/README.md",
+          "tags": [
+            "mvp"
+          ]
+        }
+      ],
+      "suggested_questions": [
+        "Welche Quellen sollen künftig priorisiert werden (Vault, Chronik, Repos)?",
+        "Welche minimale Heuristik wäre als nächstes erlaubt, ohne die Kette zu brechen?"
+      ],
+      "suggested_next_steps": [
+        "Leitstand: Fixture und Renderer auf den gleichen Contract ziehen.",
+        "Metarepo: optional Fixture-Validation erweitern (falls gewünscht)."
+      ],
+      "meta": {
+        "mvp": true
+      }
+    }
+  ],
+  "considered_but_rejected": [],
+  "low_confidence_patterns": [],
+  "blind_spots": []
+}

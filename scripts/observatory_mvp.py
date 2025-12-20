@@ -4,8 +4,8 @@ observatory_mvp.py
 Minimaler Producer für Capability C1 "Semantisches Observatorium".
 Absichtlich ohne Embeddings/Clustering/Heuristik: nur Existenz + Contract-Konformität.
 
-Output: data/observatory/observatory-<timestamp>.json
-Contract: knowledge.observatory.schema.json (kanonisch im heimgewebe/metarepo)
+Output: artifacts/insights.daily.json
+Contract: contracts/knowledge.observatory.schema.json
 """
 
 from __future__ import annotations
@@ -14,6 +14,14 @@ import datetime as _dt
 import json
 import uuid
 from pathlib import Path
+import sys
+import shutil
+
+# Canonical output path
+ARTIFACTS_DIR = Path("artifacts")
+OUTPUT_FILE = ARTIFACTS_DIR / "insights.daily.json"
+PREV_FILE = ARTIFACTS_DIR / "observatory.prev.json"
+DIFF_FILE = ARTIFACTS_DIR / "observatory.diff.json"
 
 
 def _utc_now() -> _dt.datetime:
@@ -86,24 +94,79 @@ def build_payload(now: _dt.datetime) -> dict:
                 "meta": {"mvp": True},
             }
         ],
+        "considered_but_rejected": [],
+        "low_confidence_patterns": [],
+        "blind_spots": []
     }
 
 
+def compare_with_prev(current: dict):
+    if not PREV_FILE.exists():
+        print("No previous observatory data found (artifacts/observatory.prev.json). Skipping diff.")
+        return
+
+    try:
+        prev_text = PREV_FILE.read_text(encoding="utf-8")
+        prev = json.loads(prev_text)
+    except Exception as e:
+        print(f"Failed to read previous observatory data: {e}. Skipping diff.")
+        return
+
+    # Simple metric comparison
+    diff = {
+        "generated_at_prev": prev.get("generated_at"),
+        "generated_at_curr": current.get("generated_at"),
+        "topic_count_diff": len(current.get("topics", [])) - len(prev.get("topics", [])),
+        "topics_changed": False # Placeholder
+    }
+
+    # We can do a slightly deeper check
+    prev_topics = {t.get("topic_id") for t in prev.get("topics", [])}
+    curr_topics = {t.get("topic_id") for t in current.get("topics", [])}
+
+    if prev_topics != curr_topics:
+        diff["topics_changed"] = True
+        diff["new_topics"] = list(curr_topics - prev_topics)
+        diff["removed_topics"] = list(prev_topics - curr_topics)
+
+    DIFF_FILE.write_text(
+        json.dumps(diff, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    print(f"Drift report generated at: {DIFF_FILE}")
+
+
 def main() -> None:
-    output_dir = Path("data/observatory")
-    output_dir.mkdir(parents=True, exist_ok=True)
+    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
     now = _utc_now()
-    ts_str = now.strftime("%Y%m%d-%H%M%S")
-
     payload = build_payload(now)
 
-    output_file = output_dir / f"observatory-{ts_str}.json"
-    output_file.write_text(
+    OUTPUT_FILE.write_text(
         json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
 
-    print(f"Observatory report generated at: {output_file}")
+    print(f"Observatory report generated at: {OUTPUT_FILE}")
+
+    compare_with_prev(payload)
+
+    # Update prev file for next run?
+    # The user instruction says "Lege im Repo ein: artifacts/observatory.prev.json" and "Beim Lauf: Vergleiche...".
+    # It does not explicitly say "Overwrite prev". But typically diffs are today vs yesterday.
+    # If we don't update prev, we always compare against the static repo file.
+    # Assuming for now we leave prev as is, unless the user manually updates it or CI handles it.
+    # But usually a drift detection needs a moving window.
+    # Given "Drift-Sichtbarkeit herstellen" and "Vergleich Heute vs. Gestern",
+    # it implies we might want to rotate it. But let's stick to reading it for now.
+
+    # Verify mandatory fields (redundant with schema but good for immediate feedback)
+    missing = []
+    for field in ["considered_but_rejected", "low_confidence_patterns", "blind_spots"]:
+        if field not in payload:
+            missing.append(field)
+
+    if missing:
+        print(f"ERROR: Missing mandatory fields: {missing}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

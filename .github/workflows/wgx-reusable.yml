@@ -36,5 +36,8 @@ jobs:
       - if: ${{ inputs.run_metrics }}
         run: ./wgx/wgx metrics
 
+      - name: Run Observatory (Mandatory)
+        run: ./wgx/wgx knowledge
+
       - if: ${{ inputs.run_snapshot }}
         run: ./wgx/wgx snapshot
