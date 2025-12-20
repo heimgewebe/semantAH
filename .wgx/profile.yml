@@ -70,14 +70,18 @@ wgx:
     knowledge: |
       set -euo pipefail
       echo "[wgx.knowledge] Executing observatory MVP"
+      # Ensure dependencies are synced for deterministic execution (local & CI)
+      if [ -f pyproject.toml ] && command -v uv >/dev/null 2>&1; then
+        uv sync
+      fi
+
       # Observatory output is mandatory (Core-Task 1)
       uv run python scripts/observatory_mvp.py
+
       if [[ ! -f artifacts/insights.daily.json ]]; then
         echo "Error: artifacts/insights.daily.json was not generated!"
         exit 1
       fi
-      # Negationsspur check via script validation (already in script)
-      # Drift check via script (already in script)
 
     semantah.index: "uv run python tools/build_index.py"
     semantah.graph: "uv run python tools/build_graph.py"

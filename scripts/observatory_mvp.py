@@ -106,7 +106,10 @@ def build_payload(now: _dt.datetime) -> dict:
         ],
         "considered_but_rejected": [],
         "low_confidence_patterns": [],
-        "blind_spots": [],
+        "blind_spots": [
+            "No Vault/Chronik inputs available in MVP.",
+            "No embeddings/clustering enabled.",
+        ],
     }
 
 
@@ -146,20 +149,19 @@ def compare_with_baseline(current: dict):
     validate_payload(baseline, label="Baseline")
 
     # Simple metric comparison
+    baseline_topics = {t.get("topic_id") for t in baseline.get("topics", [])}
+    curr_topics = {t.get("topic_id") for t in current.get("topics", [])}
+    topics_changed = baseline_topics != curr_topics
+
     diff = {
         "baseline_generated_at": baseline.get("generated_at"),
         "current_generated_at": current.get("generated_at"),
         "topic_count_diff": len(current.get("topics", []))
         - len(baseline.get("topics", [])),
-        "topics_changed": False,  # Placeholder
+        "topics_changed": topics_changed,
     }
 
-    # We can do a slightly deeper check
-    baseline_topics = {t.get("topic_id") for t in baseline.get("topics", [])}
-    curr_topics = {t.get("topic_id") for t in current.get("topics", [])}
-
-    if baseline_topics != curr_topics:
-        diff["topics_changed"] = True
+    if topics_changed:
         diff["new_topics"] = list(curr_topics - baseline_topics)
         diff["removed_topics"] = list(baseline_topics - curr_topics)
 

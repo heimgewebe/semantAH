@@ -36,9 +36,6 @@ jobs:
       - if: ${{ inputs.run_metrics }}
         run: ./wgx/wgx metrics
 
-      - name: Sync dependencies
-        run: uv sync
-
       - name: Run Observatory (Mandatory)
         run: ./wgx/wgx knowledge
 
@@ -49,7 +46,7 @@ jobs:
           name: observatory-report
           path: artifacts/
           retention-days: 7
-          if-no-files-found: warn
+          if-no-files-found: error
 
       - if: ${{ inputs.run_snapshot }}
         run: ./wgx/wgx snapshot

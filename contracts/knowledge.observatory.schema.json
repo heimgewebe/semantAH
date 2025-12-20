@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.heimgewebe.org/contracts/knowledge.observatory.schema.json",
-  "$comment": "Local mirror of metarepo contract. Used for validation within semantAH.",
+  "$comment": "Mirror of heimgewebe/metarepo/contracts/...; must be kept in sync",
   "title": "Observatory Output (Daily Insights)",
   "type": "object",
   "additionalProperties": false,
