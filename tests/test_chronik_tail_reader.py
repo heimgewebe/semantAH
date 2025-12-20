@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch, mock_open
 import sys
 import os
 import json
+from datetime import datetime
 from io import BytesIO
 
 # Import the module to test.
@@ -159,6 +160,7 @@ class TestChronikTailReader(unittest.TestCase):
         dt = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
         self.assertIsNotNone(dt.tzinfo)
         self.assertEqual(dt.utcoffset().total_seconds(), 0)  # UTC check
+
 
 if __name__ == "__main__":
     unittest.main()
