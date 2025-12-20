@@ -70,6 +70,10 @@ wgx:
     knowledge: |
       set -euo pipefail
       echo "[wgx.knowledge] Executing observatory MVP"
+
+      # Ensure artifacts directory exists to prevent CI upload double-failures
+      mkdir -p artifacts
+
       # Ensure dependencies are synced for deterministic execution (local & CI)
       if [ -f pyproject.toml ] && command -v uv >/dev/null 2>&1; then
         uv sync

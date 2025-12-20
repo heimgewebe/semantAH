@@ -148,6 +148,14 @@ def compare_with_baseline(current: dict):
     # Validate baseline as well to ensure valid contract comparison
     validate_payload(baseline, label="Baseline")
 
+    # Enforce non-empty baseline for meaningful drift detection
+    if not baseline.get("topics"):
+        print(
+            "Error: Baseline fixture has zero topics. Refusing drift comparison against empty baseline.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     # Simple metric comparison
     baseline_topics = {t.get("topic_id") for t in baseline.get("topics", [])}
     curr_topics = {t.get("topic_id") for t in current.get("topics", [])}

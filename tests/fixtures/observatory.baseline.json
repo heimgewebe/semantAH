@@ -2,7 +2,22 @@
   "observatory_id": "obs-prev-baseline",
   "generated_at": "2023-01-01T00:00:00+00:00",
   "source": "semantAH",
-  "topics": [],
+  "topics": [
+    {
+      "topic_id": "topic-prev-baseline-001",
+      "title": "Baseline Topic",
+      "summary": "A baseline topic to ensure drift comparison works.",
+      "sources": [
+        {
+          "source_type": "repo_file",
+          "ref": "README.md"
+        }
+      ],
+      "suggested_questions": [],
+      "suggested_next_steps": [],
+      "meta": {}
+    }
+  ],
   "considered_but_rejected": [],
   "low_confidence_patterns": [],
   "blind_spots": []
