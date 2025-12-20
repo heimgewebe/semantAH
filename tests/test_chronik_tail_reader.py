@@ -3,7 +3,6 @@ from unittest.mock import MagicMock, patch, mock_open
 import sys
 import os
 import json
-from datetime import datetime
 from io import BytesIO
 
 # Import the module to test.
