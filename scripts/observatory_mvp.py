@@ -15,12 +15,11 @@ import json
 import uuid
 from pathlib import Path
 import sys
-import shutil
 
-# Canonical output path
+# Canonical output paths
 ARTIFACTS_DIR = Path("artifacts")
 OUTPUT_FILE = ARTIFACTS_DIR / "insights.daily.json"
-PREV_FILE = ARTIFACTS_DIR / "observatory.prev.json"
+BASELINE_FILE = Path("tests/fixtures/observatory.baseline.json")
 DIFF_FILE = ARTIFACTS_DIR / "observatory.diff.json"
 
 
@@ -100,34 +99,34 @@ def build_payload(now: _dt.datetime) -> dict:
     }
 
 
-def compare_with_prev(current: dict):
-    if not PREV_FILE.exists():
-        print("No previous observatory data found (artifacts/observatory.prev.json). Skipping diff.")
+def compare_with_baseline(current: dict):
+    if not BASELINE_FILE.exists():
+        print(f"No baseline data found ({BASELINE_FILE}). Skipping diff.")
         return
 
     try:
-        prev_text = PREV_FILE.read_text(encoding="utf-8")
-        prev = json.loads(prev_text)
+        baseline_text = BASELINE_FILE.read_text(encoding="utf-8")
+        baseline = json.loads(baseline_text)
     except Exception as e:
-        print(f"Failed to read previous observatory data: {e}. Skipping diff.")
+        print(f"Failed to read baseline data: {e}. Skipping diff.")
         return
 
     # Simple metric comparison
     diff = {
-        "generated_at_prev": prev.get("generated_at"),
-        "generated_at_curr": current.get("generated_at"),
-        "topic_count_diff": len(current.get("topics", [])) - len(prev.get("topics", [])),
+        "baseline_generated_at": baseline.get("generated_at"),
+        "current_generated_at": current.get("generated_at"),
+        "topic_count_diff": len(current.get("topics", [])) - len(baseline.get("topics", [])),
         "topics_changed": False # Placeholder
     }
 
     # We can do a slightly deeper check
-    prev_topics = {t.get("topic_id") for t in prev.get("topics", [])}
+    baseline_topics = {t.get("topic_id") for t in baseline.get("topics", [])}
     curr_topics = {t.get("topic_id") for t in current.get("topics", [])}
 
-    if prev_topics != curr_topics:
+    if baseline_topics != curr_topics:
         diff["topics_changed"] = True
-        diff["new_topics"] = list(curr_topics - prev_topics)
-        diff["removed_topics"] = list(prev_topics - curr_topics)
+        diff["new_topics"] = list(curr_topics - baseline_topics)
+        diff["removed_topics"] = list(baseline_topics - curr_topics)
 
     DIFF_FILE.write_text(
         json.dumps(diff, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
@@ -147,16 +146,7 @@ def main() -> None:
 
     print(f"Observatory report generated at: {OUTPUT_FILE}")
 
-    compare_with_prev(payload)
-
-    # Update prev file for next run?
-    # The user instruction says "Lege im Repo ein: artifacts/observatory.prev.json" and "Beim Lauf: Vergleiche...".
-    # It does not explicitly say "Overwrite prev". But typically diffs are today vs yesterday.
-    # If we don't update prev, we always compare against the static repo file.
-    # Assuming for now we leave prev as is, unless the user manually updates it or CI handles it.
-    # But usually a drift detection needs a moving window.
-    # Given "Drift-Sichtbarkeit herstellen" and "Vergleich Heute vs. Gestern",
-    # it implies we might want to rotate it. But let's stick to reading it for now.
+    compare_with_baseline(payload)
 
     # Verify mandatory fields (redundant with schema but good for immediate feedback)
     missing = []
