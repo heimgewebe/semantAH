@@ -36,6 +36,9 @@ jobs:
       - if: ${{ inputs.run_metrics }}
         run: ./wgx/wgx metrics
 
+      - name: Sync dependencies
+        run: uv sync
+
       - name: Run Observatory (Mandatory)
         run: ./wgx/wgx knowledge
 
