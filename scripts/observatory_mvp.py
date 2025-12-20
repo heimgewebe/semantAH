@@ -159,11 +159,9 @@ def compare_with_baseline(current: dict):
         "topic_count_diff": len(current.get("topics", []))
         - len(baseline.get("topics", [])),
         "topics_changed": topics_changed,
+        "new_topics": list(curr_topics - baseline_topics),
+        "removed_topics": list(baseline_topics - curr_topics),
     }
-
-    if topics_changed:
-        diff["new_topics"] = list(curr_topics - baseline_topics)
-        diff["removed_topics"] = list(baseline_topics - curr_topics)
 
     DIFF_FILE.write_text(
         json.dumps(diff, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
