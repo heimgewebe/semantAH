@@ -95,7 +95,7 @@ def build_payload(now: _dt.datetime) -> dict:
         ],
         "considered_but_rejected": [],
         "low_confidence_patterns": [],
-        "blind_spots": []
+        "blind_spots": [],
     }
 
 
@@ -115,8 +115,9 @@ def compare_with_baseline(current: dict):
     diff = {
         "baseline_generated_at": baseline.get("generated_at"),
         "current_generated_at": current.get("generated_at"),
-        "topic_count_diff": len(current.get("topics", [])) - len(baseline.get("topics", [])),
-        "topics_changed": False # Placeholder
+        "topic_count_diff": len(current.get("topics", []))
+        - len(baseline.get("topics", [])),
+        "topics_changed": False,  # Placeholder
     }
 
     # We can do a slightly deeper check
