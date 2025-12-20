@@ -13,6 +13,7 @@ import urllib.request
 import urllib.parse
 from datetime import datetime
 
+
 def parse_ts(ts_str):
     """
     Robust timestamp parsing.
@@ -28,12 +29,23 @@ def parse_ts(ts_str):
     except ValueError:
         return None
 
+
 def main():
     parser = argparse.ArgumentParser(description="Minimal chronik tail reader")
-    parser.add_argument("--url", default=os.environ.get("CHRONIK_URL", "http://localhost:8080"), help="Chronik URL")
-    parser.add_argument("--domain", default="aussen", help="Domain to fetch (default: aussen)")
-    parser.add_argument("--limit", default="200", help="Limit number of items (default: 200)")
-    parser.add_argument("--output", default="out/insights.daily.json", help="Output JSON file path")
+    parser.add_argument(
+        "--url",
+        default=os.environ.get("CHRONIK_URL", "http://localhost:8080"),
+        help="Chronik URL",
+    )
+    parser.add_argument(
+        "--domain", default="aussen", help="Domain to fetch (default: aussen)"
+    )
+    parser.add_argument(
+        "--limit", default="200", help="Limit number of items (default: 200)"
+    )
+    parser.add_argument(
+        "--output", default="out/insights.daily.json", help="Output JSON file path"
+    )
 
     args = parser.parse_args()
 
@@ -106,10 +118,7 @@ def main():
         "last_seen_ts": last_seen_ts,
         "sample": sample_items,
         "total_count": len(raw_events),
-        "meta": {
-            "lines_returned": meta_returned,
-            "lines_dropped": meta_dropped
-        }
+        "meta": {"lines_returned": meta_returned, "lines_dropped": meta_dropped},
     }
 
     # Ensure output directory exists
@@ -119,6 +128,7 @@ def main():
 
     with open(args.output, "w") as f:
         json.dump(output_data, f, indent=2)
+
 
 if __name__ == "__main__":
     main()
