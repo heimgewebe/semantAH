@@ -156,8 +156,8 @@ def main():
             "missing_event_field": missing_event_field,
             "missing_status_field": missing_status_field,
             "missing_ts_field": missing_ts_field,
-            "invalid_ts_field": invalid_ts_field
-        }
+            "invalid_ts_field": invalid_ts_field,
+        },
     }
 
     # Ensure output directory exists
