@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
+
+# Check requirements
+if ! command -v curl >/dev/null 2>&1; then
+    echo "Error: curl is required but not installed." >&2
+    exit 1
+fi
 
 REF="${METAREPO_REF:-main}"
 URL="https://raw.githubusercontent.com/heimgewebe/metarepo/${REF}/contracts/knowledge.observatory.schema.json"
