@@ -1,0 +1,35 @@
+name: Contracts Sync Guard
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'contracts/**'
+      - '.github/workflows/contracts-sync-guard.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'contracts/**'
+      - '.github/workflows/contracts-sync-guard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run sync script
+        run: |
+          chmod +x scripts/sync_contracts_from_metarepo.sh
+          ./scripts/sync_contracts_from_metarepo.sh
+
+      - name: Check for drift
+        run: |
+          if ! git diff --exit-code contracts/knowledge.observatory.schema.json; then
+            echo "::error::Contract drift detected! Please run 'scripts/sync_contracts_from_metarepo.sh' and commit the changes."
+            exit 1
+          fi
