@@ -26,9 +26,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: artifacts/observatory.prev.json
-          key: observatory-prev-${{ github.run_id }}
+          key: observatory-prev-${{ github.ref_name }}-${{ github.run_id }}
           restore-keys: |
-            observatory-prev-
+            observatory-prev-${{ github.ref_name }}-
 
       - name: Install dependencies
         run: uv sync
@@ -62,8 +62,8 @@ jobs:
         run: cp artifacts/insights.daily.json artifacts/observatory.prev.json
 
       - name: Save Observatory Prev
-        if: success()
+        if: success() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
         uses: actions/cache/save@v4
         with:
           path: artifacts/observatory.prev.json
-          key: observatory-prev-${{ github.run_id }}
+          key: observatory-prev-${{ github.ref_name }}-${{ github.run_id }}

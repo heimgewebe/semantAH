@@ -34,8 +34,6 @@ except ImportError:
 # Canonical output paths
 ARTIFACTS_DIR = Path("artifacts")
 OUTPUT_FILE = ARTIFACTS_DIR / "insights.daily.json"
-BASELINE_FILE = Path("tests/fixtures/observatory.baseline.json")
-DIFF_FILE = ARTIFACTS_DIR / "observatory.diff.json"
 SCHEMA_FILE = Path("contracts/knowledge.observatory.schema.json")
 
 
@@ -121,16 +119,6 @@ def validate_payload(payload: dict, label: str = "Payload"):
     observatory_diff.validate_payload(payload, SCHEMA_FILE, label=label)
 
 
-def compare_with_baseline(current_path: Path):
-    observatory_diff.diff_observatory(
-        current_path,
-        BASELINE_FILE,
-        DIFF_FILE,
-        schema_path=SCHEMA_FILE,
-        enforce_baseline_not_empty=True
-    )
-
-
 def main() -> None:
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -145,8 +133,6 @@ def main() -> None:
     )
 
     print(f"Observatory report generated at: {OUTPUT_FILE}")
-
-    compare_with_baseline(OUTPUT_FILE)
 
 
 if __name__ == "__main__":
