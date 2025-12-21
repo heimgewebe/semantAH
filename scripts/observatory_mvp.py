@@ -16,18 +16,17 @@ import uuid
 from pathlib import Path
 import sys
 
-# Dependencies
+# Import diff logic
 try:
-    import jsonschema
+    import observatory_diff
 except ImportError:
-    print("Error: jsonschema is missing. Install it via 'uv sync'.", file=sys.stderr)
-    sys.exit(1)
+    # Fallback if running from a different context where scripts is not in path
+    sys.path.append(str(Path(__file__).parent))
+    import observatory_diff
 
 # Canonical output paths
 ARTIFACTS_DIR = Path("artifacts")
 OUTPUT_FILE = ARTIFACTS_DIR / "insights.daily.json"
-BASELINE_FILE = Path("tests/fixtures/observatory.baseline.json")
-DIFF_FILE = ARTIFACTS_DIR / "observatory.diff.json"
 SCHEMA_FILE = Path("contracts/knowledge.observatory.schema.json")
 
 
@@ -110,67 +109,7 @@ def build_payload(now: _dt.datetime) -> dict:
 
 
 def validate_payload(payload: dict, label: str = "Payload"):
-    if not SCHEMA_FILE.exists():
-        print(f"Error: Schema file not found at {SCHEMA_FILE}", file=sys.stderr)
-        sys.exit(1)
-
-    try:
-        schema = json.loads(SCHEMA_FILE.read_text(encoding="utf-8"))
-        validator = jsonschema.Draft202012Validator(
-            schema, format_checker=jsonschema.FormatChecker()
-        )
-        validator.validate(payload)
-        print(f"{label} schema validation passed.")
-    except json.JSONDecodeError as e:
-        print(f"Error: Failed to parse schema JSON: {e}", file=sys.stderr)
-        sys.exit(1)
-    except jsonschema.ValidationError as e:
-        print(f"Error: {label} failed schema validation: {e.message}", file=sys.stderr)
-        sys.exit(1)
-
-
-def compare_with_baseline(current: dict):
-    if not BASELINE_FILE.exists():
-        print(f"No baseline data found ({BASELINE_FILE}). Skipping diff.")
-        return
-
-    try:
-        baseline_text = BASELINE_FILE.read_text(encoding="utf-8")
-        baseline = json.loads(baseline_text)
-    except Exception as e:
-        print(f"Failed to read baseline data: {e}. Skipping diff.")
-        return
-
-    # Validate baseline as well to ensure valid contract comparison
-    validate_payload(baseline, label="Baseline")
-
-    # Enforce non-empty baseline for meaningful drift detection
-    if not baseline.get("topics"):
-        print(
-            "Error: Baseline fixture has zero topics. Refusing drift comparison against empty baseline.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    # Simple metric comparison
-    baseline_topics = {t.get("topic_id") for t in baseline.get("topics", [])}
-    curr_topics = {t.get("topic_id") for t in current.get("topics", [])}
-    topics_changed = baseline_topics != curr_topics
-
-    diff = {
-        "baseline_generated_at": baseline.get("generated_at"),
-        "current_generated_at": current.get("generated_at"),
-        "topic_count_diff": len(current.get("topics", []))
-        - len(baseline.get("topics", [])),
-        "topics_changed": topics_changed,
-        "new_topics": sorted(list(curr_topics - baseline_topics)),
-        "removed_topics": sorted(list(baseline_topics - curr_topics)),
-    }
-
-    DIFF_FILE.write_text(
-        json.dumps(diff, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
-    print(f"Drift report generated at: {DIFF_FILE}")
+    observatory_diff.validate_payload(payload, SCHEMA_FILE, label=label)
 
 
 def main() -> None:
@@ -187,8 +126,6 @@ def main() -> None:
     )
 
     print(f"Observatory report generated at: {OUTPUT_FILE}")
-
-    compare_with_baseline(payload)
 
 
 if __name__ == "__main__":

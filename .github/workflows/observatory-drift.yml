@@ -1,0 +1,68 @@
+name: Observatory Drift
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  observatory-drift:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+
+      # Restore Previous State
+      - name: Restore Observatory Prev
+        uses: actions/cache/restore@v4
+        with:
+          path: artifacts/observatory.prev.json
+          key: observatory-prev-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            observatory-prev-${{ github.ref_name }}-
+
+      - name: Install dependencies
+        run: uv sync
+
+      # Generate Current State
+      - name: Generate Observatory Snapshot
+        run: |
+          mkdir -p artifacts
+          uv run scripts/observatory_mvp.py
+
+      # Rolling Diff (Current vs Prev)
+      - name: Generate Rolling Diff
+        run: |
+          uv run scripts/observatory_diff.py \
+            artifacts/insights.daily.json \
+            artifacts/observatory.prev.json \
+            artifacts/observatory.diff.json \
+            --schema contracts/knowledge.observatory.schema.json
+
+      # Upload Diff Artifact
+      - name: Upload Drift Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: observatory-diff
+          path: artifacts/observatory.diff.json
+
+      # Update Prev (Cache)
+      - name: Prepare Next Prev
+        if: success()
+        run: cp artifacts/insights.daily.json artifacts/observatory.prev.json
+
+      - name: Save Observatory Prev
+        if: success() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
+        uses: actions/cache/save@v4
+        with:
+          path: artifacts/observatory.prev.json
+          key: observatory-prev-${{ github.ref_name }}-${{ github.run_id }}
