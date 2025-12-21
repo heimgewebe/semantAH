@@ -3,6 +3,7 @@ observatory_diff.py
 
 Generates a diff between two observatory JSON artifacts.
 """
+
 import json
 import sys
 from pathlib import Path
@@ -11,9 +12,11 @@ import argparse
 # Dependencies for validation
 try:
     import jsonschema
+
     HAS_JSONSCHEMA = True
 except ImportError:
     HAS_JSONSCHEMA = False
+
 
 def validate_payload(payload: dict, schema_path: Path, label: str = "Payload"):
     if not HAS_JSONSCHEMA:
@@ -41,22 +44,22 @@ def validate_payload(payload: dict, schema_path: Path, label: str = "Payload"):
         print(f"Error: {label} failed schema validation: {e.message}", file=sys.stderr)
         sys.exit(1)
 
+
 def diff_observatory(
     current_path: Path,
     baseline_path: Path,
     output_path: Path,
     schema_path: Path = None,
-    enforce_baseline_not_empty: bool = False
+    enforce_baseline_not_empty: bool = False,
 ) -> None:
-
     # Read current first to report its timestamp even if baseline missing
     try:
         current_text = current_path.read_text(encoding="utf-8")
         current = json.loads(current_text)
         current_generated_at = current.get("generated_at")
     except Exception as e:
-         print(f"Failed to read current data: {e}.", file=sys.stderr)
-         sys.exit(1)
+        print(f"Failed to read current data: {e}.", file=sys.stderr)
+        sys.exit(1)
 
     if schema_path:
         validate_payload(current, schema_path, label="Current")
@@ -64,16 +67,20 @@ def diff_observatory(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if not baseline_path.exists():
-        print(f"No baseline data found ({baseline_path}). Generating missing-baseline report.")
+        print(
+            f"No baseline data found ({baseline_path}). Generating missing-baseline report."
+        )
         diff = {
             "baseline_missing": True,
             "current_generated_at": current_generated_at,
             "reason": "No baseline/prev file found (first run or cache miss).",
             "topics_changed": None,
             "new_topics": [],
-            "removed_topics": []
+            "removed_topics": [],
         }
-        output_path.write_text(json.dumps(diff, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        output_path.write_text(
+            json.dumps(diff, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
         return
 
     try:
@@ -87,9 +94,11 @@ def diff_observatory(
             "reason": f"Failed to read baseline data: {e}",
             "topics_changed": None,
             "new_topics": [],
-            "removed_topics": []
+            "removed_topics": [],
         }
-        output_path.write_text(json.dumps(diff, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        output_path.write_text(
+            json.dumps(diff, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
         return
 
     if schema_path:
@@ -121,13 +130,18 @@ def diff_observatory(
     )
     print(f"Drift report generated at: {output_path}")
 
+
 def main():
     parser = argparse.ArgumentParser(description="Diff observatory artifacts.")
-    parser.add_argument("current", type=Path, help="Path to current insights.daily.json")
+    parser.add_argument(
+        "current", type=Path, help="Path to current insights.daily.json"
+    )
     parser.add_argument("baseline", type=Path, help="Path to baseline/prev json")
     parser.add_argument("output", type=Path, help="Path to output diff json")
     parser.add_argument("--schema", type=Path, help="Path to schema for validation")
-    parser.add_argument("--enforce-not-empty", action="store_true", help="Fail if baseline is empty")
+    parser.add_argument(
+        "--enforce-not-empty", action="store_true", help="Fail if baseline is empty"
+    )
 
     args = parser.parse_args()
 
@@ -136,8 +150,9 @@ def main():
         args.baseline,
         args.output,
         schema_path=args.schema,
-        enforce_baseline_not_empty=args.enforce_not_empty
+        enforce_baseline_not_empty=args.enforce_not_empty,
     )
+
 
 if __name__ == "__main__":
     main()
