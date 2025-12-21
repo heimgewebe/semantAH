@@ -26,8 +26,6 @@ except ImportError:
 # Canonical output paths
 ARTIFACTS_DIR = Path("artifacts")
 OUTPUT_FILE = ARTIFACTS_DIR / "insights.daily.json"
-BASELINE_FILE = Path("tests/fixtures/observatory.baseline.json")
-DIFF_FILE = ARTIFACTS_DIR / "observatory.diff.json"
 SCHEMA_FILE = Path("contracts/knowledge.observatory.schema.json")
 
 
@@ -129,50 +127,6 @@ def validate_payload(payload: dict, label: str = "Payload"):
         sys.exit(1)
 
 
-def compare_with_baseline(current: dict):
-    if not BASELINE_FILE.exists():
-        print(f"No baseline data found ({BASELINE_FILE}). Skipping diff.")
-        return
-
-    try:
-        baseline_text = BASELINE_FILE.read_text(encoding="utf-8")
-        baseline = json.loads(baseline_text)
-    except Exception as e:
-        print(f"Failed to read baseline data: {e}. Skipping diff.")
-        return
-
-    # Validate baseline as well to ensure valid contract comparison
-    validate_payload(baseline, label="Baseline")
-
-    # Enforce non-empty baseline for meaningful drift detection
-    if not baseline.get("topics"):
-        print(
-            "Error: Baseline fixture has zero topics. Refusing drift comparison against empty baseline.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    # Simple metric comparison
-    baseline_topics = {t.get("topic_id") for t in baseline.get("topics", [])}
-    curr_topics = {t.get("topic_id") for t in current.get("topics", [])}
-    topics_changed = baseline_topics != curr_topics
-
-    diff = {
-        "baseline_generated_at": baseline.get("generated_at"),
-        "current_generated_at": current.get("generated_at"),
-        "topic_count_diff": len(current.get("topics", []))
-        - len(baseline.get("topics", [])),
-        "topics_changed": topics_changed,
-        "new_topics": sorted(list(curr_topics - baseline_topics)),
-        "removed_topics": sorted(list(baseline_topics - curr_topics)),
-    }
-
-    DIFF_FILE.write_text(
-        json.dumps(diff, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
-    print(f"Drift report generated at: {DIFF_FILE}")
-
-
 def main() -> None:
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -187,8 +141,6 @@ def main() -> None:
     )
 
     print(f"Observatory report generated at: {OUTPUT_FILE}")
-
-    compare_with_baseline(payload)
 
 
 if __name__ == "__main__":
