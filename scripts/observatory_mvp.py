@@ -104,12 +104,8 @@ def build_payload(now: _dt.datetime) -> dict:
                 },
             }
         ],
-        "considered_but_rejected": [],
-        "low_confidence_patterns": [],
-        "blind_spots": [
-            "No Vault/Chronik inputs available in MVP.",
-            "No embeddings/clustering enabled.",
-        ],
+        # Fields removed to match canonical schema in heimgewebe/metarepo:
+        # considered_but_rejected, low_confidence_patterns, blind_spots
     }
 
 

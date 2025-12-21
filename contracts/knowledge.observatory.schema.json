@@ -1,70 +1,117 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.heimgewebe.org/contracts/knowledge.observatory.schema.json",
-  "$comment": "Mirror of heimgewebe/metarepo/contracts/...; must be kept in sync",
-  "title": "Observatory Output (Daily Insights)",
+  "title": "KnowledgeObservatory",
+  "x-producers": ["semantAH", "heimgeist"],
+  "x-consumers": ["chronik", "leitstand"],
+  "description": "Snapshot des semantischen Observatoriums: aktive Themenräume, Quellen, Signale und Leitfragen.",
   "type": "object",
-  "additionalProperties": false,
-  "required": [
-    "observatory_id",
-    "generated_at",
-    "source",
-    "topics",
-    "considered_but_rejected",
-    "low_confidence_patterns",
-    "blind_spots"
-  ],
   "properties": {
-    "observatory_id": { "type": "string" },
-    "generated_at": { "type": "string", "format": "date-time" },
-    "source": { "type": "string" },
+    "observatory_id": {
+      "type": "string",
+      "description": "Technische ID des Snapshots (z. B. UUID)."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Zeitpunkt der Erzeugung im ISO-Format."
+    },
+    "source": {
+      "type": "string",
+      "description": "Erzeugende Komponente (z. B. semantAH, heimgeist)."
+    },
     "topics": {
       "type": "array",
+      "description": "Liste der identifizierten Themenräume.",
       "items": {
         "type": "object",
-        "required": ["topic_id", "title", "summary", "sources"],
         "properties": {
-          "topic_id": { "type": "string" },
-          "title": { "type": "string" },
-          "summary": { "type": "string" },
+          "topic_id": {
+            "type": "string",
+            "description": "Stabile ID für den Themenraum (für spätere Referenzen)."
+          },
+          "title": {
+            "type": "string",
+            "description": "Kurzbezeichnung des Themenraums."
+          },
+          "summary": {
+            "type": "string",
+            "description": "Kurzbeschreibung des Themeninhalts."
+          },
+          "signals": {
+            "type": "object",
+            "description": "Heuristische Signale für Aktivität/Relevanz.",
+            "properties": {
+              "activity_score": {
+                "type": "number",
+                "description": "Heuristischer Aktivitätsscore (z. B. 0–1)."
+              },
+              "conflict_score": {
+                "type": "number",
+                "description": "Hinweis auf widersprüchliche Infos (0–1)."
+              },
+              "novelty_score": {
+                "type": "number",
+                "description": "Grad an Neuheit/Veränderung (0–1)."
+              }
+            },
+            "additionalProperties": false
+          },
           "sources": {
             "type": "array",
+            "description": "Quellen, aus denen der Themenraum gespeist wird (Vault, Events, Repos).",
             "items": {
               "type": "object",
               "properties": {
-                "source_type": { "type": "string" },
-                "ref": { "type": "string" },
-                "tags": { "type": "array", "items": { "type": "string" } }
+                "source_type": {
+                  "type": "string",
+                  "description": "Typ der Quelle (z. B. vault_note, event, repo_file)."
+                },
+                "ref": {
+                  "type": "string",
+                  "description": "Referenz auf die Quelle (z. B. Pfad, Event-ID, URL)."
+                },
+                "weight": {
+                  "type": "number",
+                  "description": "Heuristische Gewichtung des Beitrags dieser Quelle."
+                },
+                "tags": {
+                  "type": "array",
+                  "description": "Optionale Tags/Labels zur Quelle.",
+                  "items": {
+                    "type": "string"
+                  }
+                }
               },
-              "required": ["source_type", "ref"]
+              "required": ["source_type", "ref"],
+              "additionalProperties": false
             }
           },
           "suggested_questions": {
             "type": "array",
-            "items": { "type": "string" }
+            "description": "Offene Fragen, die aus diesem Themenraum hervorgehen.",
+            "items": {
+              "type": "string"
+            }
           },
           "suggested_next_steps": {
             "type": "array",
-            "items": { "type": "string" }
+            "description": "Optionale Vorschläge für nächste Schritte.",
+            "items": {
+              "type": "string"
+            }
           },
-          "meta": { "type": "object" }
-        }
+          "meta": {
+            "type": "object",
+            "description": "Freies Feld für zukünftige Erweiterungen (z. B. Cluster-ID, Ähnlichkeitsgruppen).",
+            "additionalProperties": true
+          }
+        },
+        "required": ["topic_id", "title"],
+        "additionalProperties": false
       }
-    },
-    "considered_but_rejected": {
-      "type": "array",
-      "items": { "type": "string" },
-      "description": "Patterns or topics that were analyzed but deemed not relevant enough."
-    },
-    "low_confidence_patterns": {
-      "type": "array",
-      "items": { "type": "string" },
-      "description": "Observed patterns with low confidence."
-    },
-    "blind_spots": {
-      "type": "array",
-      "items": { "type": "string" },
-      "description": "Areas that could not be analyzed (e.g., missing data sources)."
     }
-  }
+  },
+  "required": ["observatory_id", "generated_at", "source", "topics"],
+  "additionalProperties": false
 }
