@@ -16,6 +16,13 @@ import uuid
 from pathlib import Path
 import sys
 
+# Dependencies
+try:
+    import jsonschema
+except ImportError:
+    print("Error: jsonschema is missing. Install it via 'uv sync'.", file=sys.stderr)
+    sys.exit(1)
+
 # Import diff logic
 try:
     import observatory_diff
