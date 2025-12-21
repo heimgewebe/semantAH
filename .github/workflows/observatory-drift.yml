@@ -42,11 +42,17 @@ jobs:
       # Rolling Diff (Current vs Prev)
       - name: Generate Rolling Diff
         run: |
+          STRICT_FLAG=""
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            STRICT_FLAG="--strict"
+          fi
+
           uv run scripts/observatory_diff.py \
             --snapshot artifacts/insights.daily.json \
             --baseline artifacts/observatory.prev.json \
             --output artifacts/observatory.diff.json \
-            --schema contracts/knowledge.observatory.schema.json
+            --schema contracts/knowledge.observatory.schema.json \
+            $STRICT_FLAG
 
       # Upload Diff Artifact
       - name: Upload Drift Report
