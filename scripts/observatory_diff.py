@@ -21,9 +21,13 @@ except ImportError:
 def validate_payload(payload: dict, schema_path: Path, label: str = "Payload"):
     if not HAS_JSONSCHEMA:
         # If jsonschema is missing but we requested validation (schema_path provided),
-        # we should probably warn.
+        # this must be an error to ensure guards are strict.
         if schema_path:
-            print("Warning: jsonschema missing, skipping validation.", file=sys.stderr)
+            print(
+                "Error: jsonschema missing but schema validation requested.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
         return
 
     if not schema_path.exists():
