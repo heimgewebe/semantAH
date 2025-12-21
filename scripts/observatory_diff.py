@@ -1,161 +1,152 @@
 """
 observatory_diff.py
 
-Generates a diff between two observatory JSON artifacts.
+Detects drift by comparing the current daily insights artifact against a baseline.
+Output: artifacts/observatory.diff.json
 """
 
+import argparse
 import json
 import sys
 from pathlib import Path
-import argparse
 
-# Dependencies for validation
+# Shared validation logic
 try:
-    import jsonschema
-
-    HAS_JSONSCHEMA = True
+    import observatory_lib
 except ImportError:
-    HAS_JSONSCHEMA = False
+    # If not running as a module, try adding current directory to path
+    import sys
+
+    sys.path.append(str(Path(__file__).parent))
+    import observatory_lib
 
 
-def validate_payload(payload: dict, schema_path: Path, label: str = "Payload"):
-    if not HAS_JSONSCHEMA:
-        # If jsonschema is missing but we requested validation (schema_path provided),
-        # this must be an error to ensure guards are strict.
-        if schema_path:
-            print(
-                "Error: jsonschema missing but schema validation requested.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        return
+def parse_args():
+    parser = argparse.ArgumentParser(description="Generate observatory drift report.")
+    parser.add_argument(
+        "--snapshot",
+        type=Path,
+        default=Path("artifacts/insights.daily.json"),
+        help="Path to the current snapshot file.",
+    )
+    parser.add_argument(
+        "--baseline",
+        type=Path,
+        default=Path("tests/fixtures/observatory.baseline.json"),
+        help="Path to the baseline file.",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("artifacts/observatory.diff.json"),
+        help="Path to the output diff file.",
+    )
+    parser.add_argument(
+        "--schema",
+        type=Path,
+        default=Path("contracts/knowledge.observatory.schema.json"),
+        help="Path to the schema file for validation.",
+    )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Fail with exit code 1 if baseline is missing or invalid (Guard mode).",
+    )
+    return parser.parse_args()
 
-    if not schema_path.exists():
-        print(f"Error: Schema file not found at {schema_path}", file=sys.stderr)
-        sys.exit(1)
 
-    try:
-        schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        validator = jsonschema.Draft202012Validator(
-            schema, format_checker=jsonschema.FormatChecker()
-        )
-        validator.validate(payload)
-        print(f"{label} schema validation passed.")
-    except json.JSONDecodeError as e:
-        print(f"Error: Failed to parse schema JSON: {e}", file=sys.stderr)
-        sys.exit(1)
-    except jsonschema.ValidationError as e:
-        print(f"Error: {label} failed schema validation: {e.message}", file=sys.stderr)
-        sys.exit(1)
+def generate_diff(snapshot: dict, baseline: dict | None, baseline_status: dict) -> dict:
+    diff = {
+        "baseline_missing": baseline_status.get("missing", False),
+        "baseline_error": baseline_status.get("error", False),
+        "baseline_generated_at": baseline.get("generated_at") if baseline else None,
+        "current_generated_at": snapshot.get("generated_at"),
+        "topic_count_diff": None,
+        "topics_changed": None,
+        "new_topics": [],
+        "removed_topics": [],
+        "reason": baseline_status.get("reason"),
+    }
+
+    if baseline:
+        b_topics = {t.get("topic_id") for t in baseline.get("topics", [])}
+        c_topics = {t.get("topic_id") for t in snapshot.get("topics", [])}
+
+        diff["topic_count_diff"] = len(c_topics) - len(b_topics)
+        diff["topics_changed"] = b_topics != c_topics
+        diff["new_topics"] = sorted(list(c_topics - b_topics))
+        diff["removed_topics"] = sorted(list(b_topics - c_topics))
+        diff["reason"] = None  # Clear reason if successful comparison
+
+    return diff
 
 
-def diff_observatory(
-    current_path: Path,
-    baseline_path: Path,
-    output_path: Path,
-    schema_path: Path = None,
-    enforce_baseline_not_empty: bool = False,
-) -> None:
-    # Read current first to report its timestamp even if baseline missing
-    try:
-        current_text = current_path.read_text(encoding="utf-8")
-        current = json.loads(current_text)
-        current_generated_at = current.get("generated_at")
-    except Exception as e:
-        print(f"Failed to read current data: {e}.", file=sys.stderr)
-        sys.exit(1)
+def main() -> None:
+    args = parse_args()
 
-    if schema_path:
-        validate_payload(current, schema_path, label="Current")
+    # Ensure output directory exists
+    args.output.parent.mkdir(parents=True, exist_ok=True)
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    if not baseline_path.exists():
+    if not args.snapshot.exists():
         print(
-            f"No baseline data found ({baseline_path}). Generating missing-baseline report."
-        )
-        diff = {
-            "baseline_missing": True,
-            "current_generated_at": current_generated_at,
-            "reason": "No baseline/prev file found (first run or cache miss).",
-            "topics_changed": None,
-            "new_topics": [],
-            "removed_topics": [],
-        }
-        output_path.write_text(
-            json.dumps(diff, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-        )
-        return
-
-    try:
-        baseline_text = baseline_path.read_text(encoding="utf-8")
-        baseline = json.loads(baseline_text)
-    except Exception as e:
-        print(f"Failed to read baseline data: {e}. Generating error report.")
-        diff = {
-            "baseline_error": True,
-            "current_generated_at": current_generated_at,
-            "reason": f"Failed to read baseline data: {e}",
-            "topics_changed": None,
-            "new_topics": [],
-            "removed_topics": [],
-        }
-        output_path.write_text(
-            json.dumps(diff, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-        )
-        return
-
-    if schema_path:
-        validate_payload(baseline, schema_path, label="Baseline")
-
-    if enforce_baseline_not_empty and not baseline.get("topics"):
-        print(
-            "Error: Baseline fixture has zero topics. Refusing drift comparison against empty baseline.",
+            f"Error: Snapshot file not found at {args.snapshot}. Run observatory_mvp.py first.",
             file=sys.stderr,
         )
         sys.exit(1)
 
-    baseline_topics = {t.get("topic_id") for t in baseline.get("topics", [])}
-    curr_topics = {t.get("topic_id") for t in current.get("topics", [])}
-    topics_changed = baseline_topics != curr_topics
+    try:
+        snapshot_text = args.snapshot.read_text(encoding="utf-8")
+        snapshot = json.loads(snapshot_text)
+    except Exception as e:
+        print(f"Error: Failed to read snapshot file: {e}", file=sys.stderr)
+        sys.exit(1)
 
-    diff = {
-        "baseline_generated_at": baseline.get("generated_at"),
-        "current_generated_at": current.get("generated_at"),
-        "topic_count_diff": len(current.get("topics", []))
-        - len(baseline.get("topics", [])),
-        "topics_changed": topics_changed,
-        "new_topics": sorted(list(curr_topics - baseline_topics)),
-        "removed_topics": sorted(list(baseline_topics - curr_topics)),
-    }
+    observatory_lib.validate_payload(snapshot, args.schema, label="Current Snapshot")
 
-    output_path.write_text(
-        json.dumps(diff, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
-    print(f"Drift report generated at: {output_path}")
+    baseline = None
+    baseline_status = {"missing": False, "error": False, "reason": None}
 
+    if not args.baseline.exists():
+        baseline_status["missing"] = True
+        baseline_status["reason"] = f"Baseline file not found at {args.baseline}"
+        print(f"Warning: {baseline_status['reason']}")
+    else:
+        try:
+            baseline_text = args.baseline.read_text(encoding="utf-8")
+            baseline = json.loads(baseline_text)
 
-def main():
-    parser = argparse.ArgumentParser(description="Diff observatory artifacts.")
-    parser.add_argument(
-        "current", type=Path, help="Path to current insights.daily.json"
-    )
-    parser.add_argument("baseline", type=Path, help="Path to baseline/prev json")
-    parser.add_argument("output", type=Path, help="Path to output diff json")
-    parser.add_argument("--schema", type=Path, help="Path to schema for validation")
-    parser.add_argument(
-        "--enforce-not-empty", action="store_true", help="Fail if baseline is empty"
-    )
+            # Validate baseline
+            observatory_lib.validate_payload(baseline, args.schema, label="Baseline")
 
-    args = parser.parse_args()
+            # Check for empty topics
+            if not baseline.get("topics"):
+                raise ValueError("Baseline has zero topics")
 
-    diff_observatory(
-        args.current,
-        args.baseline,
-        args.output,
-        schema_path=args.schema,
-        enforce_baseline_not_empty=args.enforce_not_empty,
-    )
+        except Exception as e:
+            baseline = None
+            baseline_status["error"] = True
+            baseline_status["reason"] = f"Failed to read/parse/validate baseline: {e}"
+            print(f"Warning: {baseline_status['reason']}", file=sys.stderr)
+
+    # Check for strict mode failure conditions
+    if args.strict:
+        if baseline_status["missing"] or baseline_status["error"]:
+            print(
+                f"Error: Strict mode enabled. Failing due to invalid/missing baseline. Reason: {baseline_status['reason']}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+    diff = generate_diff(snapshot, baseline, baseline_status)
+
+    try:
+        args.output.write_text(
+            json.dumps(diff, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+        print(f"Drift report generated at: {args.output}")
+    except Exception as e:
+        print(f"Error: Failed to write diff file: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

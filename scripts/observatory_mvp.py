@@ -14,15 +14,16 @@ import datetime as _dt
 import json
 import uuid
 from pathlib import Path
-import sys
 
-# Import diff logic
+# Shared validation logic
 try:
-    import observatory_diff
+    import observatory_lib
 except ImportError:
-    # Fallback if running from a different context where scripts is not in path
+    # If not running as a module, try adding current directory to path
+    import sys
+
     sys.path.append(str(Path(__file__).parent))
-    import observatory_diff
+    import observatory_lib
 
 # Canonical output paths
 ARTIFACTS_DIR = Path("artifacts")
@@ -108,10 +109,6 @@ def build_payload(now: _dt.datetime) -> dict:
     }
 
 
-def validate_payload(payload: dict, label: str = "Payload"):
-    observatory_diff.validate_payload(payload, SCHEMA_FILE, label=label)
-
-
 def main() -> None:
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -119,7 +116,7 @@ def main() -> None:
     payload = build_payload(now)
 
     # Validate before writing
-    validate_payload(payload)
+    observatory_lib.validate_payload(payload, SCHEMA_FILE)
 
     OUTPUT_FILE.write_text(
         json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
