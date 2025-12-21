@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.heimgewebe.org/contracts/knowledge.observatory.schema.json",
+  "$comment": "Mirror of heimgewebe/metarepo/contracts/...; must be kept in sync",
+  "title": "Observatory Output (Daily Insights)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "observatory_id",
+    "generated_at",
+    "source",
+    "topics",
+    "considered_but_rejected",
+    "low_confidence_patterns",
+    "blind_spots"
+  ],
+  "properties": {
+    "observatory_id": { "type": "string" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "source": { "type": "string" },
+    "topics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["topic_id", "title", "summary", "sources"],
+        "properties": {
+          "topic_id": { "type": "string" },
+          "title": { "type": "string" },
+          "summary": { "type": "string" },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "source_type": { "type": "string" },
+                "ref": { "type": "string" },
+                "tags": { "type": "array", "items": { "type": "string" } }
+              },
+              "required": ["source_type", "ref"]
+            }
+          },
+          "suggested_questions": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "suggested_next_steps": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "meta": { "type": "object" }
+        }
+      }
+    },
+    "considered_but_rejected": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Patterns or topics that were analyzed but deemed not relevant enough."
+    },
+    "low_confidence_patterns": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Observed patterns with low confidence."
+    },
+    "blind_spots": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Areas that could not be analyzed (e.g., missing data sources)."
+    }
+  }
+}

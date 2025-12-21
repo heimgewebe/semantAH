@@ -4,8 +4,8 @@ observatory_mvp.py
 Minimaler Producer für Capability C1 "Semantisches Observatorium".
 Absichtlich ohne Embeddings/Clustering/Heuristik: nur Existenz + Contract-Konformität.
 
-Output: data/observatory/observatory-<timestamp>.json
-Contract: knowledge.observatory.schema.json (kanonisch im heimgewebe/metarepo)
+Output: artifacts/insights.daily.json
+Contract: contracts/knowledge.observatory.schema.json
 """
 
 from __future__ import annotations
@@ -14,6 +14,21 @@ import datetime as _dt
 import json
 import uuid
 from pathlib import Path
+import sys
+
+# Dependencies
+try:
+    import jsonschema
+except ImportError:
+    print("Error: jsonschema is missing. Install it via 'uv sync'.", file=sys.stderr)
+    sys.exit(1)
+
+# Canonical output paths
+ARTIFACTS_DIR = Path("artifacts")
+OUTPUT_FILE = ARTIFACTS_DIR / "insights.daily.json"
+BASELINE_FILE = Path("tests/fixtures/observatory.baseline.json")
+DIFF_FILE = ARTIFACTS_DIR / "observatory.diff.json"
+SCHEMA_FILE = Path("contracts/knowledge.observatory.schema.json")
 
 
 def _utc_now() -> _dt.datetime:
@@ -83,27 +98,101 @@ def build_payload(now: _dt.datetime) -> dict:
                     "Leitstand: Fixture und Renderer auf den gleichen Contract ziehen.",
                     "Metarepo: optional Fixture-Validation erweitern (falls gewünscht).",
                 ],
-                "meta": {"mvp": True},
+                "meta": {
+                    "mvp": True,
+                    "schema_source": "contracts/knowledge.observatory.schema.json (mirror)",
+                },
             }
+        ],
+        "considered_but_rejected": [],
+        "low_confidence_patterns": [],
+        "blind_spots": [
+            "No Vault/Chronik inputs available in MVP.",
+            "No embeddings/clustering enabled.",
         ],
     }
 
 
+def validate_payload(payload: dict, label: str = "Payload"):
+    if not SCHEMA_FILE.exists():
+        print(f"Error: Schema file not found at {SCHEMA_FILE}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        schema = json.loads(SCHEMA_FILE.read_text(encoding="utf-8"))
+        validator = jsonschema.Draft202012Validator(
+            schema, format_checker=jsonschema.FormatChecker()
+        )
+        validator.validate(payload)
+        print(f"{label} schema validation passed.")
+    except json.JSONDecodeError as e:
+        print(f"Error: Failed to parse schema JSON: {e}", file=sys.stderr)
+        sys.exit(1)
+    except jsonschema.ValidationError as e:
+        print(f"Error: {label} failed schema validation: {e.message}", file=sys.stderr)
+        sys.exit(1)
+
+
+def compare_with_baseline(current: dict):
+    if not BASELINE_FILE.exists():
+        print(f"No baseline data found ({BASELINE_FILE}). Skipping diff.")
+        return
+
+    try:
+        baseline_text = BASELINE_FILE.read_text(encoding="utf-8")
+        baseline = json.loads(baseline_text)
+    except Exception as e:
+        print(f"Failed to read baseline data: {e}. Skipping diff.")
+        return
+
+    # Validate baseline as well to ensure valid contract comparison
+    validate_payload(baseline, label="Baseline")
+
+    # Enforce non-empty baseline for meaningful drift detection
+    if not baseline.get("topics"):
+        print(
+            "Error: Baseline fixture has zero topics. Refusing drift comparison against empty baseline.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Simple metric comparison
+    baseline_topics = {t.get("topic_id") for t in baseline.get("topics", [])}
+    curr_topics = {t.get("topic_id") for t in current.get("topics", [])}
+    topics_changed = baseline_topics != curr_topics
+
+    diff = {
+        "baseline_generated_at": baseline.get("generated_at"),
+        "current_generated_at": current.get("generated_at"),
+        "topic_count_diff": len(current.get("topics", []))
+        - len(baseline.get("topics", [])),
+        "topics_changed": topics_changed,
+        "new_topics": sorted(list(curr_topics - baseline_topics)),
+        "removed_topics": sorted(list(baseline_topics - curr_topics)),
+    }
+
+    DIFF_FILE.write_text(
+        json.dumps(diff, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    print(f"Drift report generated at: {DIFF_FILE}")
+
+
 def main() -> None:
-    output_dir = Path("data/observatory")
-    output_dir.mkdir(parents=True, exist_ok=True)
+    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
     now = _utc_now()
-    ts_str = now.strftime("%Y%m%d-%H%M%S")
-
     payload = build_payload(now)
 
-    output_file = output_dir / f"observatory-{ts_str}.json"
-    output_file.write_text(
+    # Validate before writing
+    validate_payload(payload)
+
+    OUTPUT_FILE.write_text(
         json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
 
-    print(f"Observatory report generated at: {output_file}")
+    print(f"Observatory report generated at: {OUTPUT_FILE}")
+
+    compare_with_baseline(payload)
 
 
 if __name__ == "__main__":

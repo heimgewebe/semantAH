@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.heimgewebe.org/contracts/decision.preimage.schema.json",
+  "$comment": "stub / not used yet",
+  "title": "Decision Preimage",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "observations",
+    "confidence",
+    "assumptions",
+    "explicit_unknowns"
+  ],
+  "properties": {
+    "observations": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "assumptions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "explicit_unknowns": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

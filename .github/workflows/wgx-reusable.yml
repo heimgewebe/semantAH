@@ -36,5 +36,17 @@ jobs:
       - if: ${{ inputs.run_metrics }}
         run: ./wgx/wgx metrics
 
+      - name: Run Observatory (Mandatory)
+        run: ./wgx/wgx knowledge
+
+      - name: Upload Observatory Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: observatory-report
+          path: artifacts/
+          retention-days: 7
+          if-no-files-found: error
+
       - if: ${{ inputs.run_snapshot }}
         run: ./wgx/wgx snapshot
