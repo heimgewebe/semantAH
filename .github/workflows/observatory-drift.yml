@@ -43,9 +43,9 @@ jobs:
       - name: Generate Rolling Diff
         run: |
           uv run scripts/observatory_diff.py \
-            artifacts/insights.daily.json \
-            artifacts/observatory.prev.json \
-            artifacts/observatory.diff.json \
+            --snapshot artifacts/insights.daily.json \
+            --baseline artifacts/observatory.prev.json \
+            --output artifacts/observatory.diff.json \
             --schema contracts/knowledge.observatory.schema.json
 
       # Upload Diff Artifact

@@ -102,7 +102,10 @@ def main() -> None:
     args.output.parent.mkdir(parents=True, exist_ok=True)
 
     if not args.snapshot.exists():
-        print(f"Error: Snapshot file not found at {args.snapshot}. Run observatory_mvp.py first.", file=sys.stderr)
+        print(
+            f"Error: Snapshot file not found at {args.snapshot}. Run observatory_mvp.py first.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     try:
