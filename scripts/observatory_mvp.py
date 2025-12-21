@@ -16,13 +16,12 @@ import uuid
 from pathlib import Path
 import sys
 
-# Import diff logic
+# Dependencies
 try:
-    import observatory_diff
+    import jsonschema
 except ImportError:
-    # Fallback if running from a different context where scripts is not in path
-    sys.path.append(str(Path(__file__).parent))
-    import observatory_diff
+    print("Error: jsonschema is missing. Install it via 'uv sync'.", file=sys.stderr)
+    sys.exit(1)
 
 # Canonical output paths
 ARTIFACTS_DIR = Path("artifacts")
@@ -109,7 +108,26 @@ def build_payload(now: _dt.datetime) -> dict:
 
 
 def validate_payload(payload: dict, label: str = "Payload"):
-    observatory_diff.validate_payload(payload, SCHEMA_FILE, label=label)
+    """
+    Validates a payload against the knowledge observatory schema.
+    """
+    if not SCHEMA_FILE.exists():
+        print(f"Error: Schema file not found at {SCHEMA_FILE}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        schema = json.loads(SCHEMA_FILE.read_text(encoding="utf-8"))
+        validator = jsonschema.Draft202012Validator(
+            schema, format_checker=jsonschema.FormatChecker()
+        )
+        validator.validate(payload)
+        # print(f"{label} schema validation passed.") # Reduce noise in diff script
+    except json.JSONDecodeError as e:
+        print(f"Error: Failed to parse schema JSON: {e}", file=sys.stderr)
+        sys.exit(1)
+    except jsonschema.ValidationError as e:
+        print(f"Error: {label} failed schema validation: {e.message}", file=sys.stderr)
+        sys.exit(1)
 
 
 def main() -> None:
