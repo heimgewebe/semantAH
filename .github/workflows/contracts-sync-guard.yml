@@ -6,11 +6,13 @@ on:
     paths:
       - 'contracts/**'
       - '.github/workflows/contracts-sync-guard.yml'
+      - 'scripts/sync_contracts_from_metarepo.sh'
   pull_request:
     branches: [ main ]
     paths:
       - 'contracts/**'
       - '.github/workflows/contracts-sync-guard.yml'
+      - 'scripts/sync_contracts_from_metarepo.sh'
   workflow_dispatch:
 
 permissions:
@@ -22,14 +24,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run sync script
+      - name: Run sync script (check only)
         run: |
           chmod +x scripts/sync_contracts_from_metarepo.sh
-          ./scripts/sync_contracts_from_metarepo.sh
+          # Sync to a temporary file
+          ./scripts/sync_contracts_from_metarepo.sh /tmp/canonical_schema.json
 
       - name: Check for drift
         run: |
-          if ! git diff --exit-code contracts/knowledge.observatory.schema.json; then
-            echo "::error::Contract drift detected! Please run 'scripts/sync_contracts_from_metarepo.sh' and commit the changes."
+          # Diff the current checked-out contract against the canonical temp file
+          if ! diff -u contracts/knowledge.observatory.schema.json /tmp/canonical_schema.json; then
+            echo "::error::Contract drift detected! Local contract differs from metarepo canonical version."
+            echo "::notice::Run 'scripts/sync_contracts_from_metarepo.sh' to update your local contract."
             exit 1
           fi
