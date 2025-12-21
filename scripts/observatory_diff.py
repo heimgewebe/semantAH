@@ -10,12 +10,15 @@ import json
 import sys
 from pathlib import Path
 
-# Dependencies
+# Shared validation logic
 try:
-    import jsonschema
+    import observatory_lib
 except ImportError:
-    print("Error: jsonschema is missing. Install it via 'uv sync'.", file=sys.stderr)
-    sys.exit(1)
+    # If not running as a module, try adding current directory to path
+    import sys
+
+    sys.path.append(str(Path(__file__).parent))
+    import observatory_lib
 
 
 def parse_args():
@@ -44,29 +47,12 @@ def parse_args():
         default=Path("contracts/knowledge.observatory.schema.json"),
         help="Path to the schema file for validation.",
     )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Fail with exit code 1 if baseline is missing or invalid (Guard mode).",
+    )
     return parser.parse_args()
-
-
-def validate_payload(payload: dict, schema_path: Path, label: str = "Payload"):
-    """
-    Validates a payload against the knowledge observatory schema.
-    """
-    if not schema_path.exists():
-        print(f"Error: Schema file not found at {schema_path}", file=sys.stderr)
-        sys.exit(1)
-
-    try:
-        schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        validator = jsonschema.Draft202012Validator(
-            schema, format_checker=jsonschema.FormatChecker()
-        )
-        validator.validate(payload)
-    except json.JSONDecodeError as e:
-        print(f"Error: Failed to parse schema JSON: {e}", file=sys.stderr)
-        sys.exit(1)
-    except jsonschema.ValidationError as e:
-        print(f"Error: {label} failed schema validation: {e.message}", file=sys.stderr)
-        sys.exit(1)
 
 
 def generate_diff(snapshot: dict, baseline: dict | None, baseline_status: dict) -> dict:
@@ -115,7 +101,7 @@ def main() -> None:
         print(f"Error: Failed to read snapshot file: {e}", file=sys.stderr)
         sys.exit(1)
 
-    validate_payload(snapshot, args.schema, label="Current Snapshot")
+    observatory_lib.validate_payload(snapshot, args.schema, label="Current Snapshot")
 
     baseline = None
     baseline_status = {"missing": False, "error": False, "reason": None}
@@ -130,7 +116,7 @@ def main() -> None:
             baseline = json.loads(baseline_text)
 
             # Validate baseline
-            validate_payload(baseline, args.schema, label="Baseline")
+            observatory_lib.validate_payload(baseline, args.schema, label="Baseline")
 
             # Check for empty topics
             if not baseline.get("topics"):
@@ -141,6 +127,15 @@ def main() -> None:
             baseline_status["error"] = True
             baseline_status["reason"] = f"Failed to read/parse/validate baseline: {e}"
             print(f"Warning: {baseline_status['reason']}", file=sys.stderr)
+
+    # Check for strict mode failure conditions
+    if args.strict:
+        if baseline_status["missing"] or baseline_status["error"]:
+            print(
+                f"Error: Strict mode enabled. Failing due to invalid/missing baseline. Reason: {baseline_status['reason']}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     diff = generate_diff(snapshot, baseline, baseline_status)
 

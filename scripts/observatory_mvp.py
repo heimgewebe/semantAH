@@ -14,14 +14,16 @@ import datetime as _dt
 import json
 import uuid
 from pathlib import Path
-import sys
 
-# Dependencies
+# Shared validation logic
 try:
-    import jsonschema
+    import observatory_lib
 except ImportError:
-    print("Error: jsonschema is missing. Install it via 'uv sync'.", file=sys.stderr)
-    sys.exit(1)
+    # If not running as a module, try adding current directory to path
+    import sys
+
+    sys.path.append(str(Path(__file__).parent))
+    import observatory_lib
 
 # Canonical output paths
 ARTIFACTS_DIR = Path("artifacts")
@@ -107,29 +109,6 @@ def build_payload(now: _dt.datetime) -> dict:
     }
 
 
-def validate_payload(payload: dict, label: str = "Payload"):
-    """
-    Validates a payload against the knowledge observatory schema.
-    """
-    if not SCHEMA_FILE.exists():
-        print(f"Error: Schema file not found at {SCHEMA_FILE}", file=sys.stderr)
-        sys.exit(1)
-
-    try:
-        schema = json.loads(SCHEMA_FILE.read_text(encoding="utf-8"))
-        validator = jsonschema.Draft202012Validator(
-            schema, format_checker=jsonschema.FormatChecker()
-        )
-        validator.validate(payload)
-        # print(f"{label} schema validation passed.") # Reduce noise in diff script
-    except json.JSONDecodeError as e:
-        print(f"Error: Failed to parse schema JSON: {e}", file=sys.stderr)
-        sys.exit(1)
-    except jsonschema.ValidationError as e:
-        print(f"Error: {label} failed schema validation: {e.message}", file=sys.stderr)
-        sys.exit(1)
-
-
 def main() -> None:
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -137,7 +116,7 @@ def main() -> None:
     payload = build_payload(now)
 
     # Validate before writing
-    validate_payload(payload)
+    observatory_lib.validate_payload(payload, SCHEMA_FILE)
 
     OUTPUT_FILE.write_text(
         json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
