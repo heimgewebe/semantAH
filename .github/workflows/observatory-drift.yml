@@ -54,7 +54,6 @@ jobs:
         with:
           name: observatory-diff
           path: artifacts/observatory.diff.json
-          if-no-files-found: ignore
 
       # Update Prev (Cache)
       - name: Prepare Next Prev

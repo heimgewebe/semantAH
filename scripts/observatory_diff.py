@@ -49,15 +49,38 @@ def diff_observatory(
     enforce_baseline_not_empty: bool = False
 ) -> None:
 
+    # Read current first to report its timestamp even if baseline missing
+    try:
+        current_text = current_path.read_text(encoding="utf-8")
+        current = json.loads(current_text)
+        current_generated_at = current.get("generated_at")
+    except Exception as e:
+         print(f"Failed to read current data: {e}.", file=sys.stderr)
+         sys.exit(1)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
     if not baseline_path.exists():
-        print(f"No baseline data found ({baseline_path}). Skipping diff.")
+        print(f"No baseline data found ({baseline_path}). Generating missing-baseline report.")
+        diff = {
+            "baseline_missing": True,
+            "current_generated_at": current_generated_at,
+            "reason": "No baseline/prev file found (first run or cache miss)."
+        }
+        output_path.write_text(json.dumps(diff, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         return
 
     try:
         baseline_text = baseline_path.read_text(encoding="utf-8")
         baseline = json.loads(baseline_text)
     except Exception as e:
-        print(f"Failed to read baseline data: {e}. Skipping diff.")
+        print(f"Failed to read baseline data: {e}. Generating error report.")
+        diff = {
+            "baseline_error": True,
+            "current_generated_at": current_generated_at,
+            "reason": f"Failed to read baseline data: {e}"
+        }
+        output_path.write_text(json.dumps(diff, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         return
 
     if schema_path:
@@ -69,13 +92,6 @@ def diff_observatory(
             file=sys.stderr,
         )
         sys.exit(1)
-
-    try:
-        current_text = current_path.read_text(encoding="utf-8")
-        current = json.loads(current_text)
-    except Exception as e:
-         print(f"Failed to read current data: {e}.", file=sys.stderr)
-         sys.exit(1)
 
     baseline_topics = {t.get("topic_id") for t in baseline.get("topics", [])}
     curr_topics = {t.get("topic_id") for t in current.get("topics", [])}
@@ -91,7 +107,6 @@ def diff_observatory(
         "removed_topics": sorted(list(baseline_topics - curr_topics)),
     }
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
         json.dumps(diff, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
