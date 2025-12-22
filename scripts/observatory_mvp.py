@@ -12,7 +12,7 @@ from observatory_lib import validate_payload as validate_json  # keeps local val
 
 
 ARTIFACTS_DIR = Path("artifacts")
-OUT_PATH = ARTIFACTS_DIR / "insights.daily.json"
+OUT_PATH = ARTIFACTS_DIR / "knowledge.observatory.json"
 SCHEMA_PATH = Path("contracts") / "knowledge.observatory.schema.json"
 
 
