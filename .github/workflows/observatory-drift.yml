@@ -42,8 +42,8 @@ jobs:
       # Validate artifact exists (prevent silent failures)
       - name: Validate Observatory Output
         run: |
-          if [[ ! -f artifacts/insights.daily.json ]]; then
-            echo "Error: artifacts/insights.daily.json was not generated!"
+          if [[ ! -s artifacts/insights.daily.json ]]; then
+            echo "Error: artifacts/insights.daily.json missing or empty!"
             exit 1
           fi
           echo "✓ Observatory snapshot validated"
