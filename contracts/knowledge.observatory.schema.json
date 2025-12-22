@@ -20,8 +20,12 @@
       "type": "object",
       "description": "Erzeugende Komponente.",
       "properties": {
-        "component": { "type": "string" },
-        "version": { "type": "string" }
+        "component": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
       },
       "required": ["component"],
       "additionalProperties": true
@@ -49,10 +53,7 @@
               "type": "object",
               "properties": {
                 "ref": { "type": "string" },
-                "type": {
-                  "type": "string",
-                  "enum": ["event", "repo_file", "vault_note", "url", "other"]
-                },
+                "type": { "type": "string", "enum": ["event", "repo_file", "vault_note", "url", "other"] },
                 "weight": { "type": "number", "minimum": 0, "maximum": 1 }
               },
               "required": ["ref", "type"],
@@ -62,7 +63,9 @@
           "suggested_questions": {
             "type": "array",
             "description": "Offene Fragen, die aus diesem Themenraum hervorgehen.",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": ["topic", "confidence"],
@@ -86,7 +89,9 @@
     "blind_spots": {
       "type": "array",
       "description": "Liste bekannter blinder Flecken.",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     },
     "considered_but_rejected": {
       "type": "array",
@@ -99,14 +104,6 @@
       }
     }
   },
-  "required": [
-    "observatory_id",
-    "generated_at",
-    "source",
-    "topics",
-    "signals",
-    "blind_spots",
-    "considered_but_rejected"
-  ],
+  "required": ["observatory_id", "generated_at", "source", "topics", "signals", "blind_spots", "considered_but_rejected"],
   "additionalProperties": false
 }
