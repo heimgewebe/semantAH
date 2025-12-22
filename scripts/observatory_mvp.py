@@ -4,20 +4,26 @@ from __future__ import annotations
 import json
 import os
 import uuid
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from observatory_lib import validate_payload as validate_json  # keeps local validation semantics
+from observatory_lib import (
+    validate_payload as validate_json,
+)  # keeps local validation semantics
 
 
 ARTIFACTS_DIR = Path("artifacts")
-OUT_PATH = ARTIFACTS_DIR / "knowledge.observatory.json"
+OUT_PATH = ARTIFACTS_DIR / "insights.daily.json"
 SCHEMA_PATH = Path("contracts") / "knowledge.observatory.schema.json"
 
 
 def iso_now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return (
+        datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
 
 
 def clamp01(x: float) -> float:
@@ -28,11 +34,7 @@ def main() -> int:
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
     # version: prefer env injected by CI; otherwise fall back to a safe dev marker
-    version = (
-        os.getenv("SEMANTAH_VERSION")
-        or os.getenv("GITHUB_SHA")
-        or "0.0.0-dev"
-    )
+    version = os.getenv("SEMANTAH_VERSION") or os.getenv("GITHUB_SHA") or "0.0.0-dev"
 
     # Minimal, contract-konformes MVP:
     # - topics[]: topic + confidence required, sources/suggested_questions optional
@@ -87,7 +89,9 @@ def main() -> int:
     # Validate locally before writing, so CI fails with a useful message.
     validate_json(payload, SCHEMA_PATH)
 
-    OUT_PATH.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    OUT_PATH.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     print(f"Wrote {OUT_PATH}")
     return 0
 
