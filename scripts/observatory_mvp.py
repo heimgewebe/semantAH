@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -96,7 +97,7 @@ def main() -> int:
 
     # Create semantic alias for contract-aware tooling (non-breaking, CI-independent)
     alias_path = ARTIFACTS_DIR / "knowledge.observatory.json"
-    alias_path.write_text(OUT_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+    shutil.copyfile(OUT_PATH, alias_path)
     print(f"Aliased to {alias_path}")
 
     return 0
