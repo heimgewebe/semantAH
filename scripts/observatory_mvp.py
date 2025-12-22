@@ -1,129 +1,110 @@
-"""
-observatory_mvp.py
-
-Minimaler Producer für Capability C1 "Semantisches Observatorium".
-Absichtlich ohne Embeddings/Clustering/Heuristik: nur Existenz + Contract-Konformität.
-
-Output: artifacts/insights.daily.json
-Contract: contracts/knowledge.observatory.schema.json
-"""
-
+#!/usr/bin/env python3
 from __future__ import annotations
 
-import datetime as _dt
 import json
+import os
+import shutil
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
-# Shared validation logic
-try:
-    import observatory_lib
-except ImportError:
-    # If not running as a module, try adding current directory to path
-    import sys
+from observatory_lib import (
+    validate_payload as validate_json,
+)  # keeps local validation semantics
 
-    sys.path.append(str(Path(__file__).parent))
-    import observatory_lib
 
-# Canonical output paths
 ARTIFACTS_DIR = Path("artifacts")
-OUTPUT_FILE = ARTIFACTS_DIR / "insights.daily.json"
-SCHEMA_FILE = Path("contracts/knowledge.observatory.schema.json")
+OUT_PATH = ARTIFACTS_DIR / "insights.daily.json"
+SCHEMA_PATH = Path("contracts") / "knowledge.observatory.schema.json"
 
 
-def _utc_now() -> _dt.datetime:
-    return _dt.datetime.now(_dt.timezone.utc)
-
-
-def _iso(ts: _dt.datetime) -> str:
-    # ISO 8601 with timezone
-    return ts.isoformat()
-
-
-def _pick_repo_sources() -> list[dict]:
-    """
-    Sehr dumm: wir picken ein paar typische Dateien, wenn sie existieren.
-    Das erfüllt 'reale Repo-Quellen', ohne irgendwelche Semantik zu behaupten.
-    """
-    candidates = [
-        "README.md",
-        "pyproject.toml",
-        "docs/roadmap.md",
-        "docs/ist-stand-vs-roadmap.md",
-        "docs/README.md",
-    ]
-
-    sources: list[dict] = []
-    for rel in candidates:
-        p = Path(rel)
-        if p.exists() and p.is_file():
-            sources.append(
-                {
-                    "source_type": "repo_file",
-                    "ref": rel,
-                    # optional fields per schema:
-                    "tags": ["mvp"],
-                }
-            )
-
-    # Fallback: wenn nichts existiert, wenigstens die Repo-Root als Referenz,
-    # damit das Feld nicht leer ist (Schema erlaubt leer, aber das ist useless).
-    if not sources:
-        sources.append(
-            {"source_type": "repo_file", "ref": ".", "tags": ["mvp", "fallback"]}
-        )
-
-    return sources
-
-
-def build_payload(now: _dt.datetime) -> dict:
-    obs_id = f"obs-{now.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:8]}"
-    topic_id = f"topic-mvp-{now.strftime('%Y%m%d')}"
-
-    return {
-        "observatory_id": obs_id,
-        "generated_at": _iso(now),
-        "source": "semantAH",
-        "topics": [
-            {
-                "topic_id": topic_id,
-                "title": "MVP Observatory Snapshot",
-                "summary": "Minimaler, schema-konformer Snapshot aus Repo-Dateien (ohne Semantik).",
-                "sources": _pick_repo_sources(),
-                "suggested_questions": [
-                    "Welche Quellen sollen künftig priorisiert werden (Vault, Chronik, Repos)?",
-                    "Welche minimale Heuristik wäre als nächstes erlaubt, ohne die Kette zu brechen?",
-                ],
-                "suggested_next_steps": [
-                    "Leitstand: Fixture und Renderer auf den gleichen Contract ziehen.",
-                    "Metarepo: optional Fixture-Validation erweitern (falls gewünscht).",
-                ],
-                "meta": {
-                    "mvp": True,
-                    "schema_source": "contracts/knowledge.observatory.schema.json (mirror)",
-                },
-            }
-        ],
-        # Fields removed to match canonical schema in heimgewebe/metarepo:
-        # considered_but_rejected, low_confidence_patterns, blind_spots
-    }
-
-
-def main() -> None:
-    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
-
-    now = _utc_now()
-    payload = build_payload(now)
-
-    # Validate before writing
-    observatory_lib.validate_payload(payload, SCHEMA_FILE)
-
-    OUTPUT_FILE.write_text(
-        json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+def iso_now() -> str:
+    return (
+        datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
     )
 
-    print(f"Observatory report generated at: {OUTPUT_FILE}")
+
+def clamp01(x: float) -> float:
+    return 0.0 if x < 0 else 1.0 if x > 1 else x
+
+
+def main() -> int:
+    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    # version: prefer env injected by CI; otherwise fall back to a safe dev marker
+    version = os.getenv("SEMANTAH_VERSION") or os.getenv("GITHUB_SHA") or "0.0.0-dev"
+
+    # Minimal, contract-konformes MVP:
+    # - topics[]: topic + confidence required, sources/suggested_questions optional
+    # - signals/blind_spots/considered_but_rejected are required top-level fields
+    payload = {
+        "observatory_id": f"obs-{uuid.uuid4()}",
+        "generated_at": iso_now(),
+        "source": {
+            "component": "semantAH",
+            "version": version,
+        },
+        "topics": [
+            {
+                "topic": "Epistemic Drift",
+                "confidence": clamp01(0.80),
+                "sources": [
+                    {"type": "repo_file", "ref": "contracts/", "weight": 0.6},
+                    {"type": "repo_file", "ref": "docs/", "weight": 0.4},
+                ],
+                "suggested_questions": [
+                    "Which contracts changed since the last snapshot?",
+                    "Is drift concentrated in one subsystem (semantics, CI, UI)?",
+                ],
+            },
+            {
+                "topic": "System Resilience",
+                "confidence": clamp01(0.70),
+                "sources": [],
+                "suggested_questions": [
+                    "Which single failure would break the artifact pipeline first?"
+                ],
+            },
+        ],
+        "signals": [
+            {
+                "type": "trend",
+                "description": "Contract-first enforcement is tightening; examples act as the nail.",
+            }
+        ],
+        "blind_spots": [
+            "No real vault ingestion wired in this MVP.",
+            "No external web signals ingested (by design).",
+        ],
+        "considered_but_rejected": [
+            {
+                "hypothesis": "Overfit schema too early",
+                "reason": "Keep optional expansion points (sources, questions) while enforcing core fields.",
+            }
+        ],
+    }
+
+    # Validate locally before writing, so CI fails with a useful message.
+    validate_json(payload, SCHEMA_PATH)
+
+    OUT_PATH.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    print(f"Wrote {OUT_PATH}")
+
+    # Create semantic alias for contract-aware tooling (non-breaking, CI-independent)
+    # Guard: ensure canonical exists and is not empty before aliasing
+    if not OUT_PATH.is_file() or OUT_PATH.stat().st_size == 0:
+        raise SystemExit(f"Missing or empty canonical artifact: {OUT_PATH}")
+    alias_path = ARTIFACTS_DIR / "knowledge.observatory.json"
+    shutil.copyfile(OUT_PATH, alias_path)
+    print(f"Aliased to {alias_path}")
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

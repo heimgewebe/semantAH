@@ -1,0 +1,38 @@
+{
+  "observatory_id": "obs-uuid-1234-5678",
+  "generated_at": "2025-12-22T00:00:00Z",
+  "source": {
+    "component": "semantAH",
+    "version": "0.0.0-dev"
+  },
+  "topics": [
+    {
+      "topic": "Epistemic Drift",
+      "confidence": 0.85,
+      "sources": [
+        { "type": "event", "ref": "event-123", "weight": 0.9 },
+        { "type": "repo_file", "ref": "docs/system/heimgewebe-zielbild.md", "weight": 0.5 }
+      ],
+      "suggested_questions": [
+        "Is the drift accelerating?",
+        "Which contracts are most affected?"
+      ]
+    },
+    {
+      "topic": "System Resilience",
+      "confidence": 0.92,
+      "sources": [],
+      "suggested_questions": []
+    }
+  ],
+  "signals": [
+    { "type": "anomaly", "description": "Unusual pattern in log frequency" }
+  ],
+  "blind_spots": [
+    "No telemetry from satellite nodes",
+    "Encrypted external payloads"
+  ],
+  "considered_but_rejected": [
+    { "hypothesis": "Database failure", "reason": "Connection metrics are healthy" }
+  ]
+}
