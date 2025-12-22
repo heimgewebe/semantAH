@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 import os
 import uuid
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -12,7 +11,7 @@ from observatory_lib import validate_payload as validate_json  # keeps local val
 
 
 ARTIFACTS_DIR = Path("artifacts")
-OUT_PATH = ARTIFACTS_DIR / "knowledge.observatory.json"
+OUT_PATH = ARTIFACTS_DIR / "insights.daily.json"
 SCHEMA_PATH = Path("contracts") / "knowledge.observatory.schema.json"
 
 
