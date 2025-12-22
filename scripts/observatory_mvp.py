@@ -97,7 +97,7 @@ def main() -> int:
 
     # Create semantic alias for contract-aware tooling (non-breaking, CI-independent)
     # Guard: ensure canonical exists and is not empty before aliasing
-    if not OUT_PATH.exists() or OUT_PATH.stat().st_size == 0:
+    if not OUT_PATH.is_file() or OUT_PATH.stat().st_size == 0:
         raise SystemExit(f"Missing or empty canonical artifact: {OUT_PATH}")
     alias_path = ARTIFACTS_DIR / "knowledge.observatory.json"
     shutil.copyfile(OUT_PATH, alias_path)
