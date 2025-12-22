@@ -38,6 +38,15 @@ jobs:
         run: |
           mkdir -p artifacts
           uv run scripts/observatory_mvp.py
+          
+      # Validate artifact exists (prevent silent failures)
+      - name: Validate Observatory Output
+        run: |
+          if [[ ! -f artifacts/insights.daily.json ]]; then
+            echo "Error: artifacts/insights.daily.json was not generated!"
+            exit 1
+          fi
+          echo "✓ Observatory snapshot validated"
 
       # Rolling Diff (Current vs Prev)
       - name: Generate Rolling Diff
