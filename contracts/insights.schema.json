@@ -9,9 +9,9 @@
   "required": ["type","repo","source","file","score","verdict","ingested_at"],
   "properties": {
     "id":            { "type":"string", "description":"stable hash/id (optional)", "minLength": 1 },
-    "type":          { "type":"string", "const": "review.insight" },
+    "type":          { "enum": ["review.insight", "insight.negation"] },
     "repo":          { "type":"string", "minLength": 1 },
-    "source":        { "type":"string", "enum": ["hausKI","ci","manual"] },
+    "source":        { "type":"string", "enum": ["hausKI","ci","manual","semantAH"] },
     "file":          { "type":"string", "minLength": 1 },
     "score":         { "type":"integer", "minimum": 0, "maximum": 100 },
     "verdict":       { "type":"string", "minLength": 1 },
@@ -21,6 +21,25 @@
     "schema_version":{ "type":"string" },
     "source_version":{ "type":"string" },
     "runner_host":   { "type":"string" },
-    "bucket":        { "type":"string", "enum": ["info","warn","fail"] }
-  }
+    "bucket":        { "type":"string", "enum": ["info","warn","fail"] },
+    "relation":      {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["thesis", "antithesis"],
+      "properties": {
+        "thesis": { "type": "string", "minLength": 1 },
+        "antithesis": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "review.insight" } } },
+      "then": { "not": { "required": ["relation"] }, "properties": { "relation": false } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "insight.negation" } } },
+      "then": { "required": ["relation"] }
+    }
+  ]
 }
