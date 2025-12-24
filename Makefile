@@ -1,6 +1,7 @@
 .PHONY: uv-sync venv sync index graph related push-index all demo clean py-freeze insights-today ingest-intents \
 	test test-integration coverage coverage-clean \
-	test-rust lint-rust audit-rust cov-rust cov-rust-html cov-rust-clean
+	test-rust lint-rust audit-rust cov-rust cov-rust-html cov-rust-clean \
+	fmt lint
 
 UV := $(shell command -v uv 2>/dev/null)
 ifeq ($(UV),)
@@ -30,6 +31,17 @@ push-index:
 	uv run python scripts/push_index.py
 
 all: uv-sync index graph related
+
+# --- Python Formatting & Linting ---------------------------------------------
+
+fmt:
+	uv sync --extra dev
+	uv run ruff format .
+
+lint:
+	uv sync --extra dev
+	uv run ruff check .
+	uv run ruff format --check .
 
 # --- Python tests (uv) -------------------------------------------------------
 # Erwartung: `uv sync` wurde bereits ausgeführt. Für lokale Nutzung mit Extras:

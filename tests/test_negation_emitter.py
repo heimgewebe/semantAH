@@ -1,5 +1,3 @@
-import json
-import os
 import sys
 import unittest
 from pathlib import Path
@@ -11,6 +9,7 @@ from emit_negations import emit_negations
 from observatory_lib import validate_payload
 
 SCHEMA_PATH = Path("contracts") / "insights.schema.json"
+
 
 class TestEmitNegations(unittest.TestCase):
     def test_emit_negations_conflict(self):
@@ -24,7 +23,7 @@ class TestEmitNegations(unittest.TestCase):
                 "score": 85,
                 "verdict": "It is bad",
                 "bucket": "fail",
-                "ingested_at": "2023-01-01T00:00:00Z"
+                "ingested_at": "2023-01-01T00:00:00Z",
             },
             {
                 "type": "review.insight",
@@ -35,8 +34,8 @@ class TestEmitNegations(unittest.TestCase):
                 "score": 90,
                 "verdict": "It is good",
                 "bucket": "info",
-                "ingested_at": "2023-01-01T00:00:00Z"
-            }
+                "ingested_at": "2023-01-01T00:00:00Z",
+            },
         ]
 
         result = emit_negations(insights)
@@ -60,9 +59,9 @@ class TestEmitNegations(unittest.TestCase):
                 "repo": "repo1",
                 "file": "file1",
                 "source": "hausKI",
-                "score": 50, # Low score
+                "score": 50,  # Low score
                 "bucket": "fail",
-                "ingested_at": "2023-01-01T00:00:00Z"
+                "ingested_at": "2023-01-01T00:00:00Z",
             },
             {
                 "type": "review.insight",
@@ -72,8 +71,8 @@ class TestEmitNegations(unittest.TestCase):
                 "source": "hausKI",
                 "score": 90,
                 "bucket": "info",
-                "ingested_at": "2023-01-01T00:00:00Z"
-            }
+                "ingested_at": "2023-01-01T00:00:00Z",
+            },
         ]
         result = emit_negations(insights)
         self.assertEqual(len(result), 0)
@@ -89,7 +88,7 @@ class TestEmitNegations(unittest.TestCase):
                 "source": "hausKI",
                 "score": 85,
                 "bucket": "fail",
-                "ingested_at": "2023-01-01T00:00:00Z"
+                "ingested_at": "2023-01-01T00:00:00Z",
             },
             {
                 "type": "review.insight",
@@ -99,12 +98,13 @@ class TestEmitNegations(unittest.TestCase):
                 "source": "hausKI",
                 "score": 90,
                 "bucket": "info",
-                "ingested_at": "2023-01-01T00:00:00Z"
-            }
+                "ingested_at": "2023-01-01T00:00:00Z",
+            },
         ]
         result1 = emit_negations(insights)
         result2 = emit_negations(insights)
         self.assertEqual(result1[0]["id"], result2[0]["id"])
+
 
 if __name__ == "__main__":
     unittest.main()

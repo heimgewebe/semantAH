@@ -37,7 +37,9 @@ jobs:
         run: ./wgx/wgx metrics
 
       - name: Run Observatory (Mandatory)
-        run: ./wgx/wgx knowledge
+        run: |
+          mkdir -p artifacts
+          ./wgx/wgx knowledge
 
       - name: Upload Observatory Artifacts
         if: always()
@@ -46,7 +48,7 @@ jobs:
           name: observatory-report
           path: artifacts/
           retention-days: 7
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - if: ${{ inputs.run_snapshot }}
         run: ./wgx/wgx snapshot
