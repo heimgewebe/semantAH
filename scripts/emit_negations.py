@@ -13,10 +13,19 @@ import hashlib
 import json
 import sys
 from collections import defaultdict
+from datetime import datetime, timezone
 from typing import Dict, List, Any
 
 def get_stable_id(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()[:16]
+
+def iso_now() -> str:
+    return (
+        datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
 
 def emit_negations(insights: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     # Group by (repo, file)
@@ -79,7 +88,7 @@ def emit_negations(insights: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                         "source": "semantAH",
                         "score": min(score_a, score_b),
                         "verdict": f"Conflict detected between {bucket_a} and {bucket_b}",
-                        "ingested_at": a.get("ingested_at"), # Inherit timestamp or now? User didn't specify. Inheriting from A is safe.
+                        "ingested_at": iso_now(), # Set to current creation time
                         "bucket": "warn", # Negation itself is a warning?
                         "relation": {
                             "thesis": thesis_id,
