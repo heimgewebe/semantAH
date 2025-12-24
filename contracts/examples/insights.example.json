@@ -1,0 +1,15 @@
+{
+  "type": "insight.negation",
+  "id": "neg-12345678",
+  "repo": "heimgewebe/metarepo",
+  "file": "contracts/insights.schema.json",
+  "source": "semantAH",
+  "score": 90,
+  "verdict": "Conflict detected: Thesis claims A, Antithesis claims B",
+  "ingested_at": "2023-10-27T10:00:00Z",
+  "bucket": "warn",
+  "relation": {
+    "thesis": "rev-aaaaaa",
+    "antithesis": "rev-bbbbbb"
+  }
+}
