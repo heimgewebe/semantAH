@@ -16,8 +16,10 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Dict, List, Any
 
+
 def get_stable_id(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()[:16]
+
 
 def iso_now() -> str:
     return (
@@ -26,6 +28,7 @@ def iso_now() -> str:
         .isoformat()
         .replace("+00:00", "Z")
     )
+
 
 def emit_negations(insights: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     # Group by (repo, file)
@@ -49,7 +52,7 @@ def emit_negations(insights: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         group.sort(key=lambda x: x.get("id", ""))
 
         for idx, a in enumerate(group):
-            for b in group[idx+1:]:
+            for b in group[idx + 1 :]:
                 score_a = a.get("score", 0)
                 score_b = b.get("score", 0)
 
@@ -65,7 +68,7 @@ def emit_negations(insights: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 if bucket_a == bucket_b:
                     continue
 
-                is_conflict = ("fail" in [bucket_a, bucket_b])
+                is_conflict = "fail" in [bucket_a, bucket_b]
 
                 if is_conflict:
                     # Generate Negation
@@ -88,16 +91,14 @@ def emit_negations(insights: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                         "source": "semantAH",
                         "score": min(score_a, score_b),
                         "verdict": f"Conflict detected between {bucket_a} and {bucket_b}",
-                        "ingested_at": iso_now(), # Set to current creation time
-                        "bucket": "warn", # Negation itself is a warning?
-                        "relation": {
-                            "thesis": thesis_id,
-                            "antithesis": antithesis_id
-                        }
+                        "ingested_at": iso_now(),  # Set to current creation time
+                        "bucket": "warn",  # Negation itself is a warning?
+                        "relation": {"thesis": thesis_id, "antithesis": antithesis_id},
                     }
                     negations.append(negation)
 
     return negations
+
 
 def main():
     inputs = []
@@ -119,6 +120,7 @@ def main():
 
     for item in outputs:
         print(json.dumps(item))
+
 
 if __name__ == "__main__":
     main()
