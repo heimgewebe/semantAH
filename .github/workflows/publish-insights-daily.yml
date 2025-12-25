@@ -1,0 +1,46 @@
+name: Publish Daily Insights
+
+on:
+  schedule:
+    # Run daily at 06:05 UTC (shortly after potential nightlies)
+    - cron: '05 06 * * *'
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/export_daily_insights.py'
+      - 'contracts/insights.daily.schema.json'
+      - '.github/workflows/publish-insights-daily.yml'
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  publish-insights:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Generate Daily Insights
+        run: |
+          mkdir -p artifacts
+          uv run scripts/export_daily_insights.py --output artifacts/insights.daily.json
+
+      - name: Publish Release Asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: insights-daily
+        run: |
+          # Create or update the release
+          gh release view "$RELEASE_TAG" || gh release create "$RELEASE_TAG" --title "Daily Insights" --notes "Automated publish of daily insights." --prerelease
+
+          # Upload the artifact (clobbering existing one)
+          gh release upload "$RELEASE_TAG" artifacts/insights.daily.json --clobber
