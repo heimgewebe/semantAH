@@ -179,12 +179,26 @@ def main() -> int:
         default=os.environ.get("VAULT_ROOT"),
         help="Path to the vault root (optional).",
     )
+    parser.add_argument(
+        "--schema",
+        type=Path,
+        default=None,
+        help="Path to the JSON schema (overrides env var METAREPO_SCHEMA_INSIGHTS_DAILY and default).",
+    )
     args = parser.parse_args()
+
+    # Resolve schema path: Arg > Env > Default Local Mirror
+    schema_path = (
+        args.schema
+        or os.environ.get("METAREPO_SCHEMA_INSIGHTS_DAILY")
+        or Path("contracts/insights.daily.schema.json")
+    )
+    schema_path = Path(schema_path)
 
     insights = _build_payload(args.vault_root).to_json()
 
     # Validate
-    validate_payload(insights, SCHEMA_PATH)
+    validate_payload(insights, schema_path)
 
     # Ensure output directory exists
     args.output.parent.mkdir(parents=True, exist_ok=True)

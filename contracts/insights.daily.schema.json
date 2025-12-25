@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://heimgewebe/contracts/insights.daily.schema.json",
+  "$comment": "Canonical source lives in metarepo/contracts/insights.daily.schema.json; this file is a mirror.",
   "title": "Daily Insights",
   "description": "Tageszusammenfassung semantischer Heimgewebe-Insights (Topics, Fragen, Deltas).",
   "type": "object",
