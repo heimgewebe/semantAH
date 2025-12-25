@@ -13,6 +13,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: publish-insights-daily
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -39,8 +43,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: insights-daily
         run: |
-          # Create or update the release
-          gh release view "$RELEASE_TAG" || gh release create "$RELEASE_TAG" --title "Daily Insights" --notes "Automated publish of daily insights." --prerelease
+          # Create or update the release (ensure it is NOT a prerelease)
+          gh release view "$RELEASE_TAG" || gh release create "$RELEASE_TAG" --title "Daily Insights" --notes "Automated publish of daily insights."
+          gh release edit "$RELEASE_TAG" --prerelease=false
 
           # Upload the artifact (clobbering existing one)
           gh release upload "$RELEASE_TAG" artifacts/insights.daily.json --clobber
