@@ -30,6 +30,10 @@ related:
 push-index:
 	uv run python scripts/push_index.py
 
+# Export daily insights
+export-daily:
+	uv run scripts/export_daily_insights.py
+
 all: uv-sync index graph related
 
 # --- Python Formatting & Linting ---------------------------------------------

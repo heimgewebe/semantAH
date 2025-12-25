@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://heimgewebe/contracts/insights.daily.schema.json",
+  "title": "Daily Insights",
+  "description": "Tageszusammenfassung semantischer Heimgewebe-Insights (Topics, Fragen, Deltas).",
+  "type": "object",
+  "required": ["ts", "topics", "questions", "deltas"],
+  "properties": {
+    "ts": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "Datum der Insights im Format YYYY-MM-DD."
+    },
+    "topics": {
+      "type": "array",
+      "description": "Top-Themen des Tages mit Gewichtung.",
+      "items": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 2,
+        "description": "[topic, score] – Thema und Score, z. B. TF-IDF oder normalisierte Relevanz.",
+        "prefixItems": [
+          { "type": "string", "description": "Thema" },
+          { "type": "number", "description": "Score" }
+        ],
+        "items": false
+      }
+    },
+    "questions": {
+      "type": "array",
+      "description": "Offene Fragen, die aus den Daten emergieren.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "deltas": {
+      "type": "array",
+      "description": "Wichtige Veränderungen gegenüber Vortagen (Neuaufkommen, Trendwechsel etc.).",
+      "items": {
+        "type": "string"
+      }
+    },
+    "source": {
+      "type": "string",
+      "description": "Optionaler Name der Quelle/Pipeline (z. B. 'semantAH.daily')."
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Optionale Zusatzinformationen (z. B. Index-Version, Embedding-Modell)."
+    }
+  },
+  "additionalProperties": false
+}
