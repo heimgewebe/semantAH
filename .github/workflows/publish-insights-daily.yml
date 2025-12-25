@@ -64,9 +64,17 @@ jobs:
             exit 0
           fi
 
-          TS=$(date -u +"%Y-%m-%d")
-          GEN_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          # Extract timestamps from the artifact to ensure consistency
+          GEN_AT=$(node -p "try { const d = JSON.parse(require('fs').readFileSync('artifacts/insights.daily.json','utf8')); d.metadata?.generated_at || '' } catch(e) { '' }" 2>/dev/null || true)
+          TS=$(node -p "try { const d = JSON.parse(require('fs').readFileSync('artifacts/insights.daily.json','utf8')); d.ts || d.metadata?.ts || '' } catch(e) { '' }" 2>/dev/null || true)
+
+          # Fallback to current time if artifact data is missing
+          if [[ -z "$GEN_AT" ]]; then GEN_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ"); fi
+          if [[ -z "$TS" ]]; then TS=$(date -u +"%Y-%m-%d"); fi
+
           URL="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/insights.daily.json"
+
+          echo "::notice::Notifying Plexer: ts=$TS, generated_at=$GEN_AT, url=$URL"
 
           # Construct minimal notification payload
           PAYLOAD=$(cat <<EOF
