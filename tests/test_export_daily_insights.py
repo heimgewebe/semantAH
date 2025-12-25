@@ -6,6 +6,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
+
 def _script_path() -> Path:
     # tests/  -> Repo-Root ist ein Verzeichnis darüber
     here = Path(__file__).resolve()
@@ -53,7 +54,14 @@ def test_export_daily_insights_with_vault(tmp_path):
     script = _script_path()
 
     subprocess.run(
-        [sys.executable, str(script), "--output", str(output_path), "--vault-root", str(vault_root)],
+        [
+            sys.executable,
+            str(script),
+            "--output",
+            str(output_path),
+            "--vault-root",
+            str(vault_root),
+        ],
         check=True,
         capture_output=True,
         text=True,

@@ -159,9 +159,7 @@ def _build_payload(vault_root: Optional[Path]) -> DailyInsights:
         questions=[],
         deltas=[],
         source="semantAH",
-        metadata={
-            "generated_at": iso_now()
-        }
+        metadata={"generated_at": iso_now()},
     )
 
 
