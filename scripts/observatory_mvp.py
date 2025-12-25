@@ -14,7 +14,7 @@ from observatory_lib import (
 
 
 ARTIFACTS_DIR = Path("artifacts")
-OUT_PATH = ARTIFACTS_DIR / "insights.daily.json"
+OUT_PATH = ARTIFACTS_DIR / "knowledge.observatory.json"
 SCHEMA_PATH = Path("contracts") / "knowledge.observatory.schema.json"
 
 
@@ -95,13 +95,9 @@ def main() -> int:
     )
     print(f"Wrote {OUT_PATH}")
 
-    # Create semantic alias for contract-aware tooling (non-breaking, CI-independent)
-    # Guard: ensure canonical exists and is not empty before aliasing
+    # Check for empty output
     if not OUT_PATH.is_file() or OUT_PATH.stat().st_size == 0:
-        raise SystemExit(f"Missing or empty canonical artifact: {OUT_PATH}")
-    alias_path = ARTIFACTS_DIR / "knowledge.observatory.json"
-    shutil.copyfile(OUT_PATH, alias_path)
-    print(f"Aliased to {alias_path}")
+        raise SystemExit(f"Missing or empty artifact: {OUT_PATH}")
 
     return 0
 
