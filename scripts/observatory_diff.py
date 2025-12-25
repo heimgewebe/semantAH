@@ -59,8 +59,8 @@ def generate_diff(snapshot: dict, baseline: dict | None, baseline_status: dict) 
     diff = {
         "baseline_missing": baseline_status.get("missing", False),
         "baseline_error": baseline_status.get("error", False),
-        "baseline_generated_at": baseline.get("generated_at") if baseline else None,
-        "current_generated_at": snapshot.get("generated_at"),
+        "baseline_generated_at": None,
+        "current_generated_at": None,
         "topic_count_diff": None,
         "topics_changed": None,
         "new_topics": [],
@@ -68,9 +68,37 @@ def generate_diff(snapshot: dict, baseline: dict | None, baseline_status: dict) 
         "reason": baseline_status.get("reason"),
     }
 
+    def get_generated_at(data):
+        if not data:
+            return None
+        # Top-level (knowledge.observatory)
+        if "generated_at" in data:
+            return data["generated_at"]
+        # Metadata (insights.daily)
+        if "metadata" in data and "generated_at" in data["metadata"]:
+            return data["metadata"]["generated_at"]
+        return None
+
+    diff["current_generated_at"] = get_generated_at(snapshot)
     if baseline:
-        b_topics = {t.get("topic_id") for t in baseline.get("topics", [])}
-        c_topics = {t.get("topic_id") for t in snapshot.get("topics", [])}
+        diff["baseline_generated_at"] = get_generated_at(baseline)
+
+    if baseline:
+
+        def get_topics(data):
+            topics = data.get("topics", [])
+            if not topics:
+                return set()
+            # Handle list of lists (insights.daily: [name, score])
+            if isinstance(topics[0], list):
+                return {t[0] for t in topics}
+            # Handle list of dicts (knowledge.observatory)
+            elif isinstance(topics[0], dict):
+                return {t.get("topic_id") or t.get("topic") for t in topics}
+            return set()
+
+        b_topics = get_topics(baseline)
+        c_topics = get_topics(snapshot)
 
         diff["topic_count_diff"] = len(c_topics) - len(b_topics)
         diff["topics_changed"] = b_topics != c_topics

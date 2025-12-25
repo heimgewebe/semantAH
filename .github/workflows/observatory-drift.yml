@@ -34,10 +34,10 @@ jobs:
         run: uv sync
 
       # Generate Current State
-      - name: Generate Observatory Snapshot
+      - name: Generate Daily Insights
         run: |
           mkdir -p artifacts
-          uv run scripts/observatory_mvp.py
+          uv run scripts/export_daily_insights.py
 
       # Rolling Diff (Current vs Prev)
       - name: Generate Rolling Diff
@@ -51,10 +51,16 @@ jobs:
             --snapshot artifacts/insights.daily.json \
             --baseline artifacts/observatory.prev.json \
             --output artifacts/observatory.diff.json \
-            --schema contracts/knowledge.observatory.schema.json \
+            --schema contracts/insights.daily.schema.json \
             $STRICT_FLAG
 
-      # Upload Diff Artifact
+      # Upload Artifacts
+      - name: Upload Daily Insights
+        uses: actions/upload-artifact@v4
+        with:
+          name: insights.daily.json
+          path: artifacts/insights.daily.json
+
       - name: Upload Drift Report
         uses: actions/upload-artifact@v4
         with:
