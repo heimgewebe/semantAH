@@ -80,7 +80,7 @@ wgx:
       fi
 
       # Observatory output is mandatory (Core-Task 1)
-      uv run python scripts/observatory_mvp.py
+      uv run scripts/export_daily_insights.py
 
       if [[ ! -f artifacts/insights.daily.json ]]; then
         echo "Error: artifacts/insights.daily.json was not generated!"

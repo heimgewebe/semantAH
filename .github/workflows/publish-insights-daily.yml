@@ -1,0 +1,98 @@
+name: Publish Daily Insights
+
+on:
+  schedule:
+    # Run daily at 06:05 UTC (shortly after potential nightlies)
+    - cron: '05 06 * * *'
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/export_daily_insights.py'
+      - 'contracts/insights.daily.schema.json'
+      - '.github/workflows/publish-insights-daily.yml'
+    branches:
+      - main
+
+concurrency:
+  group: publish-insights-daily
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish-insights:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Generate Daily Insights
+        run: |
+          mkdir -p artifacts
+          uv run scripts/export_daily_insights.py --output artifacts/insights.daily.json
+
+      - name: Publish Release Asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: insights-daily
+        run: |
+          # Create or update the release (ensure it is NOT a prerelease)
+          gh release view "$RELEASE_TAG" || gh release create "$RELEASE_TAG" --title "Daily Insights" --notes "Automated publish of daily insights."
+          gh release edit "$RELEASE_TAG" --prerelease=false
+
+          # Upload the artifact (clobbering existing one)
+          gh release upload "$RELEASE_TAG" artifacts/insights.daily.json --clobber
+
+      - name: Notify Plexer
+        if: success()
+        continue-on-error: true
+        env:
+          PLEXER_URL: ${{ secrets.PLEXER_URL }}
+          PLEXER_TOKEN: ${{ secrets.PLEXER_TOKEN }}
+          RELEASE_TAG: insights-daily
+        run: |
+          # Skip if secrets are not available (e.g. in forks or initial setup)
+          if [[ -z "$PLEXER_URL" ]]; then
+            echo "::notice::PLEXER_URL not set, skipping notification."
+            exit 0
+          fi
+
+          # Extract timestamps from the artifact to ensure consistency
+          GEN_AT=$(node -p "try { const d = JSON.parse(require('fs').readFileSync('artifacts/insights.daily.json','utf8')); d.metadata?.generated_at || '' } catch(e) { '' }" 2>/dev/null || true)
+          TS=$(node -p "try { const d = JSON.parse(require('fs').readFileSync('artifacts/insights.daily.json','utf8')); d.ts || d.metadata?.ts || '' } catch(e) { '' }" 2>/dev/null || true)
+
+          # Fallback to current time if artifact data is missing
+          if [[ -z "$GEN_AT" ]]; then GEN_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ"); fi
+          if [[ -z "$TS" ]]; then TS=$(date -u +"%Y-%m-%d"); fi
+
+          URL="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/insights.daily.json"
+
+          echo "::notice::Notifying Plexer: ts=$TS, generated_at=$GEN_AT, url=$URL"
+
+          # Construct minimal notification payload
+          PAYLOAD=$(cat <<EOF
+          {
+            "type": "insights.daily.published",
+            "source": "semantAH",
+            "payload": {
+              "ts": "$TS",
+              "url": "$URL",
+              "generated_at": "$GEN_AT"
+            }
+          }
+          EOF
+          )
+
+          # Send notification
+          curl -X POST "$PLEXER_URL/events" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $PLEXER_TOKEN" \
+            -d "$PAYLOAD" \
+            --fail-with-body || echo "::notice::Failed to notify plexer, but release succeeded."
