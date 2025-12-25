@@ -5,7 +5,7 @@
   "title": "Daily Insights",
   "description": "Tageszusammenfassung semantischer Heimgewebe-Insights (Topics, Fragen, Deltas).",
   "type": "object",
-  "required": ["ts", "topics", "questions", "deltas"],
+  "required": ["ts", "topics", "questions", "deltas", "source", "metadata"],
   "properties": {
     "ts": {
       "type": "string",
@@ -47,7 +47,15 @@
     },
     "metadata": {
       "type": "object",
-      "description": "Optionale Zusatzinformationen (z. B. Index-Version, Embedding-Modell)."
+      "description": "Zusatzinformationen (z. B. Index-Version, Embedding-Modell).",
+      "required": ["generated_at"],
+      "properties": {
+        "generated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Erzeugungszeitpunkt (ISO-8601)."
+        }
+      }
     }
   },
   "additionalProperties": false
