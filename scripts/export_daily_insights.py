@@ -31,7 +31,7 @@ import json
 import os
 import sys
 from collections import Counter
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Iterable, List, Tuple, Optional
