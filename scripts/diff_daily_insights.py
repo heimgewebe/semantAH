@@ -2,7 +2,7 @@
 diff_daily_insights.py
 
 Detects drift by comparing the current daily insights artifact against a baseline.
-Output: artifacts/observatory.diff.json (or similar diff artifact)
+Output: artifacts/insights.daily.diff.json
 """
 
 import argparse

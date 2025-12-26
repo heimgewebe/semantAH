@@ -2,7 +2,7 @@
 observatory_diff.py
 
 Detects drift by comparing the current knowledge observatory snapshot against a baseline.
-Output: artifacts/observatory.diff.json
+Output: artifacts/knowledge.observatory.diff.json
 
 NOTE: This script is strictly for 'knowledge.observatory' artifacts.
 For daily insights, use 'scripts/diff_daily_insights.py'.

@@ -1,0 +1,87 @@
+name: Knowledge Observatory Drift
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  knowledge-observatory-drift:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+
+      # Restore Previous State
+      - name: Restore Knowledge Observatory Prev
+        uses: actions/cache/restore@v4
+        with:
+          path: artifacts/knowledge.observatory.prev.json
+          key: knowledge-observatory-prev-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            knowledge-observatory-prev-${{ github.ref_name }}-
+
+      - name: Install dependencies
+        run: uv sync
+
+      # Generate Current State
+      - name: Generate Knowledge Observatory
+        run: |
+          mkdir -p artifacts
+          uv run scripts/observatory_mvp.py
+
+          # Hard check for artifact existence
+          if [[ ! -s artifacts/knowledge.observatory.json ]]; then
+            echo "Error: artifacts/knowledge.observatory.json missing or empty!"
+            ls -la artifacts/
+            exit 1
+          fi
+
+      # Rolling Diff (Current vs Prev)
+      - name: Generate Rolling Diff
+        run: |
+          STRICT_FLAG=""
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            STRICT_FLAG="--strict"
+          fi
+
+          uv run scripts/observatory_diff.py \
+            --snapshot artifacts/knowledge.observatory.json \
+            --baseline artifacts/knowledge.observatory.prev.json \
+            --output artifacts/knowledge.observatory.diff.json \
+            --schema contracts/knowledge.observatory.schema.json \
+            $STRICT_FLAG
+
+      # Upload Artifacts
+      - name: Upload Knowledge Observatory
+        uses: actions/upload-artifact@v4
+        with:
+          name: knowledge.observatory.json
+          path: artifacts/knowledge.observatory.json
+
+      - name: Upload Drift Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: knowledge-observatory-diff
+          path: artifacts/knowledge.observatory.diff.json
+
+      # Update Prev (Cache)
+      - name: Prepare Next Prev
+        if: success()
+        run: cp artifacts/knowledge.observatory.json artifacts/knowledge.observatory.prev.json
+
+      - name: Save Knowledge Observatory Prev
+        if: success() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
+        uses: actions/cache/save@v4
+        with:
+          path: artifacts/knowledge.observatory.prev.json
+          key: knowledge-observatory-prev-${{ github.ref_name }}-${{ github.run_id }}

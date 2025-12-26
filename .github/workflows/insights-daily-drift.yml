@@ -1,4 +1,4 @@
-name: Observatory Drift
+name: Insights Daily Drift
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  observatory-drift:
+  insights-daily-drift:
     runs-on: ubuntu-latest
 
     steps:
@@ -22,13 +22,13 @@ jobs:
           python-version: "3.12"
 
       # Restore Previous State
-      - name: Restore Observatory Prev
+      - name: Restore Insights Daily Prev
         uses: actions/cache/restore@v4
         with:
           path: artifacts/insights.daily.prev.json
-          key: observatory-prev-${{ github.ref_name }}-${{ github.run_id }}
+          key: insights-daily-prev-${{ github.ref_name }}-${{ github.run_id }}
           restore-keys: |
-            observatory-prev-${{ github.ref_name }}-
+            insights-daily-prev-${{ github.ref_name }}-
 
       - name: Install dependencies
         run: uv sync
@@ -79,9 +79,9 @@ jobs:
         if: success()
         run: cp artifacts/insights.daily.json artifacts/insights.daily.prev.json
 
-      - name: Save Observatory Prev
+      - name: Save Insights Daily Prev
         if: success() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
         uses: actions/cache/save@v4
         with:
           path: artifacts/insights.daily.prev.json
-          key: observatory-prev-${{ github.ref_name }}-${{ github.run_id }}
+          key: insights-daily-prev-${{ github.ref_name }}-${{ github.run_id }}
