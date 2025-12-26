@@ -1,11 +1,8 @@
 """
-observatory_diff.py
+diff_daily_insights.py
 
-Detects drift by comparing the current knowledge observatory snapshot against a baseline.
-Output: artifacts/observatory.diff.json
-
-NOTE: This script is strictly for 'knowledge.observatory' artifacts.
-For daily insights, use 'scripts/diff_daily_insights.py'.
+Detects drift by comparing the current daily insights artifact against a baseline.
+Output: artifacts/observatory.diff.json (or similar diff artifact)
 """
 
 import argparse
@@ -25,17 +22,17 @@ except ImportError:
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Generate knowledge observatory drift report.")
+    parser = argparse.ArgumentParser(description="Generate daily insights drift report.")
     parser.add_argument(
         "--snapshot",
         type=Path,
-        default=Path("artifacts/knowledge.observatory.json"),
+        default=Path("artifacts/insights.daily.json"),
         help="Path to the current snapshot file.",
     )
     parser.add_argument(
         "--baseline",
         type=Path,
-        default=Path("tests/fixtures/knowledge.observatory.baseline.json"),
+        default=Path("tests/fixtures/insights.daily.baseline.json"),
         help="Path to the baseline file.",
     )
     parser.add_argument(
@@ -47,7 +44,7 @@ def parse_args():
     parser.add_argument(
         "--schema",
         type=Path,
-        default=Path("contracts/knowledge.observatory.schema.json"),
+        default=Path("contracts/insights.daily.schema.json"),
         help="Path to the schema file for validation.",
     )
     parser.add_argument(
@@ -74,9 +71,9 @@ def generate_diff(snapshot: dict, baseline: dict | None, baseline_status: dict) 
     def get_generated_at(data):
         if not data:
             return None
-        # Top-level (knowledge.observatory)
-        if "generated_at" in data:
-            return data["generated_at"]
+        # Metadata (insights.daily)
+        if "metadata" in data and "generated_at" in data["metadata"]:
+            return data["metadata"]["generated_at"]
         return None
 
     diff["current_generated_at"] = get_generated_at(snapshot)
@@ -89,8 +86,9 @@ def generate_diff(snapshot: dict, baseline: dict | None, baseline_status: dict) 
             topics = data.get("topics", [])
             if not topics:
                 return set()
-            # Strict mode: assumes knowledge.observatory structure (list of dicts)
-            return {t.get("topic") for t in topics}
+            # Handle list of lists (insights.daily: [name, score])
+            # Strict mode: assumes insights.daily structure
+            return {t[0] for t in topics}
 
         b_topics = get_topics(baseline)
         c_topics = get_topics(snapshot)
@@ -112,7 +110,7 @@ def main() -> None:
 
     if not args.snapshot.exists():
         print(
-            f"Error: Snapshot file not found at {args.snapshot}. Run observatory_mvp.py first.",
+            f"Error: Snapshot file not found at {args.snapshot}. Run export_daily_insights.py first.",
             file=sys.stderr,
         )
         sys.exit(1)

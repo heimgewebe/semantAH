@@ -54,7 +54,7 @@ jobs:
             STRICT_FLAG="--strict"
           fi
 
-          uv run scripts/observatory_diff.py \
+          uv run scripts/diff_daily_insights.py \
             --snapshot artifacts/insights.daily.json \
             --baseline artifacts/insights.daily.prev.json \
             --output artifacts/observatory.diff.json \
