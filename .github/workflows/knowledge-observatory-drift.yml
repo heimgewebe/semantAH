@@ -1,4 +1,4 @@
-name: Observatory Drift
+name: Knowledge Observatory Drift
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  observatory-drift:
+  knowledge-observatory-drift:
     runs-on: ubuntu-latest
 
     steps:
@@ -22,26 +22,26 @@ jobs:
           python-version: "3.12"
 
       # Restore Previous State
-      - name: Restore Observatory Prev
+      - name: Restore Knowledge Observatory Prev
         uses: actions/cache/restore@v4
         with:
-          path: artifacts/insights.daily.prev.json
-          key: observatory-prev-${{ github.ref_name }}-${{ github.run_id }}
+          path: artifacts/knowledge.observatory.prev.json
+          key: knowledge-observatory-prev-${{ github.ref_name }}-${{ github.run_id }}
           restore-keys: |
-            observatory-prev-${{ github.ref_name }}-
+            knowledge-observatory-prev-${{ github.ref_name }}-
 
       - name: Install dependencies
         run: uv sync
 
       # Generate Current State
-      - name: Generate Daily Insights
+      - name: Generate Knowledge Observatory
         run: |
           mkdir -p artifacts
-          uv run scripts/export_daily_insights.py
+          uv run scripts/observatory_mvp.py
 
           # Hard check for artifact existence
-          if [[ ! -s artifacts/insights.daily.json ]]; then
-            echo "Error: artifacts/insights.daily.json missing or empty!"
+          if [[ ! -s artifacts/knowledge.observatory.json ]]; then
+            echo "Error: artifacts/knowledge.observatory.json missing or empty!"
             ls -la artifacts/
             exit 1
           fi
@@ -55,33 +55,33 @@ jobs:
           fi
 
           uv run scripts/observatory_diff.py \
-            --snapshot artifacts/insights.daily.json \
-            --baseline artifacts/insights.daily.prev.json \
-            --output artifacts/observatory.diff.json \
-            --schema contracts/insights.daily.schema.json \
+            --snapshot artifacts/knowledge.observatory.json \
+            --baseline artifacts/knowledge.observatory.prev.json \
+            --output artifacts/knowledge.observatory.diff.json \
+            --schema contracts/knowledge.observatory.schema.json \
             $STRICT_FLAG
 
       # Upload Artifacts
-      - name: Upload Daily Insights
+      - name: Upload Knowledge Observatory
         uses: actions/upload-artifact@v4
         with:
-          name: insights.daily.json
-          path: artifacts/insights.daily.json
+          name: knowledge.observatory.json
+          path: artifacts/knowledge.observatory.json
 
       - name: Upload Drift Report
         uses: actions/upload-artifact@v4
         with:
-          name: observatory-diff
-          path: artifacts/observatory.diff.json
+          name: knowledge-observatory-diff
+          path: artifacts/knowledge.observatory.diff.json
 
       # Update Prev (Cache)
       - name: Prepare Next Prev
         if: success()
-        run: cp artifacts/insights.daily.json artifacts/insights.daily.prev.json
+        run: cp artifacts/knowledge.observatory.json artifacts/knowledge.observatory.prev.json
 
-      - name: Save Observatory Prev
+      - name: Save Knowledge Observatory Prev
         if: success() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
         uses: actions/cache/save@v4
         with:
-          path: artifacts/insights.daily.prev.json
-          key: observatory-prev-${{ github.ref_name }}-${{ github.run_id }}
+          path: artifacts/knowledge.observatory.prev.json
+          key: knowledge-observatory-prev-${{ github.ref_name }}-${{ github.run_id }}

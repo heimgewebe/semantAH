@@ -1,0 +1,25 @@
+{
+  "observatory_id": "obs-prev-baseline",
+  "generated_at": "2023-01-01T00:00:00+00:00",
+  "source": {
+    "component": "semantAH",
+    "version": "1.0"
+  },
+  "topics": [
+    {
+      "topic": "Baseline Topic",
+      "confidence": 1.0,
+      "sources": [
+        {
+          "type": "repo_file",
+          "ref": "README.md",
+          "weight": 1.0
+        }
+      ],
+      "suggested_questions": []
+    }
+  ],
+  "signals": [],
+  "blind_spots": [],
+  "considered_but_rejected": []
+}

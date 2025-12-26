@@ -125,7 +125,14 @@ impl VectorStore {
             );
         }
 
-        scored.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(Ordering::Equal));
+        // Deterministic sorting: Score (desc) > DocID (asc) > ChunkID (asc).
+        // Note: We filter NaNs above, so partial_cmp should not return None, but we use unwrap_or(Equal) just in case.
+        scored.sort_by(|a, b| {
+            b.2.partial_cmp(&a.2)
+                .unwrap_or(Ordering::Equal)
+                .then_with(|| a.0.cmp(&b.0))
+                .then_with(|| a.1.cmp(&b.1))
+        });
         if scored.len() > k {
             scored.truncate(k);
         }
@@ -202,5 +209,42 @@ mod tests {
         assert_eq!(results[0].0, "doc-a");
         assert_eq!(results[0].1, "c1");
         assert!(results[0].2 > results[1].2);
+    }
+
+    #[test]
+    fn search_sorts_deterministically_with_ties() {
+        let mut store = VectorStore::new();
+        let meta = Value::Null;
+
+        // Upsert items with vectors that will yield identical scores (same vector)
+        // Insert order: B, A, C (to test that it's not just insertion order)
+        store.upsert("ns", "doc-b", "c1", vec![1.0], meta.clone()).unwrap();
+        store.upsert("ns", "doc-a", "c1", vec![1.0], meta.clone()).unwrap();
+        store.upsert("ns", "doc-b", "c2", vec![1.0], meta.clone()).unwrap();
+
+        // Search
+        let results = store.search("ns", &[1.0], 10, &Value::Null);
+
+        // Expect:
+        // 1. doc-a, c1 (doc-a < doc-b)
+        // 2. doc-b, c1 (chunk c1 < c2)
+        // 3. doc-b, c2
+
+        assert_eq!(results.len(), 3);
+
+        // Check scores are all equal (approx 1.0)
+        assert!((results[0].2 - 1.0).abs() < f32::EPSILON);
+        assert!((results[1].2 - 1.0).abs() < f32::EPSILON);
+        assert!((results[2].2 - 1.0).abs() < f32::EPSILON);
+
+        // Check order
+        assert_eq!(results[0].0, "doc-a");
+        assert_eq!(results[0].1, "c1");
+
+        assert_eq!(results[1].0, "doc-b");
+        assert_eq!(results[1].1, "c1");
+
+        assert_eq!(results[2].0, "doc-b");
+        assert_eq!(results[2].1, "c2");
     }
 }

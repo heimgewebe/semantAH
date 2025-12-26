@@ -1,0 +1,10 @@
+{
+  "ts": "2023-01-01",
+  "topics": [["Baseline Topic", 0.5]],
+  "questions": [],
+  "deltas": [],
+  "source": "semantAH",
+  "metadata": {
+    "generated_at": "2023-01-01T00:00:00Z"
+  }
+}
