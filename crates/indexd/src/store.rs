@@ -125,7 +125,12 @@ impl VectorStore {
             );
         }
 
-        scored.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(Ordering::Equal));
+        scored.sort_by(|a, b| {
+            b.2.partial_cmp(&a.2)
+                .unwrap_or(Ordering::Equal)
+                .then_with(|| a.0.cmp(&b.0))
+                .then_with(|| a.1.cmp(&b.1))
+        });
         if scored.len() > k {
             scored.truncate(k);
         }

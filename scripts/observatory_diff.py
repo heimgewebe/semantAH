@@ -26,7 +26,7 @@ def parse_args():
     parser.add_argument(
         "--snapshot",
         type=Path,
-        default=Path("artifacts/insights.daily.json"),
+        default=Path("artifacts/knowledge.observatory.json"),
         help="Path to the current snapshot file.",
     )
     parser.add_argument(
