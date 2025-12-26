@@ -7,4 +7,4 @@ For CI stability and historical compatibility, the following artifact names are 
   * Alias (semantic): `artifacts/knowledge.observatory.json`
   * Contract: `contracts/knowledge.observatory.schema.json`
 
-Any deviation from this naming breaks the `observatory-drift.yml` workflow and historical caches. Do not rename the canonical file.
+Any deviation from this naming breaks the `insights-daily-drift.yml` or `knowledge-observatory-drift.yml` workflows and historical caches. Do not rename the canonical file.
