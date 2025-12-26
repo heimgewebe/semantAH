@@ -41,7 +41,7 @@ def parse_args():
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("artifacts/observatory.diff.json"),
+        default=Path("artifacts/knowledge.observatory.diff.json"),
         help="Path to the output diff file.",
     )
     parser.add_argument(
@@ -90,7 +90,7 @@ def generate_diff(snapshot: dict, baseline: dict | None, baseline_status: dict) 
             if not topics:
                 return set()
             # Strict mode: assumes knowledge.observatory structure (list of dicts)
-            return {t.get("topic") for t in topics}
+            return {t.get("topic") for t in topics if t.get("topic")}
 
         b_topics = get_topics(baseline)
         c_topics = get_topics(snapshot)

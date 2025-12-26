@@ -38,7 +38,7 @@ def parse_args():
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("artifacts/observatory.diff.json"),
+        default=Path("artifacts/insights.daily.diff.json"),
         help="Path to the output diff file.",
     )
     parser.add_argument(

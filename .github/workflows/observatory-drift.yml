@@ -57,7 +57,7 @@ jobs:
           uv run scripts/diff_daily_insights.py \
             --snapshot artifacts/insights.daily.json \
             --baseline artifacts/insights.daily.prev.json \
-            --output artifacts/observatory.diff.json \
+            --output artifacts/insights.daily.diff.json \
             --schema contracts/insights.daily.schema.json \
             $STRICT_FLAG
 
@@ -71,8 +71,8 @@ jobs:
       - name: Upload Drift Report
         uses: actions/upload-artifact@v4
         with:
-          name: observatory-diff
-          path: artifacts/observatory.diff.json
+          name: insights-daily-diff
+          path: artifacts/insights.daily.diff.json
 
       # Update Prev (Cache)
       - name: Prepare Next Prev
