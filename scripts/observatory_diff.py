@@ -25,7 +25,9 @@ except ImportError:
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Generate knowledge observatory drift report.")
+    parser = argparse.ArgumentParser(
+        description="Generate knowledge observatory drift report."
+    )
     parser.add_argument(
         "--snapshot",
         type=Path,

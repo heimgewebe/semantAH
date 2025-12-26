@@ -22,7 +22,9 @@ except ImportError:
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Generate daily insights drift report.")
+    parser = argparse.ArgumentParser(
+        description="Generate daily insights drift report."
+    )
     parser.add_argument(
         "--snapshot",
         type=Path,
