@@ -1,0 +1,60 @@
+name: Publish Knowledge Observatory
+
+on:
+  schedule:
+    - cron: '15 06 * * *' # nach insights.daily, leicht versetzt
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'scripts/observatory_mvp.py'
+      - 'contracts/knowledge.observatory.schema.json'
+      - '.github/workflows/publish-knowledge-observatory.yml'
+
+concurrency:
+  group: publish-knowledge-observatory
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Generate Knowledge Observatory
+        run: |
+          mkdir -p artifacts
+          uv run scripts/observatory_mvp.py
+
+          if [[ ! -s artifacts/knowledge.observatory.json ]]; then
+            echo "Error: artifacts/knowledge.observatory.json missing or empty!"
+            ls -la artifacts/
+            exit 1
+          fi
+
+      # Optional aber stark: Schema-Check (wenn ajv-cli schon genutzt wird)
+      - name: Validate (contracts)
+        run: |
+          npx --yes ajv-cli@5 validate --spec=draft2020 \
+            -s contracts/knowledge.observatory.schema.json \
+            -d artifacts/knowledge.observatory.json
+
+      - name: Publish Release Asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: knowledge-observatory
+        run: |
+          gh release view "$RELEASE_TAG" \
+            || gh release create "$RELEASE_TAG" --title "Knowledge Observatory" --notes "Automated publish of knowledge.observatory.json."
+          gh release edit "$RELEASE_TAG" --prerelease=false
+          gh release upload "$RELEASE_TAG" artifacts/knowledge.observatory.json --clobber
