@@ -89,16 +89,27 @@ jobs:
           name: knowledge-observatory-diff
           path: artifacts/knowledge.observatory.diff.json
 
-      # Promote Baseline (only on success and stable branches/schedule)
-      # This ensures 'prev' is only updated when the drift check passes.
+      # Promote Baseline (only on success and schedule)
+      # This ensures 'prev' is only updated once a day (Day-over-Day drift),
+      # and only when the drift check passes.
       - name: Promote Baseline (Update Release Asset)
-        if: success() && (github.event_name == 'schedule' || github.ref == 'refs/heads/main')
+        if: success() && github.event_name == 'schedule'
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: knowledge-observatory
         run: |
+          # Sanity check: Ensure diff was generated
+          if [[ ! -s artifacts/knowledge.observatory.diff.json ]]; then
+            echo "Error: Diff file missing. Aborting promotion."
+            exit 1
+          fi
+
           # Promote current snapshot to be the new baseline (prev)
           cp artifacts/knowledge.observatory.json artifacts/knowledge.observatory.prev.json
+
+          # Ensure Release exists
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 \
+            || gh release create "$RELEASE_TAG" --title "Knowledge Observatory" --notes "Automated baseline for drift guard."
 
           # Upload/Overwrite the prev asset in the release
           gh release upload "$RELEASE_TAG" artifacts/knowledge.observatory.prev.json --clobber
