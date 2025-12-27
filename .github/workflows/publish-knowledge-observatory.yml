@@ -68,5 +68,13 @@ jobs:
           gh release edit "$RELEASE_TAG" --prerelease=false
           gh release upload "$RELEASE_TAG" artifacts/knowledge.observatory.json --clobber
 
-          # Debug: Log Canonical URL
-          echo "::notice title=Canonical URL::$(gh release view "$RELEASE_TAG" --json assets -q '.assets[] | select(.name=="knowledge.observatory.json") | .url')"
+          # Debug: Log URLs
+          OWNER="heimgewebe"
+          REPO="semantAH"
+          ASSET="knowledge.observatory.json"
+
+          # 1. API URL (internal use)
+          echo "::notice title=Asset API URL::$(gh release view "$RELEASE_TAG" --json assets -q '.assets[] | select(.name=="knowledge.observatory.json") | .url')"
+
+          # 2. Canonical Download URL (for consumers like Leitstand)
+          echo "::notice title=Canonical Download URL::https://github.com/${OWNER}/${REPO}/releases/download/${RELEASE_TAG}/${ASSET}"
