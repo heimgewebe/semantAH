@@ -1,6 +1,8 @@
 name: Knowledge Observatory Drift
 
 on:
+  schedule:
+    - cron: '25 06 * * *' # runs 10 min after publish (06:15) to verify drift
   push:
     branches: [ main ]
   pull_request:
@@ -8,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   knowledge-observatory-drift:
@@ -86,3 +88,17 @@ jobs:
         with:
           name: knowledge-observatory-diff
           path: artifacts/knowledge.observatory.diff.json
+
+      # Promote Baseline (only on success and stable branches/schedule)
+      # This ensures 'prev' is only updated when the drift check passes.
+      - name: Promote Baseline (Update Release Asset)
+        if: success() && (github.event_name == 'schedule' || github.ref == 'refs/heads/main')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: knowledge-observatory
+        run: |
+          # Promote current snapshot to be the new baseline (prev)
+          cp artifacts/knowledge.observatory.json artifacts/knowledge.observatory.prev.json
+
+          # Upload/Overwrite the prev asset in the release
+          gh release upload "$RELEASE_TAG" artifacts/knowledge.observatory.prev.json --clobber
