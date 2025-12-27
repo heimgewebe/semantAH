@@ -58,7 +58,10 @@ jobs:
 
           echo "Validation Strictness: $STRICT"
 
+          # NOTE: Contract uses x-* metadata (x-producers/x-consumers).
+          # AJV strict rejects unknown keywords, so we disable strict mode here.
           npx --yes ajv-cli@5 validate --spec=draft2020 \
+            --strict=false \
             -s contracts/knowledge.observatory.schema.json \
             -d artifacts/knowledge.observatory.json \
             || (echo "WARN: Validation failed" && [ "$STRICT" = "1" ] && exit 1 || exit 0)
