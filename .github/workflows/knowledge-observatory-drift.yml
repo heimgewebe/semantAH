@@ -27,17 +27,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p artifacts
-          # Download knowledge.observatory.json from the stable release tag
+          # Download knowledge.observatory.prev.json (explicit baseline) from the stable release tag
           # If download fails (e.g. first run), we proceed (bootstrap mode handles missing file)
           gh release download knowledge-observatory \
-            -p knowledge.observatory.json \
+            -p knowledge.observatory.prev.json \
             -D artifacts/ \
             || echo "Warning: Baseline download failed. Continuing in bootstrap mode."
-
-          # Rename to prev if it exists to serve as baseline
-          if [[ -f artifacts/knowledge.observatory.json ]]; then
-             mv artifacts/knowledge.observatory.json artifacts/knowledge.observatory.prev.json
-          fi
 
       - name: Install dependencies
         run: uv sync
@@ -69,12 +64,15 @@ jobs:
             STRICT_REQUIRE_BASELINE=1
           fi
 
-          STRICT_REQUIRE_BASELINE=$STRICT_REQUIRE_BASELINE uv run scripts/observatory_diff.py \
+          echo "STRICT_FLAG=$STRICT_FLAG STRICT_REQUIRE_BASELINE=$STRICT_REQUIRE_BASELINE"
+
+          STRICT_REQUIRE_BASELINE=$STRICT_REQUIRE_BASELINE \
+          uv run scripts/observatory_diff.py \
+            $STRICT_FLAG \
             --snapshot artifacts/knowledge.observatory.json \
             --baseline artifacts/knowledge.observatory.prev.json \
             --output artifacts/knowledge.observatory.diff.json \
-            --schema contracts/knowledge.observatory.schema.json \
-            $STRICT_FLAG
+            --schema contracts/knowledge.observatory.schema.json
 
       # Upload Artifacts
       - name: Upload Knowledge Observatory

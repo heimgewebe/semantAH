@@ -74,7 +74,12 @@ jobs:
           gh release view "$RELEASE_TAG" \
             || gh release create "$RELEASE_TAG" --title "Knowledge Observatory" --notes "Automated publish of knowledge.observatory.json."
           gh release edit "$RELEASE_TAG" --prerelease=false
-          gh release upload "$RELEASE_TAG" artifacts/knowledge.observatory.json --clobber
+
+          # Create baseline copy (prev) for stable drift detection
+          cp artifacts/knowledge.observatory.json artifacts/knowledge.observatory.prev.json
+
+          # Upload both current and baseline assets
+          gh release upload "$RELEASE_TAG" artifacts/knowledge.observatory.json artifacts/knowledge.observatory.prev.json --clobber
 
           # Debug: Log URLs
           OWNER="heimgewebe"
