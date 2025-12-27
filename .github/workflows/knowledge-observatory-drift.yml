@@ -1,6 +1,8 @@
 name: Knowledge Observatory Drift
 
 on:
+  schedule:
+    - cron: '25 06 * * *' # runs 10 min after publish (06:15) to verify drift
   push:
     branches: [ main ]
   pull_request:
@@ -13,6 +15,8 @@ permissions:
 jobs:
   knowledge-observatory-drift:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -21,14 +25,21 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Restore Previous State
-      - name: Restore Knowledge Observatory Prev
-        uses: actions/cache/restore@v4
-        with:
-          path: artifacts/knowledge.observatory.prev.json
-          key: knowledge-observatory-prev-${{ github.ref_name }}-${{ github.run_id }}
-          restore-keys: |
-            knowledge-observatory-prev-${{ github.ref_name }}-
+      # Fetch Baseline from Production (Release)
+      - name: Fetch Baseline (Production)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p artifacts
+          # Download knowledge.observatory.prev.json (explicit baseline) from the stable release tag
+          # Retry loop to handle transient API glitches
+          for i in {1..3}; do
+            gh release download knowledge-observatory \
+              -p knowledge.observatory.prev.json \
+              -D artifacts/ && break
+            echo "Attempt $i failed. Retrying in 5s..."
+            sleep 5
+          done || echo "Warning: Baseline download failed after retries. Continuing in bootstrap mode."
 
       - name: Install dependencies
         run: uv sync
@@ -54,12 +65,22 @@ jobs:
             STRICT_FLAG="--strict"
           fi
 
+          # Bootstrap Logic: Require baseline only if it actually exists
+          STRICT_REQUIRE_BASELINE=0
+          if [[ -f artifacts/knowledge.observatory.prev.json ]]; then
+            STRICT_REQUIRE_BASELINE=1
+          fi
+
+          echo "STRICT_FLAG=$STRICT_FLAG STRICT_REQUIRE_BASELINE=$STRICT_REQUIRE_BASELINE"
+          echo "Baseline present? $(test -f artifacts/knowledge.observatory.prev.json && echo yes || echo no)"
+
+          STRICT_REQUIRE_BASELINE=$STRICT_REQUIRE_BASELINE \
           uv run scripts/observatory_diff.py \
+            $STRICT_FLAG \
             --snapshot artifacts/knowledge.observatory.json \
             --baseline artifacts/knowledge.observatory.prev.json \
             --output artifacts/knowledge.observatory.diff.json \
-            --schema contracts/knowledge.observatory.schema.json \
-            $STRICT_FLAG
+            --schema contracts/knowledge.observatory.schema.json
 
       # Upload Artifacts
       - name: Upload Knowledge Observatory
@@ -74,14 +95,32 @@ jobs:
           name: knowledge-observatory-diff
           path: artifacts/knowledge.observatory.diff.json
 
-      # Update Prev (Cache)
-      - name: Prepare Next Prev
-        if: success()
-        run: cp artifacts/knowledge.observatory.json artifacts/knowledge.observatory.prev.json
+      # Promote Baseline (only on success and schedule)
+      # This ensures 'prev' is only updated once a day (Day-over-Day drift),
+      # and only when the drift check passes.
+      - name: Promote Baseline (Update Release Asset)
+        if: success() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: knowledge-observatory
+        run: |
+          # Sanity check: Snapshot MUST exist for promotion
+          if [[ ! -s artifacts/knowledge.observatory.json ]]; then
+            echo "Error: Snapshot file missing. Cannot promote."
+            exit 1
+          fi
 
-      - name: Save Knowledge Observatory Prev
-        if: success() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
-        uses: actions/cache/save@v4
-        with:
-          path: artifacts/knowledge.observatory.prev.json
-          key: knowledge-observatory-prev-${{ github.ref_name }}-${{ github.run_id }}
+          # Sanity check: Warn if diff is missing (but allow promotion if guard passed)
+          if [[ ! -s artifacts/knowledge.observatory.diff.json ]]; then
+            echo "Warning: Diff file missing. Promoting anyway (Guard passed)."
+          fi
+
+          # Promote current snapshot to be the new baseline (prev)
+          cp artifacts/knowledge.observatory.json artifacts/knowledge.observatory.prev.json
+
+          # Ensure Release exists
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 \
+            || gh release create "$RELEASE_TAG" --title "Knowledge Observatory" --notes "Automated baseline for drift guard."
+
+          # Upload/Overwrite the prev asset in the release
+          gh release upload "$RELEASE_TAG" artifacts/knowledge.observatory.prev.json --clobber

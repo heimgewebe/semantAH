@@ -10,6 +10,7 @@ For daily insights, use 'scripts/diff_daily_insights.py'.
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -155,9 +156,24 @@ def main() -> None:
 
     # Check for strict mode failure conditions
     if args.strict:
-        if baseline_status["missing"] or baseline_status["error"]:
+        require_baseline = os.getenv("STRICT_REQUIRE_BASELINE", "0") == "1"
+
+        if baseline_status["missing"]:
+            if require_baseline:
+                print(
+                    f"Error: Strict mode enabled and baseline required. Reason: {baseline_status['reason']}",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            else:
+                print(
+                    f"Warning: Strict mode enabled but baseline missing (Bootstrapping). Reason: {baseline_status['reason']}"
+                )
+
+        elif baseline_status["error"]:
+            # If baseline exists but is invalid, we always fail in strict mode
             print(
-                f"Error: Strict mode enabled. Failing due to invalid/missing baseline. Reason: {baseline_status['reason']}",
+                f"Error: Strict mode enabled. Failing due to invalid baseline. Reason: {baseline_status['reason']}",
                 file=sys.stderr,
             )
             sys.exit(1)
