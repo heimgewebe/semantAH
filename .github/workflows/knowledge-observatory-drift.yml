@@ -67,6 +67,7 @@ jobs:
           fi
 
           echo "STRICT_FLAG=$STRICT_FLAG STRICT_REQUIRE_BASELINE=$STRICT_REQUIRE_BASELINE"
+          echo "Baseline present? $(test -f artifacts/knowledge.observatory.prev.json && echo yes || echo no)"
 
           STRICT_REQUIRE_BASELINE=$STRICT_REQUIRE_BASELINE \
           uv run scripts/observatory_diff.py \
