@@ -42,12 +42,21 @@ jobs:
             exit 1
           fi
 
-      # Optional aber stark: Schema-Check (wenn ajv-cli schon genutzt wird)
       - name: Validate (contracts)
         run: |
+          # Strict only on main/schedule to prevent toolchain drift from blocking PRs
+          if [[ "${{ github.event_name }}" == "schedule" || "${{ github.ref }}" == "refs/heads/main" ]]; then
+            STRICT=1
+          else
+            STRICT=0
+          fi
+
+          echo "Validation Strictness: $STRICT"
+
           npx --yes ajv-cli@5 validate --spec=draft2020 \
             -s contracts/knowledge.observatory.schema.json \
-            -d artifacts/knowledge.observatory.json
+            -d artifacts/knowledge.observatory.json \
+            || (echo "WARN: Validation failed" && [ "$STRICT" = "1" ] && exit 1 || exit 0)
 
       - name: Publish Release Asset
         env:
@@ -58,3 +67,6 @@ jobs:
             || gh release create "$RELEASE_TAG" --title "Knowledge Observatory" --notes "Automated publish of knowledge.observatory.json."
           gh release edit "$RELEASE_TAG" --prerelease=false
           gh release upload "$RELEASE_TAG" artifacts/knowledge.observatory.json --clobber
+
+          # Debug: Log Canonical URL
+          echo "::notice title=Canonical URL::$(gh release view "$RELEASE_TAG" --json assets -q '.assets[] | select(.name=="knowledge.observatory.json") | .url')"
