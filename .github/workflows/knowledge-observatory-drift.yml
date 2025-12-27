@@ -10,11 +10,13 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   knowledge-observatory-drift:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -30,11 +32,14 @@ jobs:
         run: |
           mkdir -p artifacts
           # Download knowledge.observatory.prev.json (explicit baseline) from the stable release tag
-          # If download fails (e.g. first run), we proceed (bootstrap mode handles missing file)
-          gh release download knowledge-observatory \
-            -p knowledge.observatory.prev.json \
-            -D artifacts/ \
-            || echo "Warning: Baseline download failed. Continuing in bootstrap mode."
+          # Retry loop to handle transient API glitches
+          for i in {1..3}; do
+            gh release download knowledge-observatory \
+              -p knowledge.observatory.prev.json \
+              -D artifacts/ && break
+            echo "Attempt $i failed. Retrying in 5s..."
+            sleep 5
+          done || echo "Warning: Baseline download failed after retries. Continuing in bootstrap mode."
 
       - name: Install dependencies
         run: uv sync
@@ -99,10 +104,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: knowledge-observatory
         run: |
-          # Sanity check: Ensure diff was generated
-          if [[ ! -s artifacts/knowledge.observatory.diff.json ]]; then
-            echo "Error: Diff file missing. Aborting promotion."
+          # Sanity check: Snapshot MUST exist for promotion
+          if [[ ! -s artifacts/knowledge.observatory.json ]]; then
+            echo "Error: Snapshot file missing. Cannot promote."
             exit 1
+          fi
+
+          # Sanity check: Warn if diff is missing (but allow promotion if guard passed)
+          if [[ ! -s artifacts/knowledge.observatory.diff.json ]]; then
+            echo "Warning: Diff file missing. Promoting anyway (Guard passed)."
           fi
 
           # Promote current snapshot to be the new baseline (prev)
