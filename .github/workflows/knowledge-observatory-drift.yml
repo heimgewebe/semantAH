@@ -31,16 +31,30 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p artifacts
-          # Download knowledge.observatory.prev.json (explicit baseline) from the stable release tag
-          # Retry loop to handle transient API glitches
-          for i in {1..3}; do
-            gh release download knowledge-observatory \
-              --pattern "knowledge.observatory.prev.json" \
-              --dir "artifacts" \
-              --clobber && break
-            echo "Attempt $i failed. Retrying in 5s..."
-            sleep 5
-          done || echo "Warning: Baseline download failed after retries. Continuing in bootstrap mode."
+
+          # Check if release exists
+          if gh release view knowledge-observatory >/dev/null 2>&1; then
+            echo "Release found. STRICT MODE: Baseline must be downloadable."
+
+            # Retry loop to handle transient API glitches
+            DOWNLOAD_SUCCESS=0
+            for i in {1..3}; do
+              gh release download knowledge-observatory \
+                --pattern "knowledge.observatory.prev.json" \
+                --dir "artifacts" \
+                --clobber && DOWNLOAD_SUCCESS=1 && break
+              echo "Attempt $i failed. Retrying in 5s..."
+              sleep 5
+            done
+
+            # Strict check after retries
+            if [[ $DOWNLOAD_SUCCESS -ne 1 ]] || [[ ! -s artifacts/knowledge.observatory.prev.json ]]; then
+              echo "Error: Baseline download failed or file is empty despite release existing."
+              exit 1
+            fi
+          else
+            echo "::notice::No 'knowledge-observatory' release found. Bootstrap mode (first run)."
+          fi
 
       - name: Install dependencies
         run: uv sync

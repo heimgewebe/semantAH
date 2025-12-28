@@ -38,13 +38,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p artifacts
-          # Attempt to download the latest stable observatory snapshot.
-          # We use || true to proceed even if it fails (e.g. first run),
-          # relying on the script's fallback logic.
-          gh release download knowledge-observatory \
-            --pattern "knowledge.observatory.json" \
-            --dir "artifacts" \
-            --clobber || echo "::warning::Could not fetch knowledge.observatory.json (might be first run)"
+
+          # Check if release exists
+          if gh release view knowledge-observatory >/dev/null 2>&1; then
+            echo "Release found. STRICT MODE: Snapshot must be downloadable."
+            gh release download knowledge-observatory \
+              --pattern "knowledge.observatory.json" \
+              --dir "artifacts" \
+              --clobber
+
+            if [[ ! -s artifacts/knowledge.observatory.json ]]; then
+              echo "Error: knowledge.observatory.json is missing or empty despite release existing."
+              exit 1
+            fi
+          else
+            echo "::notice::No 'knowledge-observatory' release found. Proceeding without snapshot (First Run)."
+          fi
 
       - name: Generate Daily Insights
         run: |
