@@ -86,11 +86,11 @@ def test_export_daily_insights_with_observatory(tmp_path):
         "topics": [
             {"topic": "Alpha", "confidence": 0.9},
             {"topic": "Beta", "confidence": 0.8},
-            {"topic": "Gamma", "confidence": 0.1} # Low confidence
+            {"topic": "Gamma", "confidence": 0.1},  # Low confidence
         ],
         "signals": [],
         "blind_spots": [],
-        "considered_but_rejected": []
+        "considered_but_rejected": [],
     }
     obs_path.write_text(json.dumps(obs_data))
 

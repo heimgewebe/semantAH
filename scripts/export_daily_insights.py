@@ -112,7 +112,9 @@ def _iter_markdown_files(root: Path) -> Iterable[Path]:
         yield path
 
 
-def _derive_topics_from_vault(root: Path, files: Iterable[Path]) -> List[Tuple[str, float]]:
+def _derive_topics_from_vault(
+    root: Path, files: Iterable[Path]
+) -> List[Tuple[str, float]]:
     """
     Leitet grobe Themen aus Top-Level-Ordnern ab.
     """
@@ -153,7 +155,9 @@ def _derive_topics_from_observatory(obs_data: dict) -> List[Tuple[str, float]]:
 
     # Map [topic, confidence] -> [topic, score]
     # We take top N by confidence
-    sorted_topics = sorted(raw_topics, key=lambda x: x.get("confidence", 0.0), reverse=True)
+    sorted_topics = sorted(
+        raw_topics, key=lambda x: x.get("confidence", 0.0), reverse=True
+    )
     selected = sorted_topics[:MAX_TOPICS]
 
     return [
@@ -163,7 +167,9 @@ def _derive_topics_from_observatory(obs_data: dict) -> List[Tuple[str, float]]:
     ]
 
 
-def _build_payload(vault_root: Optional[Path], observatory_path: Optional[Path]) -> DailyInsights:
+def _build_payload(
+    vault_root: Optional[Path], observatory_path: Optional[Path]
+) -> DailyInsights:
     """
     Baut das Tages-Insights-Payload.
     """
@@ -185,10 +191,12 @@ def _build_payload(vault_root: Optional[Path], observatory_path: Optional[Path])
             # Calculate aggregated uncertainty (1.0 - avg_confidence)
             raw_topics = obs_data.get("topics", [])
             if raw_topics:
-                avg_conf = sum(t.get("confidence", 0.0) for t in raw_topics) / len(raw_topics)
+                avg_conf = sum(t.get("confidence", 0.0) for t in raw_topics) / len(
+                    raw_topics
+                )
                 metadata["uncertainty"] = round(1.0 - avg_conf, 2)
             else:
-                metadata["uncertainty"] = 1.0 # Max uncertainty if no topics
+                metadata["uncertainty"] = 1.0  # Max uncertainty if no topics
 
             observatory_used = True
             print(f"::notice:: Derived insights from Observatory: {observatory_path}")
