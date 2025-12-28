@@ -33,10 +33,31 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      - name: Fetch Latest Observatory Snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p artifacts
+          # Attempt to download the latest stable observatory snapshot.
+          # We use || true to proceed even if it fails (e.g. first run),
+          # relying on the script's fallback logic.
+          gh release download knowledge-observatory \
+            --pattern "knowledge.observatory.json" \
+            --output "artifacts/knowledge.observatory.json" \
+            --clobber || echo "::warning::Could not fetch knowledge.observatory.json (might be first run)"
+
       - name: Generate Daily Insights
         run: |
           mkdir -p artifacts
-          uv run scripts/export_daily_insights.py --output artifacts/insights.daily.json
+          # Pass observatory path if it exists
+          OBS_ARG=""
+          if [[ -f "artifacts/knowledge.observatory.json" ]]; then
+            OBS_ARG="--observatory artifacts/knowledge.observatory.json"
+          fi
+
+          uv run scripts/export_daily_insights.py \
+            --output artifacts/insights.daily.json \
+            $OBS_ARG
 
       - name: Publish Release Asset
         env:
@@ -77,9 +98,10 @@ jobs:
           echo "::notice::Notifying Plexer: ts=$TS, generated_at=$GEN_AT, url=$URL"
 
           # Construct minimal notification payload
+          # TYPE updated to insights.daily.published.v1 as per instructions
           PAYLOAD=$(cat <<EOF
           {
-            "type": "insights.daily.published",
+            "type": "insights.daily.published.v1",
             "source": "semantAH",
             "payload": {
               "ts": "$TS",

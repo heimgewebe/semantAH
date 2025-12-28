@@ -15,13 +15,16 @@ Format:
     "deltas": [],
     "source": "semantAH",
     "metadata": {
-      "generated_at": "YYYY-MM-DDTHH:MM:SSZ"
+      "generated_at": "YYYY-MM-DDTHH:MM:SSZ",
+      "observatory_ref": "obs-...",  # Optional: Reference to observatory
+      "uncertainty": 0.2              # Optional: Aggregated uncertainty (0.0-1.0)
     }
   }
 
 Verhalten:
   - Validiert Output gegen das Schema.
-  - Wenn kein Vault gefunden wird, wird ein minimaler, gültiger Stub erzeugt.
+  - Priorisiert `knowledge.observatory.json` als Quelle für Topics und Metadaten.
+  - Fallback auf Vault-Scan, wenn kein Observatory vorhanden.
 """
 
 from __future__ import annotations
@@ -109,7 +112,9 @@ def _iter_markdown_files(root: Path) -> Iterable[Path]:
         yield path
 
 
-def _derive_topics(root: Path, files: Iterable[Path]) -> List[Tuple[str, float]]:
+def _derive_topics_from_vault(
+    root: Path, files: Iterable[Path]
+) -> List[Tuple[str, float]]:
     """
     Leitet grobe Themen aus Top-Level-Ordnern ab.
     """
@@ -127,7 +132,6 @@ def _derive_topics(root: Path, files: Iterable[Path]) -> List[Tuple[str, float]]
         counter[topic] += 1
 
     if not has_files:
-        # Fallback – Schema trotzdem bedienen
         return [("vault", 1.0)]
 
     items = counter.most_common(MAX_TOPICS)
@@ -141,17 +145,72 @@ def _derive_topics(root: Path, files: Iterable[Path]) -> List[Tuple[str, float]]
     ]
 
 
-def _build_payload(vault_root: Optional[Path]) -> DailyInsights:
+def _derive_topics_from_observatory(obs_data: dict) -> List[Tuple[str, float]]:
+    """
+    Extrahiert Topics aus dem Observatory-Payload.
+    """
+    raw_topics = obs_data.get("topics", [])
+    if not raw_topics:
+        return [("observatory-empty", 1.0)]
+
+    # Map [topic, confidence] -> [topic, score]
+    # We take top N by confidence
+    sorted_topics = sorted(
+        raw_topics, key=lambda x: x.get("confidence", 0.0), reverse=True
+    )
+    selected = sorted_topics[:MAX_TOPICS]
+
+    return [
+        (t["topic"], round(t.get("confidence", 0.0), WEIGHT_PRECISION))
+        for t in selected
+        if "topic" in t
+    ]
+
+
+def _build_payload(
+    vault_root: Optional[Path], observatory_path: Optional[Path]
+) -> DailyInsights:
     """
     Baut das Tages-Insights-Payload.
     """
     today = date.today().isoformat()
+    metadata = {"generated_at": iso_now()}
+    topics = []
 
-    if vault_root and vault_root.is_dir():
-        files = _iter_markdown_files(vault_root)
-        topics = _derive_topics(vault_root, files)
-    else:
-        topics = [("vault", 1.0)]
+    # Priority: Observatory -> Vault -> Stub
+    observatory_used = False
+    if observatory_path and observatory_path.exists():
+        try:
+            obs_data = json.loads(observatory_path.read_text(encoding="utf-8"))
+            topics = _derive_topics_from_observatory(obs_data)
+
+            # Enrich metadata
+            if "observatory_id" in obs_data:
+                metadata["observatory_ref"] = obs_data["observatory_id"]
+
+            # Calculate aggregated uncertainty (1.0 - avg_confidence)
+            raw_topics = obs_data.get("topics", [])
+            if raw_topics:
+                avg_conf = sum(t.get("confidence", 0.0) for t in raw_topics) / len(
+                    raw_topics
+                )
+                metadata["uncertainty"] = round(1.0 - avg_conf, 2)
+            else:
+                metadata["uncertainty"] = 1.0  # Max uncertainty if no topics
+
+            observatory_used = True
+            print(f"::notice:: Derived insights from Observatory: {observatory_path}")
+        except Exception as e:
+            print(f"::warning:: Failed to read observatory data: {e}", file=sys.stderr)
+
+    if not observatory_used:
+        if vault_root and vault_root.is_dir():
+            files = _iter_markdown_files(vault_root)
+            topics = _derive_topics_from_vault(vault_root, files)
+            print(f"::notice:: Derived insights from Vault: {vault_root}")
+        else:
+            topics = [("vault", 1.0)]
+            print("::notice:: Using stub insights (no vault, no observatory)")
 
     return DailyInsights(
         ts=today,
@@ -159,7 +218,7 @@ def _build_payload(vault_root: Optional[Path]) -> DailyInsights:
         questions=[],
         deltas=[],
         source="semantAH",
-        metadata={"generated_at": iso_now()},
+        metadata=metadata,
     )
 
 
@@ -178,6 +237,12 @@ def main() -> int:
         help="Path to the vault root (optional).",
     )
     parser.add_argument(
+        "--observatory",
+        type=Path,
+        default=None,
+        help="Path to knowledge.observatory.json input (optional).",
+    )
+    parser.add_argument(
         "--schema",
         type=Path,
         default=None,
@@ -193,7 +258,7 @@ def main() -> int:
     )
     schema_path = Path(schema_path)
 
-    insights = _build_payload(args.vault_root).to_json()
+    insights = _build_payload(args.vault_root, args.observatory).to_json()
 
     # Validate
     validate_payload(insights, schema_path)
