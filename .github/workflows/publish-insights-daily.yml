@@ -43,7 +43,7 @@ jobs:
           # relying on the script's fallback logic.
           gh release download knowledge-observatory \
             --pattern "knowledge.observatory.json" \
-            --output "artifacts/knowledge.observatory.json" \
+            --dir "artifacts" \
             --clobber || echo "::warning::Could not fetch knowledge.observatory.json (might be first run)"
 
       - name: Generate Daily Insights
@@ -58,6 +58,9 @@ jobs:
           uv run scripts/export_daily_insights.py \
             --output artifacts/insights.daily.json \
             $OBS_ARG
+
+          # Strict artifact check
+          test -s artifacts/insights.daily.json || { echo "Error: artifacts/insights.daily.json is missing or empty"; exit 1; }
 
       - name: Publish Release Asset
         env:
