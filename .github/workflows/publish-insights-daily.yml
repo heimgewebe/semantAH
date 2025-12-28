@@ -37,22 +37,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
+
           mkdir -p artifacts
 
-          # Check if release exists
           if gh release view knowledge-observatory >/dev/null 2>&1; then
-            echo "Release found. STRICT MODE: Snapshot must be downloadable."
+            echo "Release found. NORMAL MODE: snapshot is mandatory."
+
             gh release download knowledge-observatory \
               --pattern "knowledge.observatory.json" \
               --dir "artifacts" \
               --clobber
 
             if [[ ! -s artifacts/knowledge.observatory.json ]]; then
-              echo "Error: knowledge.observatory.json is missing or empty despite release existing."
+              echo "::error::knowledge.observatory.json missing or empty although release exists."
               exit 1
             fi
           else
-            echo "::notice::No 'knowledge-observatory' release found. Proceeding without snapshot (First Run)."
+            echo "::notice::No 'knowledge-observatory' release found. First-run without snapshot."
           fi
 
       - name: Generate Daily Insights
@@ -69,7 +71,7 @@ jobs:
             $OBS_ARG
 
           # Strict artifact check
-          test -s artifacts/insights.daily.json || { echo "Error: artifacts/insights.daily.json is missing or empty"; exit 1; }
+          test -s artifacts/insights.daily.json || { echo "::error::artifacts/insights.daily.json is missing or empty"; exit 1; }
 
       - name: Publish Release Asset
         env:
