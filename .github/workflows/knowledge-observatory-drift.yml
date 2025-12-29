@@ -65,13 +65,10 @@ jobs:
 
             # Integrity check
             echo "Verifying JSON integrity..."
-            python3 -c "import json, sys; json.load(open(sys.argv[1]))" artifacts/knowledge.observatory.prev.json || {
-               echo "::error::Baseline artifact is corrupt (invalid JSON)."
-               exit 1
-            }
+            python3 -c "import json, sys; json.load(open(sys.argv[1], encoding='utf-8'))" artifacts/knowledge.observatory.prev.json || { echo "::error::Baseline artifact is corrupt (invalid JSON)."; exit 1; }
           else
             # Check if failure was "Not Found" or something else
-            if echo "$RELEASE_CHECK" | grep -qE "not found|404"; then
+            if echo "$RELEASE_CHECK" | grep -qiE "HTTP 404|Not Found|release.*not found"; then
               echo "::notice::No 'knowledge-observatory' release found. First-run bootstrap mode."
             else
               echo "::error::Release check failed with unexpected error (API/Auth/Rate-Limit)."
