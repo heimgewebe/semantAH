@@ -62,7 +62,7 @@ jobs:
               echo "::error::knowledge.observatory.json missing or empty although release exists."
               echo "::group::Diagnostics"
               gh --version
-              gh api rate_limit --repo "$GITHUB_REPOSITORY" || true
+              gh api rate_limit || true
               echo "::endgroup::"
               exit 1
             fi
