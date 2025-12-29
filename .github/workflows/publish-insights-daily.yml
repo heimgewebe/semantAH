@@ -44,12 +44,21 @@ jobs:
           if gh release view knowledge-observatory >/dev/null 2>&1; then
             echo "Release found. NORMAL MODE: snapshot is mandatory."
 
-            gh release download knowledge-observatory \
-              --pattern "knowledge.observatory.json" \
-              --dir "artifacts" \
-              --clobber
+            DOWNLOAD_SUCCESS=0
+            for i in 1 2 3; do
+              if gh release download knowledge-observatory \
+                --pattern "knowledge.observatory.json" \
+                --dir "artifacts" \
+                --clobber
+              then
+                DOWNLOAD_SUCCESS=1
+                break
+              fi
+              echo "Attempt $i failed. Retrying in 5s..."
+              sleep 5
+            done
 
-            if [[ ! -s artifacts/knowledge.observatory.json ]]; then
+            if [[ "$DOWNLOAD_SUCCESS" -ne 1 ]] || [[ ! -s artifacts/knowledge.observatory.json ]]; then
               echo "::error::knowledge.observatory.json missing or empty although release exists."
               exit 1
             fi
