@@ -45,7 +45,7 @@ jobs:
             echo "Release found. STEADY STATE: snapshot is mandatory."
 
             DOWNLOAD_SUCCESS=0
-            for i in 1 2 3; do
+            for i in 5 10 15; do
               if gh release download knowledge-observatory --repo "$GITHUB_REPOSITORY" \
                 --pattern "knowledge.observatory.json" \
                 --dir "artifacts" \
@@ -54,8 +54,8 @@ jobs:
                 DOWNLOAD_SUCCESS=1
                 break
               fi
-              echo "Attempt $i failed. Retrying in 5s..."
-              sleep 5
+              echo "Attempt failed. Retrying in ${i}s..."
+              sleep $i
             done
 
             if [[ "$DOWNLOAD_SUCCESS" -ne 1 ]] || [[ ! -s artifacts/knowledge.observatory.json ]]; then
@@ -63,6 +63,8 @@ jobs:
               echo "::group::Diagnostics"
               gh --version
               gh api rate_limit || true
+              echo "Available assets:"
+              gh release view knowledge-observatory --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' || true
               echo "::endgroup::"
               exit 1
             fi
