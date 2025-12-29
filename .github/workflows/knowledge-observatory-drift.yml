@@ -30,16 +30,56 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
+
           mkdir -p artifacts
-          # Download knowledge.observatory.prev.json (explicit baseline) from the stable release tag
-          # Retry loop to handle transient API glitches
-          for i in {1..3}; do
-            gh release download knowledge-observatory \
-              -p knowledge.observatory.prev.json \
-              -D artifacts/ && break
-            echo "Attempt $i failed. Retrying in 5s..."
-            sleep 5
-          done || echo "Warning: Baseline download failed after retries. Continuing in bootstrap mode."
+
+          # Check for release existence with distinction between "Not Found" and "API Error"
+          if RELEASE_CHECK=$(gh release view knowledge-observatory --repo "$GITHUB_REPOSITORY" 2>&1); then
+            echo "Release found. STEADY STATE: baseline is mandatory."
+
+            DOWNLOAD_SUCCESS=0
+            for delay in 5 10 15; do
+              if gh release download knowledge-observatory --repo "$GITHUB_REPOSITORY" \
+                --pattern "knowledge.observatory.prev.json" \
+                --dir "artifacts" \
+                --clobber
+              then
+                DOWNLOAD_SUCCESS=1
+                break
+              fi
+              echo "Attempt failed. Retrying in ${delay}s..."
+              sleep $delay
+            done
+
+            if [[ "$DOWNLOAD_SUCCESS" -ne 1 ]] || [[ ! -s artifacts/knowledge.observatory.prev.json ]]; then
+              echo "::error::Baseline artifact missing or empty although release exists."
+              echo "::group::Diagnostics"
+              gh --version
+              gh api rate_limit || true
+              echo "Available assets:"
+              gh release view knowledge-observatory --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' || true
+              echo "::endgroup::"
+              exit 1
+            fi
+
+            # Integrity check
+            echo "Verifying JSON integrity..."
+            python3 -c "import json, sys; json.load(open(sys.argv[1], encoding='utf-8'))" artifacts/knowledge.observatory.prev.json || { echo "::error::Baseline artifact is corrupt (invalid JSON)."; exit 1; }
+          else
+            # Check if failure was "Not Found" or something else
+            if echo "$RELEASE_CHECK" | grep -qiE "HTTP 404|Not Found|release.*not found"; then
+              echo "::notice::No 'knowledge-observatory' release found. First-run bootstrap mode."
+            else
+              echo "::error::Release check failed with unexpected error (API/Auth/Rate-Limit)."
+              echo "::group::Error Details"
+              echo "$RELEASE_CHECK"
+              gh --version
+              gh api rate_limit || true
+              echo "::endgroup::"
+              exit 1
+            fi
+          fi
 
       - name: Install dependencies
         run: uv sync
