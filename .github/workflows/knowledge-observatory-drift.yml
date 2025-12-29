@@ -34,11 +34,12 @@ jobs:
 
           mkdir -p artifacts
 
-          if gh release view knowledge-observatory --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+          # Check for release existence with distinction between "Not Found" and "API Error"
+          if RELEASE_CHECK=$(gh release view knowledge-observatory --repo "$GITHUB_REPOSITORY" 2>&1); then
             echo "Release found. STEADY STATE: baseline is mandatory."
 
             DOWNLOAD_SUCCESS=0
-            for i in 5 10 15; do
+            for delay in 5 10 15; do
               if gh release download knowledge-observatory --repo "$GITHUB_REPOSITORY" \
                 --pattern "knowledge.observatory.prev.json" \
                 --dir "artifacts" \
@@ -47,8 +48,8 @@ jobs:
                 DOWNLOAD_SUCCESS=1
                 break
               fi
-              echo "Attempt failed. Retrying in ${i}s..."
-              sleep $i
+              echo "Attempt failed. Retrying in ${delay}s..."
+              sleep $delay
             done
 
             if [[ "$DOWNLOAD_SUCCESS" -ne 1 ]] || [[ ! -s artifacts/knowledge.observatory.prev.json ]]; then
@@ -61,8 +62,26 @@ jobs:
               echo "::endgroup::"
               exit 1
             fi
+
+            # Integrity check
+            echo "Verifying JSON integrity..."
+            python3 -c "import json, sys; json.load(open(sys.argv[1]))" artifacts/knowledge.observatory.prev.json || {
+               echo "::error::Baseline artifact is corrupt (invalid JSON)."
+               exit 1
+            }
           else
-            echo "::notice::No 'knowledge-observatory' release found. First-run bootstrap mode."
+            # Check if failure was "Not Found" or something else
+            if echo "$RELEASE_CHECK" | grep -qE "not found|404"; then
+              echo "::notice::No 'knowledge-observatory' release found. First-run bootstrap mode."
+            else
+              echo "::error::Release check failed with unexpected error (API/Auth/Rate-Limit)."
+              echo "::group::Error Details"
+              echo "$RELEASE_CHECK"
+              gh --version
+              gh api rate_limit || true
+              echo "::endgroup::"
+              exit 1
+            fi
           fi
 
       - name: Install dependencies
