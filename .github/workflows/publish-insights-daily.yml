@@ -41,12 +41,12 @@ jobs:
 
           mkdir -p artifacts
 
-          if gh release view knowledge-observatory >/dev/null 2>&1; then
-            echo "Release found. NORMAL MODE: snapshot is mandatory."
+          if gh release view knowledge-observatory --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release found. STEADY STATE: snapshot is mandatory."
 
             DOWNLOAD_SUCCESS=0
             for i in 1 2 3; do
-              if gh release download knowledge-observatory \
+              if gh release download knowledge-observatory --repo "$GITHUB_REPOSITORY" \
                 --pattern "knowledge.observatory.json" \
                 --dir "artifacts" \
                 --clobber
@@ -60,6 +60,10 @@ jobs:
 
             if [[ "$DOWNLOAD_SUCCESS" -ne 1 ]] || [[ ! -s artifacts/knowledge.observatory.json ]]; then
               echo "::error::knowledge.observatory.json missing or empty although release exists."
+              echo "::group::Diagnostics"
+              gh --version
+              gh api rate_limit --repo "$GITHUB_REPOSITORY" || true
+              echo "::endgroup::"
               exit 1
             fi
           else
