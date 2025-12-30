@@ -107,7 +107,7 @@ jobs:
           URL="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/knowledge.observatory.json"
 
           # generated_at aus dem Artefakt ziehen (falls vorhanden), sonst TS als fallback
-          GEN_AT="$(python - <<'PY'
+          GEN_AT="$(python3 - <<'PY'
           import json
           from pathlib import Path
 
