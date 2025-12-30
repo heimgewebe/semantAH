@@ -123,7 +123,7 @@ jobs:
 
           echo "::notice::Notifying Plexer: ts=${TS}, generated_at=${GEN_AT}, url=${URL}"
 
-          PAYLOAD="$(cat <<EOF
+          cat > event.json <<EOF
           {
             "type": "knowledge.observatory.published.v1",
             "source": "semantAH",
@@ -134,11 +134,10 @@ jobs:
             }
           }
           EOF
-          )"
 
           curl -X POST "${PLEXER_URL%/}/events" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${PLEXER_TOKEN}" \
-            -d "${PAYLOAD}" \
+            -d @event.json \
             --fail-with-body \
             || echo "::notice::Failed to notify plexer, but release succeeded."
