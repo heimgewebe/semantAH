@@ -86,3 +86,58 @@ jobs:
 
           # 2. Canonical Download URL (for consumers like Leitstand)
           echo "::notice title=Canonical Download URL::https://github.com/${OWNER}/${REPO}/releases/download/${RELEASE_TAG}/${ASSET}"
+
+      - name: Notify Plexer (knowledge.observatory)
+        if: success()
+        continue-on-error: true
+        env:
+          PLEXER_URL: ${{ secrets.PLEXER_URL }}
+          PLEXER_TOKEN: ${{ secrets.PLEXER_TOKEN }}
+          RELEASE_TAG: knowledge-observatory
+        run: |
+          set -euo pipefail
+
+          # Skip if secrets are not available
+          if [[ -z "${PLEXER_URL:-}" ]]; then
+            echo "::notice::PLEXER_URL not set, skipping notification."
+            exit 0
+          fi
+
+          TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          URL="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/knowledge.observatory.json"
+
+          # generated_at aus dem Artefakt ziehen (falls vorhanden), sonst TS als fallback
+          GEN_AT="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("artifacts/knowledge.observatory.json")
+          try:
+              obj = json.loads(p.read_text(encoding="utf-8"))
+              print(obj.get("generated_at") or obj.get("meta", {}).get("generated_at") or "")
+          except Exception:
+              print("")
+          PY
+          )"
+          if [ -z "${GEN_AT}" ]; then GEN_AT="${TS}"; fi
+
+          echo "::notice::Notifying Plexer: ts=${TS}, generated_at=${GEN_AT}, url=${URL}"
+
+          PAYLOAD="$(cat <<EOF
+          {
+            "type": "knowledge.observatory.published.v1",
+            "source": "semantAH",
+            "payload": {
+              "ts": "${TS}",
+              "url": "${URL}",
+              "generated_at": "${GEN_AT}"
+            }
+          }
+          EOF
+          )"
+
+          curl -X POST "${PLEXER_URL%/}/events" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${PLEXER_TOKEN}" \
+            -d "${PAYLOAD}" \
+            --fail-with-body \
+            || echo "::notice::Failed to notify plexer, but release succeeded."
