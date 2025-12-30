@@ -88,7 +88,7 @@ jobs:
           echo "::notice title=Canonical Download URL::https://github.com/${OWNER}/${REPO}/releases/download/${RELEASE_TAG}/${ASSET}"
 
       - name: Notify Plexer (knowledge.observatory)
-        if: success()
+        if: ${{ success() && secrets.PLEXER_URL != '' }}
         continue-on-error: true
         env:
           PLEXER_URL: ${{ secrets.PLEXER_URL }}
@@ -98,8 +98,8 @@ jobs:
           set -euo pipefail
 
           # Skip if secrets are not available
-          if [[ -z "${PLEXER_URL:-}" ]]; then
-            echo "::notice::PLEXER_URL not set, skipping notification."
+          if [[ -z "${PLEXER_URL:-}" || -z "${PLEXER_TOKEN:-}" ]]; then
+            echo "::notice::PLEXER_URL or PLEXER_TOKEN not set, skipping notification."
             exit 0
           fi
 
@@ -110,6 +110,7 @@ jobs:
           GEN_AT="$(python - <<'PY'
           import json
           from pathlib import Path
+
           p = Path("artifacts/knowledge.observatory.json")
           try:
               obj = json.loads(p.read_text(encoding="utf-8"))
