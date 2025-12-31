@@ -13,19 +13,19 @@ def main():
     # 1. Claims (Schemas)
     # Filter for top-level schema files that represent artifacts
     schemas = list(contracts_dir.glob("*.schema.json"))
-    claims_count = len(schemas)
+    claims_list = [s.name for s in schemas]
 
     # 2. Artifacts (Output)
     # Check what is currently in artifacts/
     # We look for json files.
     artifacts = list(artifacts_dir.glob("*.json"))
-    artifacts_count = len(artifacts)
+    artifacts_list = [a.name for a in artifacts]
 
     # 3. Gaps
     # Simple heuristic: for each schema, is there a matching artifact?
     # e.g. foo.schema.json -> foo.json
     loop_gaps = 0
-    missing_artifacts = []
+    loop_gaps_list = []
 
     for schema in schemas:
         schema_name = schema.name
@@ -35,21 +35,23 @@ def main():
 
             if not expected_artifact.exists():
                 loop_gaps += 1
-                missing_artifacts.append(base_name)
+                loop_gaps_list.append(base_name)
 
     # Prepare Summary
     summary = {
         "repo": "semantAH",
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "counts": {
-            "claims": claims_count,
-            "artifacts": artifacts_count,
+            "claims": len(claims_list),
+            "artifacts": len(artifacts_list),
             "loop_gaps": loop_gaps,
             "unclear": 0
         },
         "details": {
-            "missing_artifacts": missing_artifacts,
-            "found_artifacts": [a.name for a in artifacts]
+            "claims": claims_list,
+            "artifacts": artifacts_list,
+            "loop_gaps": loop_gaps_list,
+            "unclear": []
         }
     }
 
