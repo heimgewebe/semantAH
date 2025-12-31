@@ -1,0 +1,26 @@
+{
+  "repo": "semantAH",
+  "generated_at": "2025-12-31T22:59:33.795264Z",
+  "counts": {
+    "claims": 4,
+    "artifacts": 0,
+    "loop_gaps": 4,
+    "unclear": 0
+  },
+  "details": {
+    "claims": [
+      "decision.preimage.schema.json",
+      "knowledge.observatory.schema.json",
+      "insights.daily.schema.json",
+      "insights.schema.json"
+    ],
+    "artifacts": [],
+    "loop_gaps": [
+      "decision.preimage",
+      "knowledge.observatory",
+      "insights.daily",
+      "insights"
+    ],
+    "unclear": []
+  }
+}
