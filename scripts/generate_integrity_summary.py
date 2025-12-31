@@ -1,4 +1,25 @@
+"""
+Generate Integrity Summary for semantAH
+
+This script diagnoses the integrity loop by comparing:
+- Claims: Schema files in contracts/ (*.schema.json) that define expected artifacts
+- Artifacts: Generated JSON files in artifacts/ representing produced outputs
+- Loop Gaps: Schemas without corresponding artifacts (integrity gaps)
+- Unclear: Items that need manual review
+
+Output:
+- artifacts/integrity/summary.json: Full integrity report
+- artifacts/integrity/event_payload.json: Event payload for Chronik/Plexer
+
+The summary is uploaded as a CI artifact and published as a release asset,
+then sent to Plexer as an integrity.summary.published.v1 event.
+
+Environment Variables:
+- INTEGRITY_OUT_DIR: Output directory (default: artifacts/integrity)
+- SOURCE_DATE_EPOCH: Unix timestamp for deterministic output (for tests/CI)
+"""
 import json
+import os
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -6,8 +27,11 @@ def main():
     repo_root = Path.cwd()
     contracts_dir = repo_root / "contracts"
     artifacts_dir = repo_root / "artifacts"
-    reports_dir = repo_root / "reports/integrity"
-    reports_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Configurable output directory
+    integrity_out_dir = os.getenv("INTEGRITY_OUT_DIR", "artifacts/integrity")
+    output_dir = repo_root / integrity_out_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Claims (Schemas)
     # Filter for top-level schema files that represent artifacts
@@ -37,10 +61,17 @@ def main():
     # 4. Unclear
     unclear_list = []
 
+    # Determine timestamp (deterministic if SOURCE_DATE_EPOCH is set)
+    source_date_epoch = os.getenv("SOURCE_DATE_EPOCH")
+    if source_date_epoch:
+        generated_at = datetime.fromtimestamp(int(source_date_epoch), tz=timezone.utc).isoformat().replace("+00:00", "Z")
+    else:
+        generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
     # Prepare Summary
     summary = {
         "repo": "semantAH",
-        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "generated_at": generated_at,
         "counts": {
             "claims": len(claims_list),
             "artifacts": len(artifacts_list),
@@ -55,12 +86,12 @@ def main():
         }
     }
 
-    # Write Report
-    report_path = reports_dir / "summary.json"
-    with open(report_path, "w") as f:
+    # Write Report to artifacts directory
+    summary_path = output_dir / "summary.json"
+    with open(summary_path, "w") as f:
         json.dump(summary, f, indent=2)
 
-    print(f"Generated Integrity Summary at {report_path}")
+    print(f"Generated Integrity Summary at {summary_path}")
 
     # Generate partial Event Payload
     event_payload = {
@@ -69,9 +100,12 @@ def main():
         "counts": summary["counts"]
     }
 
-    # Write event payload to a file for easy consumption by the workflow
-    with open("integrity_event_payload.json", "w") as f:
+    # Write event payload to artifacts directory
+    event_payload_path = output_dir / "event_payload.json"
+    with open(event_payload_path, "w") as f:
         json.dump(event_payload, f, indent=2)
+    
+    print(f"Generated Event Payload at {event_payload_path}")
 
 if __name__ == "__main__":
     main()
