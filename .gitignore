@@ -33,3 +33,7 @@ data/
 
 # CI Artifacts
 artifacts/
+
+# Generated reports and event payloads
+reports/integrity/
+integrity_event_payload.json
