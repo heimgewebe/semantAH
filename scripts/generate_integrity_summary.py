@@ -24,7 +24,6 @@ def main():
     # 3. Gaps
     # Simple heuristic: for each schema, is there a matching artifact?
     # e.g. foo.schema.json -> foo.json
-    loop_gaps = 0
     loop_gaps_list = []
 
     for schema in schemas:
@@ -34,8 +33,10 @@ def main():
             expected_artifact = artifacts_dir / f"{base_name}.json"
 
             if not expected_artifact.exists():
-                loop_gaps += 1
                 loop_gaps_list.append(base_name)
+
+    # 4. Unclear
+    unclear_list = []
 
     # Prepare Summary
     summary = {
@@ -44,14 +45,14 @@ def main():
         "counts": {
             "claims": len(claims_list),
             "artifacts": len(artifacts_list),
-            "loop_gaps": loop_gaps,
-            "unclear": 0
+            "loop_gaps": len(loop_gaps_list),
+            "unclear": len(unclear_list)
         },
         "details": {
             "claims": claims_list,
             "artifacts": artifacts_list,
             "loop_gaps": loop_gaps_list,
-            "unclear": []
+            "unclear": unclear_list
         }
     }
 
