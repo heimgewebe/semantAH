@@ -12,7 +12,7 @@ wgx:
       set -euo pipefail
       echo "[wgx.smoke] semantAH"
       if [ -f pyproject.toml ]; then
-        uv run python -m compileall semantah || true
+        uv run python -m compileall -q cli scripts tools
       fi
       if [ -f Cargo.toml ] && command -v cargo >/dev/null 2>&1; then
          cargo check --workspace
