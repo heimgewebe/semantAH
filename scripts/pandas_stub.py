@@ -89,7 +89,17 @@ class DataFrame:
         frac: float | None = None,
         random_state: int | None = None,
     ) -> "DataFrame":
-        """Return a random sample of rows from the DataFrame."""
+        """Return a random sample of rows from the DataFrame.
+
+        Args:
+            n: Number of items to sample (default: 1 if frac is None).
+            frac: Fraction of rows to sample (overrides n if provided).
+            random_state: Seed for reproducible randomness.
+
+        Note:
+            This stub does not support the 'replace' parameter.
+            Sampling is always without replacement.
+        """
         if n is not None and frac is not None:
             raise ValueError("Cannot specify both n and frac")
 
@@ -109,7 +119,13 @@ class DataFrame:
         return DataFrame(sampled_rows)
 
     def reset_index(self, drop: bool = False) -> "DataFrame":
-        """Reset the index of the DataFrame. In this stub, index is not tracked."""
+        """Reset the index of the DataFrame.
+
+        Note:
+            In this stub, index is not tracked, so this method simply
+            returns a copy of the DataFrame. The 'drop' parameter is
+            accepted for API compatibility but has no effect.
+        """
         return self.copy()
 
     @property
