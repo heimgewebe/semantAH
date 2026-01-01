@@ -43,17 +43,29 @@ def test_deterministic_timestamp_via_source_date_epoch(tmp_path, monkeypatch):
     script.main()
 
     # Assert: Output files exist
-    summary_path = tmp_path / "artifacts" / "integrity" / "summary.json"
-    event_payload_path = tmp_path / "artifacts" / "integrity" / "event_payload.json"
+    summary_path = tmp_path / "reports" / "integrity" / "summary.json"
+    event_payload_path = tmp_path / "reports" / "integrity" / "event_payload.json"
+    event_path = tmp_path / "reports" / "integrity" / "event.json"
     assert summary_path.is_file()
     assert event_payload_path.is_file()
+    assert event_path.is_file()
 
     # Assert: Timestamp is deterministic
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     assert summary["generated_at"] == "2023-11-14T22:13:20Z"
+    assert summary["status"] == "OK"
 
     event_payload = json.loads(event_payload_path.read_text(encoding="utf-8"))
     assert event_payload["generated_at"] == "2023-11-14T22:13:20Z"
+    assert event_payload["status"] == "OK"
+    # Strict schema check: NO counts in payload
+    assert "counts" not in event_payload
+
+    # Assert: Envelope structure
+    event = json.loads(event_path.read_text(encoding="utf-8"))
+    assert event["type"] == "integrity.summary.published.v1"
+    assert event["source"] == "heimgewebe/semantAH"
+    assert event["payload"] == event_payload
 
 
 def test_gap_detection_claim_without_artifact(tmp_path, monkeypatch):
@@ -74,13 +86,14 @@ def test_gap_detection_claim_without_artifact(tmp_path, monkeypatch):
     script.main()
 
     # Assert: Gap is detected
-    summary_path = tmp_path / "artifacts" / "integrity" / "summary.json"
+    summary_path = tmp_path / "reports" / "integrity" / "summary.json"
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
 
     assert summary["counts"]["claims"] == 1
     assert summary["counts"]["loop_gaps"] == 1
     assert "foo.schema.json" in summary["details"]["claims"]
     assert "foo" in summary["details"]["loop_gaps"]
+    assert summary["status"] == "WARN"
 
 
 def test_artifact_listing_only_top_level_no_self_reference(tmp_path, monkeypatch):
@@ -101,7 +114,7 @@ def test_artifact_listing_only_top_level_no_self_reference(tmp_path, monkeypatch
     script.main()
 
     # Assert: foo.json is in artifacts list
-    summary_path = tmp_path / "artifacts" / "integrity" / "summary.json"
+    summary_path = tmp_path / "reports" / "integrity" / "summary.json"
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
 
     assert "foo.json" in summary["details"]["artifacts"]
@@ -112,10 +125,12 @@ def test_artifact_listing_only_top_level_no_self_reference(tmp_path, monkeypatch
     # (they are in integrity subdirectory)
     assert "summary.json" not in summary["details"]["artifacts"]
     assert "event_payload.json" not in summary["details"]["artifacts"]
+    assert "event.json" not in summary["details"]["artifacts"]
 
     # Assert: No gap since artifact exists
     assert summary["counts"]["loop_gaps"] == 0
     assert "foo" not in summary["details"]["loop_gaps"]
+    assert summary["status"] == "OK"
 
 
 def test_multiple_claims_partial_gaps(tmp_path, monkeypatch):
@@ -142,7 +157,7 @@ def test_multiple_claims_partial_gaps(tmp_path, monkeypatch):
     script.main()
 
     # Assert
-    summary_path = tmp_path / "artifacts" / "integrity" / "summary.json"
+    summary_path = tmp_path / "reports" / "integrity" / "summary.json"
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
 
     assert summary["counts"]["claims"] == 3
@@ -151,6 +166,7 @@ def test_multiple_claims_partial_gaps(tmp_path, monkeypatch):
     assert "beta" in summary["details"]["loop_gaps"]
     assert "alpha" not in summary["details"]["loop_gaps"]
     assert "gamma" not in summary["details"]["loop_gaps"]
+    assert summary["status"] == "WARN"
 
 
 def test_custom_output_directory(tmp_path, monkeypatch):
