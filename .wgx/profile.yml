@@ -91,3 +91,10 @@ wgx:
     semantah.graph: "uv run python tools/build_graph.py"
     semantah.related: "uv run python tools/update_related.py"
     semantah.all: "./wgx/wgx semantah.index && ./wgx/wgx semantah.graph && ./wgx/wgx semantah.related"
+
+    integrity: |
+      set -euo pipefail
+      echo "[wgx.integrity] Generating integrity report"
+      if [ -f pyproject.toml ] && command -v uv >/dev/null 2>&1; then
+        uv run scripts/generate_integrity_summary.py
+      fi
