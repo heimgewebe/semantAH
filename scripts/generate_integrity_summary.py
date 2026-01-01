@@ -53,14 +53,15 @@ def main():
 
     for schema in schemas:
         schema_name = schema.name
-        if schema_name.endswith(".schema.json"):
-            base_name = schema_name[: -len(".schema.json")]  # remove .schema.json
-            expected_artifact = artifacts_dir / f"{base_name}.json"
+        base_name = schema_name[: -len(".schema.json")]  # remove .schema.json
+        expected_artifact = artifacts_dir / f"{base_name}.json"
 
-            if not expected_artifact.exists():
-                loop_gaps_list.append(base_name)
+        if not expected_artifact.exists():
+            loop_gaps_list.append(base_name)
 
     # 4. Unclear
+    # Placeholder for future heuristics to detect items that need manual review.
+    # Currently, we always emit an empty list to keep the summary schema stable.
     unclear_list = []
 
     # Determine timestamp (deterministic if SOURCE_DATE_EPOCH is set)
