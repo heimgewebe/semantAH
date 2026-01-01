@@ -53,11 +53,11 @@ def test_deterministic_timestamp_via_source_date_epoch(tmp_path, monkeypatch):
     # Assert: Timestamp is deterministic
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     assert summary["generated_at"] == "2023-11-14T22:13:20Z"
-    assert "status" in summary
+    assert summary["status"] == "OK"
 
     event_payload = json.loads(event_payload_path.read_text(encoding="utf-8"))
     assert event_payload["generated_at"] == "2023-11-14T22:13:20Z"
-    assert "status" in event_payload
+    assert event_payload["status"] == "OK"
     # Strict schema check: NO counts in payload
     assert "counts" not in event_payload
 

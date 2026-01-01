@@ -173,7 +173,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: insights-daily
         run: |
-          gh release upload "$RELEASE_TAG" artifacts/integrity/summary.json --clobber
+          gh release upload "$RELEASE_TAG" reports/integrity/summary.json --clobber
 
       - name: Notify Plexer (integrity)
         if: ${{ success() && secrets.PLEXER_URL != '' }}
@@ -201,7 +201,7 @@ jobs:
           import os
           import sys
 
-          with open("artifacts/integrity/event_payload.json", "r", encoding="utf-8") as f:
+          with open("reports/integrity/event_payload.json", "r", encoding="utf-8") as f:
               data = json.load(f)
 
           data["summary_url"] = os.environ["URL"]
