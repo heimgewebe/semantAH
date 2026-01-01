@@ -103,7 +103,7 @@ def main():
 
     # Prepare Summary
     summary = {
-        "repo": "semantAH",
+        "repo": "heimgewebe/semantAH",
         "generated_at": generated_at,
         "status": status,
         "counts": {
@@ -127,10 +127,17 @@ def main():
 
     print(f"Generated Integrity Summary at {summary_path}")
 
+    # Determine URL (CI injects this, or we default to the standard release asset location)
+    report_url = os.getenv(
+        "INTEGRITY_REPORT_URL",
+        "https://github.com/heimgewebe/semantAH/releases/download/knowledge-observatory/summary.json",
+    )
+
     # Generate Event Payload (compliant with integrity.summary.published.v1)
     event_payload = {
-        "repo": "semantAH",
+        "repo": "heimgewebe/semantAH",
         "generated_at": summary["generated_at"],
+        "url": report_url,
         "status": status,
         "counts": summary["counts"],
     }

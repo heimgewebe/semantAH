@@ -151,7 +151,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: knowledge-observatory
         run: |
-          gh release upload "$RELEASE_TAG" artifacts/integrity/summary.json --clobber
+          gh release upload "$RELEASE_TAG" reports/integrity/summary.json --clobber
 
       - name: Notify Plexer (integrity)
         if: ${{ success() && secrets.PLEXER_URL != '' }}
@@ -170,20 +170,19 @@ jobs:
           fi
 
           # Use the release asset URL
-          export URL="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/summary.json"
-          export RELEASE_TAG
+          export INTEGRITY_REPORT_URL="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/summary.json"
 
-          # Read payload from generated file and inject URL and release_tag
+          # Read payload from generated file
+          # Note: The script already adds the default URL, but we overwrite it here with the strictly constructed one to be sure.
           python3 << 'PY' > integrity_event.json
           import json
           import os
           import sys
 
-          with open("artifacts/integrity/event_payload.json", "r", encoding="utf-8") as f:
+          with open("reports/integrity/event_payload.json", "r", encoding="utf-8") as f:
               data = json.load(f)
 
-          data["summary_url"] = os.environ["URL"]
-          data["release_tag"] = os.environ["RELEASE_TAG"]
+          data["url"] = os.environ["INTEGRITY_REPORT_URL"]
 
           json.dump(data, sys.stdout)
           sys.stdout.write("\n")
