@@ -134,12 +134,12 @@ def main():
     )
 
     # Generate Event Payload (compliant with integrity.summary.published.v1)
+    # Strictly strict: NO counts in payload (schema forbids additionalProperties)
     event_payload = {
         "repo": "heimgewebe/semantAH",
         "generated_at": summary["generated_at"],
         "url": report_url,
         "status": status,
-        "counts": summary["counts"],
     }
 
     # Write event payload to output directory
@@ -148,6 +148,20 @@ def main():
         json.dump(event_payload, f, indent=2)
 
     print(f"Generated Event Payload at {event_payload_path}")
+
+    # Generate Full Event Envelope
+    # This saves consumers from re-wrapping it.
+    event_envelope = {
+        "type": "integrity.summary.published.v1",
+        "source": os.getenv("GITHUB_REPOSITORY", "heimgewebe/semantAH"),
+        "payload": event_payload,
+    }
+
+    event_path = output_dir / "event.json"
+    with open(event_path, "w") as f:
+        json.dump(event_envelope, f, indent=2)
+
+    print(f"Generated Event Envelope at {event_path}")
 
 
 if __name__ == "__main__":

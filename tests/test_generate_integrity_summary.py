@@ -45,8 +45,10 @@ def test_deterministic_timestamp_via_source_date_epoch(tmp_path, monkeypatch):
     # Assert: Output files exist
     summary_path = tmp_path / "reports" / "integrity" / "summary.json"
     event_payload_path = tmp_path / "reports" / "integrity" / "event_payload.json"
+    event_path = tmp_path / "reports" / "integrity" / "event.json"
     assert summary_path.is_file()
     assert event_payload_path.is_file()
+    assert event_path.is_file()
 
     # Assert: Timestamp is deterministic
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
@@ -56,6 +58,14 @@ def test_deterministic_timestamp_via_source_date_epoch(tmp_path, monkeypatch):
     event_payload = json.loads(event_payload_path.read_text(encoding="utf-8"))
     assert event_payload["generated_at"] == "2023-11-14T22:13:20Z"
     assert "status" in event_payload
+    # Strict schema check: NO counts in payload
+    assert "counts" not in event_payload
+
+    # Assert: Envelope structure
+    event = json.loads(event_path.read_text(encoding="utf-8"))
+    assert event["type"] == "integrity.summary.published.v1"
+    assert event["source"] == "heimgewebe/semantAH"
+    assert event["payload"] == event_payload
 
 
 def test_gap_detection_claim_without_artifact(tmp_path, monkeypatch):
@@ -115,6 +125,7 @@ def test_artifact_listing_only_top_level_no_self_reference(tmp_path, monkeypatch
     # (they are in integrity subdirectory)
     assert "summary.json" not in summary["details"]["artifacts"]
     assert "event_payload.json" not in summary["details"]["artifacts"]
+    assert "event.json" not in summary["details"]["artifacts"]
 
     # Assert: No gap since artifact exists
     assert summary["counts"]["loop_gaps"] == 0
