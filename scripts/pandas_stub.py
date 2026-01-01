@@ -82,13 +82,22 @@ class DataFrame:
         random_state: int | None = None,
     ) -> "DataFrame":
         """Return a random sample of rows from the DataFrame."""
+        if n is not None and frac is not None:
+            raise ValueError("Cannot specify both n and frac")
+
         if frac is not None:
             n = int(len(self._rows) * frac)
         if n is None:
             n = 1
 
+        # Clamp n to valid range
+        n = min(max(0, n), len(self._rows))
+
+        # Create a shuffled copy using the random state
         rng = random.Random(random_state)
-        sampled_rows = rng.sample(self._rows, min(n, len(self._rows)))
+        indices = list(range(len(self._rows)))
+        rng.shuffle(indices)
+        sampled_rows = [self._rows[i] for i in indices[:n]]
         return DataFrame(sampled_rows)
 
     def reset_index(self, drop: bool = False) -> "DataFrame":
