@@ -1,14 +1,32 @@
 """A lightweight pandas stub for offline testing.
 
-This module implements a very small subset of the pandas API used by
-`scripts.push_index`. It is **not** a full replacement for pandas, but it
-supports basic DataFrame construction from dictionaries, column access and
-assignment, `apply`, `groupby`, and conversion to records.
+⚠️  CI/Smoke Testing Only - Not a Pandas Replacement
+====================================================
+
+This module implements a minimal subset of the pandas API for CI/smoke testing
+without requiring the full pandas dependency. It is **intentionally incomplete**
+and **not semantically equivalent** to pandas.
+
+Supported operations:
+- DataFrame construction from dictionaries
+- Column access and assignment
+- `apply`, `groupby`, and conversion to records
+- `sample`, `iloc`, `reset_index` (limited implementations)
+
+Key differences from pandas:
+- `iloc[i]` returns a DataFrame, not a Series (for single integer index)
+- `sample(frac=...)` uses `round()` for row count calculation
+- No support for `replace` parameter in `sample()`
+- Index tracking is not implemented
+
+This stub should only be used for testing code paths, not for verifying
+pandas-compatible behavior or results.
 """
 
 from __future__ import annotations
 
 import json
+import random
 from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime
@@ -36,6 +54,36 @@ class Series:
         return self._values[idx]
 
 
+class IlocIndexer:
+    """Helper class for integer-location based indexing."""
+
+    def __init__(self, rows: List[Dict[str, Any]]):
+        self._rows = rows
+
+    def __getitem__(self, key: Any) -> "DataFrame":
+        """Support integer slicing like df.iloc[::-1] or df.iloc[0:5]
+
+        Note:
+            Unlike pandas, single integer indexing (e.g., df.iloc[0]) returns
+            a DataFrame with one row, not a Series. This simplifies the stub
+            implementation but differs from pandas behavior.
+        """
+        if isinstance(key, slice):
+            sliced_rows = self._rows[key]
+            return DataFrame(sliced_rows)
+        else:
+            # Single integer index with bounds checking
+            if not isinstance(key, int):
+                raise TypeError(
+                    f"iloc indexer requires integer, not {type(key).__name__}"
+                )
+            if key < -len(self._rows) or key >= len(self._rows):
+                raise IndexError(
+                    f"index {key} is out of bounds for axis 0 with size {len(self._rows)}"
+                )
+            return DataFrame([self._rows[key]])
+
+
 class DataFrame:
     def __init__(self, data: Iterable[Dict[str, Any]] | None = None):
         rows = [deepcopy(row) for row in (data or [])]
@@ -57,6 +105,63 @@ class DataFrame:
 
     def copy(self) -> "DataFrame":
         return DataFrame(deepcopy(self._rows))
+
+    def sample(
+        self,
+        n: int | None = None,
+        frac: float | None = None,
+        random_state: int | None = None,
+    ) -> "DataFrame":
+        """Return a random sample of rows from the DataFrame.
+
+        Args:
+            n: Number of items to sample (default: 1 if frac is None).
+            frac: Fraction of rows to sample (overrides n if provided).
+            random_state: Seed for reproducible randomness.
+
+        Note:
+            This stub does not support the 'replace' parameter.
+            Sampling is always without replacement.
+        """
+        if n is not None and frac is not None:
+            raise ValueError("Cannot specify both n and frac")
+
+        if n is not None and n < 0:
+            raise ValueError("n must be non-negative")
+
+        if frac is not None:
+            if frac < 0:
+                raise ValueError("frac must be non-negative")
+            if frac > 1:
+                raise ValueError("frac must be <= 1")
+            n = round(len(self._rows) * frac)
+        if n is None:
+            n = 1
+
+        # Clamp n to valid range
+        n = min(max(0, n), len(self._rows))
+
+        # Create a shuffled copy using the random state
+        rng = random.Random(random_state)
+        indices = list(range(len(self._rows)))
+        rng.shuffle(indices)
+        sampled_rows = [self._rows[i] for i in indices[:n]]
+        return DataFrame(sampled_rows)
+
+    def reset_index(self, drop: bool = False) -> "DataFrame":
+        """Reset the index of the DataFrame.
+
+        Note:
+            In this stub, index is not tracked, so this method simply
+            returns a copy of the DataFrame. The 'drop' parameter is
+            accepted for API compatibility but has no effect.
+        """
+        return self.copy()
+
+    @property
+    def iloc(self) -> "IlocIndexer":
+        """Integer-location based indexing for selection by position."""
+        return IlocIndexer(self._rows)
 
     def __getitem__(self, key: str) -> Series:
         return Series([row.get(key) for row in self._rows])
