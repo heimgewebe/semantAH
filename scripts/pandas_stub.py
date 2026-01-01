@@ -9,6 +9,7 @@ assignment, `apply`, `groupby`, and conversion to records.
 from __future__ import annotations
 
 import json
+import random
 from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime
@@ -36,6 +37,22 @@ class Series:
         return self._values[idx]
 
 
+class IlocIndexer:
+    """Helper class for integer-location based indexing."""
+
+    def __init__(self, rows: List[Dict[str, Any]]):
+        self._rows = rows
+
+    def __getitem__(self, key: Any) -> "DataFrame":
+        """Support integer slicing like df.iloc[::-1] or df.iloc[0:5]"""
+        if isinstance(key, slice):
+            sliced_rows = self._rows[key]
+            return DataFrame(sliced_rows)
+        else:
+            # Single integer index
+            return DataFrame([self._rows[key]])
+
+
 class DataFrame:
     def __init__(self, data: Iterable[Dict[str, Any]] | None = None):
         rows = [deepcopy(row) for row in (data or [])]
@@ -57,6 +74,31 @@ class DataFrame:
 
     def copy(self) -> "DataFrame":
         return DataFrame(deepcopy(self._rows))
+
+    def sample(
+        self,
+        n: int | None = None,
+        frac: float | None = None,
+        random_state: int | None = None,
+    ) -> "DataFrame":
+        """Return a random sample of rows from the DataFrame."""
+        if frac is not None:
+            n = int(len(self._rows) * frac)
+        if n is None:
+            n = 1
+
+        rng = random.Random(random_state)
+        sampled_rows = rng.sample(self._rows, min(n, len(self._rows)))
+        return DataFrame(sampled_rows)
+
+    def reset_index(self, drop: bool = False) -> "DataFrame":
+        """Reset the index of the DataFrame. In this stub, index is not tracked."""
+        return self.copy()
+
+    @property
+    def iloc(self) -> "IlocIndexer":
+        """Integer-location based indexing for selection by position."""
+        return IlocIndexer(self._rows)
 
     def __getitem__(self, key: str) -> Series:
         return Series([row.get(key) for row in self._rows])
