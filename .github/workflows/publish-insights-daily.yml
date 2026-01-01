@@ -199,6 +199,7 @@ jobs:
           python3 << 'PY' > integrity_event.json
           import json
           import os
+          import sys
 
           with open("artifacts/integrity/event_payload.json", "r", encoding="utf-8") as f:
               data = json.load(f)
@@ -206,7 +207,7 @@ jobs:
           data["summary_url"] = os.environ["URL"]
           data["release_tag"] = os.environ["RELEASE_TAG"]
 
-          print(json.dumps(data))
+          json.dump(data, sys.stdout)
           PY
 
           echo "::notice::Notifying Plexer (Integrity): $(cat integrity_event.json)"
