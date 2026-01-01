@@ -66,18 +66,6 @@ def main():
     for schema in schemas:
         schema_name = schema.name
         base_name = schema_name[: -len(".schema.json")]  # remove .schema.json
-
-        # Special handling for integrity summary itself:
-        # It lives in reports/integrity/summary.json, not artifacts/integrity.summary.json
-        if base_name == "integrity.summary":
-            # We assume the summary is being generated right now, so it's not a gap if we can write it.
-            # But technically, we check if the PREVIOUS run existed or if we are about to create it.
-            # Since this script creates it, we can consider it "fulfilled" by the act of running this script.
-            # However, to be strict, we might check if the report file exists.
-            # But wait, we haven't written it yet!
-            # So we should exclude it from the gap list because this script IS the producer.
-            continue
-
         expected_artifact = artifacts_dir / f"{base_name}.json"
 
         if not expected_artifact.exists():
