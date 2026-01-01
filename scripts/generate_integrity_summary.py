@@ -34,11 +34,6 @@ def main():
     if not contracts_dir.is_dir():
         raise SystemExit("contracts/ missing: integrity loop cannot evaluate claims")
 
-    # Ensure artifacts directory exists (artifact detection scans this)
-    if not artifacts_dir.exists():
-        # It's okay if artifacts dir doesn't exist yet (first run), but we can't find artifacts
-        pass
-
     # Configurable output directory
     integrity_out_dir = os.getenv("INTEGRITY_OUT_DIR", "reports/integrity")
     output_dir = repo_root / integrity_out_dir
