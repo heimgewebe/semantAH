@@ -105,6 +105,8 @@ def test_artifact_listing_only_top_level_no_self_reference(tmp_path, monkeypatch
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
 
     assert "foo.json" in summary["details"]["artifacts"]
+    # Assert: Exactly one artifact counted
+    assert summary["counts"]["artifacts"] == 1
 
     # Assert: summary.json and event_payload.json are NOT in artifacts list
     # (they are in integrity subdirectory)
@@ -171,3 +173,17 @@ def test_custom_output_directory(tmp_path, monkeypatch):
     event_payload_path = tmp_path / custom_out / "event_payload.json"
     assert summary_path.is_file()
     assert event_payload_path.is_file()
+
+
+def test_missing_contracts_directory_raises_error(tmp_path, monkeypatch):
+    """Test that missing contracts/ directory produces clear error message."""
+    # Setup: tmp_path without contracts/ directory
+    monkeypatch.chdir(tmp_path)
+
+    # Run and assert
+    script = _import_script()
+    try:
+        script.main()
+        assert False, "Expected SystemExit to be raised"
+    except SystemExit as e:
+        assert "contracts/ missing: integrity loop cannot evaluate claims" in str(e)

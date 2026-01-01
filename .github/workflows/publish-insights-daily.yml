@@ -208,6 +208,7 @@ jobs:
           data["release_tag"] = os.environ["RELEASE_TAG"]
 
           json.dump(data, sys.stdout)
+          sys.stdout.write("\n")
           PY
 
           echo "::notice::Notifying Plexer (Integrity): $(cat integrity_event.json)"

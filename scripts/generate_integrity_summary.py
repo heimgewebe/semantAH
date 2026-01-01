@@ -30,6 +30,13 @@ def main():
     contracts_dir = repo_root / "contracts"
     artifacts_dir = repo_root / "artifacts"
 
+    # Validate directory structure
+    if not contracts_dir.is_dir():
+        raise SystemExit("contracts/ missing: integrity loop cannot evaluate claims")
+
+    # Ensure artifacts directory exists (integrity outputs go here)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+
     # Configurable output directory
     integrity_out_dir = os.getenv("INTEGRITY_OUT_DIR", "artifacts/integrity")
     output_dir = repo_root / integrity_out_dir
@@ -41,8 +48,8 @@ def main():
     claims_list = [s.name for s in schemas]
 
     # 2. Artifacts (Output)
-    # Check what is currently in artifacts/
-    # We look for json files.
+    # Intentionally top-level only; do not recurse into artifacts/* to avoid
+    # counting integrity outputs (artifacts/integrity/*.json).
     artifacts = list(artifacts_dir.glob("*.json"))
     artifacts_list = [a.name for a in artifacts]
 
