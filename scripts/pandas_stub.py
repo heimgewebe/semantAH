@@ -126,6 +126,9 @@ class DataFrame:
         if n is not None and frac is not None:
             raise ValueError("Cannot specify both n and frac")
 
+        if n is not None and n < 0:
+            raise ValueError("n must be non-negative")
+
         if frac is not None:
             if frac < 0:
                 raise ValueError("frac must be non-negative")
