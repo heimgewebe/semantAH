@@ -173,7 +173,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: insights-daily
         run: |
-          gh release upload "$RELEASE_TAG" reports/integrity/summary.json --clobber
+          gh release upload "$RELEASE_TAG" artifacts/integrity/summary.json --clobber
 
       - name: Notify Plexer (integrity)
         if: ${{ success() && secrets.PLEXER_URL != '' }}
@@ -194,8 +194,8 @@ jobs:
           # Use the release asset URL
           URL="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/summary.json"
 
-          # Read payload from generated file and inject URL
-          cat integrity_event_payload.json | python3 -c 'import sys, json; data = json.load(sys.stdin); data["summary_url"] = "'"$URL"'"; print(json.dumps(data))' > integrity_event.json
+          # Read payload from generated file and inject URL and release_tag
+          cat artifacts/integrity/event_payload.json | python3 -c 'import sys, json; data = json.load(sys.stdin); data["summary_url"] = "'"$URL"'"; data["release_tag"] = "'"$RELEASE_TAG"'"; print(json.dumps(data))' > integrity_event.json
 
           echo "::notice::Notifying Plexer (Integrity): $(cat integrity_event.json)"
 
