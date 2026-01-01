@@ -49,7 +49,15 @@ class IlocIndexer:
             sliced_rows = self._rows[key]
             return DataFrame(sliced_rows)
         else:
-            # Single integer index
+            # Single integer index with bounds checking
+            if not isinstance(key, int):
+                raise TypeError(
+                    f"iloc indexer requires integer, not {type(key).__name__}"
+                )
+            if key < -len(self._rows) or key >= len(self._rows):
+                raise IndexError(
+                    f"index {key} is out of bounds for axis 0 with size {len(self._rows)}"
+                )
             return DataFrame([self._rows[key]])
 
 
@@ -86,7 +94,7 @@ class DataFrame:
             raise ValueError("Cannot specify both n and frac")
 
         if frac is not None:
-            n = int(len(self._rows) * frac)
+            n = round(len(self._rows) * frac)
         if n is None:
             n = 1
 
