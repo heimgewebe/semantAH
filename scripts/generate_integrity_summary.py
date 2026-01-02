@@ -1,22 +1,13 @@
 """
 Generate Integrity Summary for semantAH
 
-This script diagnoses the integrity loop by comparing:
-- Claims: Schema files in contracts/ (*.schema.json) that define expected artifacts
-- Artifacts: Generated JSON files in artifacts/ representing produced outputs
-- Loop Gaps: Schemas without corresponding artifacts (integrity gaps)
-- Unclear: Items that need manual review
+Compares claims (schemas) vs. artifacts (files) to detect gaps.
+Output: reports/integrity/summary.json and event_payload.json.
 
-Output:
-- reports/integrity/summary.json: Full integrity report
-- reports/integrity/event_payload.json: Event payload for Chronik/Plexer
-
-The summary is uploaded as a CI artifact and published as a release asset,
-then sent to Plexer as an integrity.summary.published.v1 event.
-
-Environment Variables:
-- INTEGRITY_OUT_DIR: Output directory (default: reports/integrity)
-- SOURCE_DATE_EPOCH: Unix timestamp for deterministic output (for tests/CI)
+Integrity Artifacts:
+- reports/integrity/summary.json: The full human-readable/machine-parsable report with counts and details.
+- reports/integrity/event_payload.json: The canonical strict payload artifact for the event. Contains NO counts.
+- reports/integrity/event.json: The derived transport envelope (convenience) ready for ingestion.
 """
 
 import json
@@ -30,54 +21,39 @@ def main():
     contracts_dir = repo_root / "contracts"
     artifacts_dir = repo_root / "artifacts"
 
-    # Validate directory structure
     if not contracts_dir.is_dir():
         raise SystemExit("contracts/ missing: integrity loop cannot evaluate claims")
 
-    # Configurable output directory
+    # Canonical path: reports/integrity
+    # INTEGRITY_OUT_DIR is an override only.
     integrity_out_dir = os.getenv("INTEGRITY_OUT_DIR", "reports/integrity")
     output_dir = repo_root / integrity_out_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Claims (Schemas)
-    # Filter for top-level schema files that represent artifacts
     schemas = list(contracts_dir.glob("*.schema.json"))
     claims_list = sorted([s.name for s in schemas])
 
     # 2. Artifacts (Output)
-    # Intentionally top-level only; do not recurse into artifacts/* to avoid
-    # counting integrity outputs.
     if artifacts_dir.exists():
         artifacts = list(artifacts_dir.glob("*.json"))
         artifacts_list = sorted([a.name for a in artifacts])
     else:
         artifacts_list = []
 
-    # 3. Gaps
-    # Simple heuristic: for each schema, is there a matching artifact?
-    # e.g. foo.schema.json -> foo.json
+    # 3. Gaps (Claims without Artifacts)
     loop_gaps_list = []
-
     for schema in schemas:
         schema_name = schema.name
-        base_name = schema_name[: -len(".schema.json")]  # remove .schema.json
+        base_name = schema_name[: -len(".schema.json")]
         expected_artifact = artifacts_dir / f"{base_name}.json"
-
         if not expected_artifact.exists():
             loop_gaps_list.append(base_name)
 
     loop_gaps_list.sort()
-
-    # 4. Unclear
-    # Placeholder for future heuristics to detect items that need manual review.
     unclear_list = []
 
-    # Determine Status
-    # OK: No gaps, no unclear
-    # WARN: Gaps exist
-    # UNCLEAR: Unclear items exist (and no gaps)
-    # FAIL: Not used by this script
-    # MISSING: Not used by this script (Leitstand uses this if summary is missing)
+    # Status: OK | WARN | UNCLEAR
     if len(loop_gaps_list) > 0:
         status = "WARN"
     elif len(unclear_list) > 0:
@@ -85,7 +61,7 @@ def main():
     else:
         status = "OK"
 
-    # Determine timestamp (deterministic if SOURCE_DATE_EPOCH is set)
+    # Timestamp
     source_date_epoch = os.getenv("SOURCE_DATE_EPOCH")
     if source_date_epoch:
         generated_at = (
@@ -96,7 +72,7 @@ def main():
     else:
         generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
-    # Prepare Summary
+    # Summary (Canonical Artifact)
     summary = {
         "repo": "heimgewebe/semantAH",
         "generated_at": generated_at,
@@ -115,37 +91,32 @@ def main():
         },
     }
 
-    # Write Report to output directory
     summary_path = output_dir / "summary.json"
     with open(summary_path, "w") as f:
         json.dump(summary, f, indent=2)
 
     print(f"Generated Integrity Summary at {summary_path}")
 
-    # Determine URL (CI injects this, or we default to the standard release asset location)
+    # Event Payload (Strict Schema: url, generated_at, repo, status)
     report_url = os.getenv(
         "INTEGRITY_REPORT_URL",
         "https://github.com/heimgewebe/semantAH/releases/download/knowledge-observatory/summary.json",
     )
 
-    # Generate Event Payload (compliant with integrity.summary.published.v1)
-    # Strictly strict: NO counts in payload (schema forbids additionalProperties)
     event_payload = {
-        "repo": "heimgewebe/semantAH",
-        "generated_at": summary["generated_at"],
         "url": report_url,
+        "generated_at": summary["generated_at"],
+        "repo": "heimgewebe/semantAH",
         "status": status,
     }
 
-    # Write event payload to output directory
     event_payload_path = output_dir / "event_payload.json"
     with open(event_payload_path, "w") as f:
         json.dump(event_payload, f, indent=2)
 
     print(f"Generated Event Payload at {event_payload_path}")
 
-    # Generate Full Event Envelope
-    # This saves consumers from re-wrapping it.
+    # Full Event Envelope (Optional convenience)
     event_envelope = {
         "type": "integrity.summary.published.v1",
         "source": os.getenv("GITHUB_REPOSITORY", "heimgewebe/semantAH"),
