@@ -196,8 +196,8 @@ jobs:
           EVENT_FILE="reports/integrity/event.json"
 
           if [[ ! -f "$EVENT_FILE" ]]; then
-             echo "::error::Integrity event file missing: $EVENT_FILE"
-             exit 1
+            echo "::error::Integrity event file missing: $EVENT_FILE"
+            exit 1
           fi
 
           echo "::notice::Notifying Plexer (Integrity): $(cat "$EVENT_FILE")"
