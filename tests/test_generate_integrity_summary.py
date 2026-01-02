@@ -42,7 +42,7 @@ def test_deterministic_timestamp_via_source_date_epoch(tmp_path, monkeypatch):
     script = _import_script()
     script.main()
 
-    # Assert: Output files exist
+    # Assert: Output files exist (Canonical Path: reports/integrity)
     summary_path = tmp_path / "reports" / "integrity" / "summary.json"
     event_payload_path = tmp_path / "reports" / "integrity" / "event_payload.json"
     event_path = tmp_path / "reports" / "integrity" / "event.json"
@@ -50,7 +50,7 @@ def test_deterministic_timestamp_via_source_date_epoch(tmp_path, monkeypatch):
     assert event_payload_path.is_file()
     assert event_path.is_file()
 
-    # Assert: Timestamp is deterministic
+    # Assert: Timestamp is deterministic and status is OK
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     assert summary["generated_at"] == "2023-11-14T22:13:20Z"
     assert summary["status"] == "OK"
@@ -60,6 +60,8 @@ def test_deterministic_timestamp_via_source_date_epoch(tmp_path, monkeypatch):
     assert event_payload["status"] == "OK"
     # Strict schema check: NO counts in payload
     assert "counts" not in event_payload
+    # Strict schema check: Only allowed fields
+    assert set(event_payload.keys()) == {"url", "generated_at", "repo", "status"}
 
     # Assert: Envelope structure
     event = json.loads(event_path.read_text(encoding="utf-8"))
@@ -94,6 +96,11 @@ def test_gap_detection_claim_without_artifact(tmp_path, monkeypatch):
     assert "foo.schema.json" in summary["details"]["claims"]
     assert "foo" in summary["details"]["loop_gaps"]
     assert summary["status"] == "WARN"
+
+    # Assert: Event payload status reflects WARN
+    event_payload_path = tmp_path / "reports" / "integrity" / "event_payload.json"
+    event_payload = json.loads(event_payload_path.read_text(encoding="utf-8"))
+    assert event_payload["status"] == "WARN"
 
 
 def test_artifact_listing_only_top_level_no_self_reference(tmp_path, monkeypatch):

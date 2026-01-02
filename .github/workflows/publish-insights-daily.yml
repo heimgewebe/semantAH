@@ -165,6 +165,8 @@ jobs:
             --fail-with-body || echo "::notice::Failed to notify plexer, but release succeeded."
 
       - name: Generate Integrity Summary
+        env:
+          INTEGRITY_REPORT_URL: "https://github.com/${{ github.repository }}/releases/download/insights-daily/summary.json"
         run: |
           uv run scripts/generate_integrity_summary.py
 
@@ -181,7 +183,6 @@ jobs:
         env:
           PLEXER_URL: ${{ secrets.PLEXER_URL }}
           PLEXER_TOKEN: ${{ secrets.PLEXER_TOKEN }}
-          RELEASE_TAG: insights-daily
         run: |
           set -euo pipefail
 
@@ -191,39 +192,19 @@ jobs:
             exit 0
           fi
 
-          # Use the release asset URL
-          export URL="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/summary.json"
-          export RELEASE_TAG
+          # The script generates the full, schema-compliant event envelope.
+          EVENT_FILE="reports/integrity/event.json"
 
-          # Read payload from generated file and inject URL and release_tag
-          python3 << 'PY' > integrity_event.json
-          import json
-          import os
-          import sys
+          if [[ ! -f "$EVENT_FILE" ]]; then
+             echo "::error::Integrity event file missing: $EVENT_FILE"
+             exit 1
+          fi
 
-          with open("reports/integrity/event_payload.json", "r", encoding="utf-8") as f:
-              data = json.load(f)
-
-          data["summary_url"] = os.environ["URL"]
-          data["release_tag"] = os.environ["RELEASE_TAG"]
-
-          json.dump(data, sys.stdout)
-          sys.stdout.write("\n")
-          PY
-
-          echo "::notice::Notifying Plexer (Integrity): $(cat integrity_event.json)"
-
-          cat > event_integrity.json <<EOF
-          {
-            "type": "integrity.summary.published.v1",
-            "source": "semantAH",
-            "payload": $(cat integrity_event.json)
-          }
-          EOF
+          echo "::notice::Notifying Plexer (Integrity): $(cat "$EVENT_FILE")"
 
           curl -X POST "${PLEXER_URL%/}/events" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${PLEXER_TOKEN}" \
-            -d @event_integrity.json \
+            -d @"$EVENT_FILE" \
             --fail-with-body \
             || echo "::notice::Failed to notify plexer (integrity), but release succeeded."
