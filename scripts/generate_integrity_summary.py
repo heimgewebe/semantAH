@@ -3,6 +3,11 @@ Generate Integrity Summary for semantAH
 
 Compares claims (schemas) vs. artifacts (files) to detect gaps.
 Output: reports/integrity/summary.json and event_payload.json.
+
+Integrity Artifacts:
+- reports/integrity/summary.json: The full human-readable/machine-parsable report with counts and details.
+- reports/integrity/event_payload.json: The canonical strict payload artifact for the event. Contains NO counts.
+- reports/integrity/event.json: The derived transport envelope (convenience) ready for ingestion.
 """
 
 import json
