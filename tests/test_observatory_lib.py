@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import sys
-from pathlib import Path
 
 import pytest
 
@@ -21,8 +20,16 @@ import scripts.observatory_lib as observatory_lib
 def mock_missing_jsonschema(monkeypatch):
     """
     Fixture to mock missing jsonschema import.
+    
+    Removes jsonschema from sys.modules to ensure the mocked ImportError
+    is triggered reliably, regardless of whether jsonschema was previously imported.
     """
     import builtins
+    
+    # Remove jsonschema from sys.modules to ensure deterministic test behavior
+    if "jsonschema" in sys.modules:
+        monkeypatch.delitem(sys.modules, "jsonschema", raising=False)
+    
     original_import = builtins.__import__
 
     def mock_import(name, *args, **kwargs):
@@ -53,8 +60,11 @@ def test_load_jsonschema_missing_non_strict(
     monkeypatch, mock_missing_jsonschema, capsys
 ):
     """
-    Test that _load_jsonschema returns None and prints warning
+    Test that _load_jsonschema returns None without emitting warnings
     when jsonschema is missing in non-strict mode.
+    
+    Note: Warnings are emitted by validate_payload_if_available, not by
+    _load_jsonschema itself.
     """
     # Unset strict mode environment variables
     monkeypatch.delenv("CI", raising=False)
@@ -63,8 +73,7 @@ def test_load_jsonschema_missing_non_strict(
     result = observatory_lib._load_jsonschema()
 
     assert result is None
-    # Note: The warning is now printed by validate_payload_if_available,
-    # not by _load_jsonschema in non-strict mode
+    # _load_jsonschema should not emit warnings in non-strict mode
     captured = capsys.readouterr()
     assert captured.err == ""
 
