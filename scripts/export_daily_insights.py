@@ -238,7 +238,7 @@ def main() -> int:
     insights = _build_payload(args.vault_root, args.observatory).to_json()
 
     # Validate
-    validate_payload_if_available(insights, schema_path)
+    validate_payload_if_available(insights, schema_path, label="Daily Insights")
 
     # Ensure output directory exists
     args.output.parent.mkdir(parents=True, exist_ok=True)
