@@ -67,25 +67,34 @@ Das Observatory verfolgt Embeddings über fünf kanonische Namespaces:
 |-----------|--------|-------|
 | `chronik` | Event-Log | Aktivitätsverlauf |
 | `osctx` | OS-Kontext | Systemzustand |
+| Namespace | Quelle | Zweck |
+|-----------|--------|-------|
+| `chronik` | Event-Log | Aktivitätsverlauf |
+| `osctx` | OS-Kontext | Systemzustand |
 | `docs` | Dokumentation | Wissensbasis |
 | `code` | Repository | Code-Semantik |
 | `insights` | Analysen | Aggregierte Erkenntnisse |
 
-### Metriken
+### Metriken (MVP-Status)
 
-Das Observatory zählt **pro Namespace**:
-- Anzahl neuer Embeddings (seit letztem Snapshot)
-- Aktive Modellrevision
+**Aktuell implementiert:**
+- Gesamtzahl der Embeddings (total_count)
+
+**Geplant (benötigt stabiles Store-Format):**
+- Anzahl neuer Embeddings pro Namespace (seit letztem Snapshot)
+- Aktive Modellrevision pro Namespace
 - Fehlende Namespaces (Leerräume)
 
 **Wichtig**: Das Observatory wertet **nicht**, ob diese Zahlen "gut" oder "schlecht" sind. Downstream-Systeme (hausKI, heimgeist, leitstand) ziehen ihre eigenen Schlüsse.
 
 ## Konsumenten
 
+**Hinweis**: Die folgenden Konsumenten-Beschreibungen beschreiben das Zielbild. Aktuell (MVP) liefert das Observatory nur Gesamtstatistiken.
+
 ### hausKI (Index)
 - Verwendet Observatory zur Index-Koordination
 - Prüft auf Modell-Drift vor Re-Indexing
-- Identifiziert Namespaces mit fehlenden Embeddings
+- (Geplant) Identifiziert Namespaces mit fehlenden Embeddings
 
 ### heimgeist (Reflexion)
 - Nutzt Observatory für Meta-Analysen
@@ -94,8 +103,8 @@ Das Observatory zählt **pro Namespace**:
 
 ### leitstand (UI)
 - Zeigt Observatory-Daten in Dashboard
-- Visualisiert Namespace-Coverage
-- Alarmiert bei unerwarteten Gaps
+- (Geplant) Visualisiert Namespace-Coverage
+- (Geplant) Alarmiert bei unerwarteten Gaps
 
 ## API: Embedding Service
 
@@ -262,6 +271,30 @@ curl -L https://github.com/heimgewebe/semantAH/releases/download/knowledge-obser
 ## Ungewissheit
 
 Das Observatory selbst hat **keine Meinung** zu seiner Ungewissheit. Es meldet Fakten. Downstream-Systeme entscheiden, wie sie mit Lücken, Drift oder Stille umgehen.
+
+## Offene Designfragen
+
+### Producer-Semantik
+Das Schema setzt `producer: "semantAH"` konstant. Technisch wird der Endpoint von `indexd` bereitgestellt, einem Sub-Service von semantAH. 
+
+**Aktueller Stand**: `producer="semantAH"` repräsentiert das Organ im Heimgewebe-Organismus.
+
+**Alternativen für zukünftige Versionen**:
+- `producer="indexd"` (technisch präziser)
+- `producer="semantAH/indexd"` (hierarchisch)
+- Envelope-Format mit `source: {component, subsystem}` (Heimgewebe-Standard)
+
+### Store-Format-Contract
+Aktuell nutzt das Observatory `.gewebe/indexd/store.jsonl` als Datenquelle, aber ohne stabilen Contract für das Format. Namespace-level Tracking erfordert:
+- Schema-Definition für Store-Einträge
+- Garantierte Felder: `namespace`, `model_revision`, `timestamp`
+- Versioning-Strategie bei Format-Änderungen
+
+### Event-Integration
+Offene Frage: Soll `/embed/text` ein Event in chronik erzeugen (`embedding.created.v1`)?
+- **Pro**: Vollständige Audit-Spur aller Embeddings
+- **Contra**: Potentiell hohe Event-Frequenz
+- **Entscheidung**: Noch offen, siehe ADR wenn definiert
 
 ---
 
