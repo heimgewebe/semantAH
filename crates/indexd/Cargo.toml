@@ -16,6 +16,8 @@ tracing-subscriber.workspace = true
 config.workspace = true
 thiserror.workspace = true
 futures.workspace = true
+uuid.workspace = true
+chrono.workspace = true
 
 [dependencies.embeddings]
 path = "../embeddings"
@@ -41,3 +43,7 @@ path = "tests/e2e_http.rs"
 [[test]]
 name = "upsert"
 path = "tests/upsert.rs"
+
+[[test]]
+name = "embed_text"
+path = "tests/embed_text.rs"

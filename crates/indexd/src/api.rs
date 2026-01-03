@@ -122,6 +122,57 @@ pub struct SearchHit {
     pub rationale: Vec<String>,
 }
 
+/// Request to generate an embedding for text with full provenance metadata.
+#[derive(Debug, Deserialize)]
+pub struct EmbedTextRequest {
+    /// Text content to embed.
+    pub text: String,
+    /// Logical namespace (chronik, osctx, docs, code, insights).
+    pub namespace: String,
+    /// Reference to source (event ID, file path, hash, etc.).
+    pub source_ref: String,
+}
+
+/// Validate namespace is one of the allowed values.
+fn validate_namespace(namespace: &str) -> Result<(), String> {
+    match namespace {
+        "chronik" | "osctx" | "docs" | "code" | "insights" => Ok(()),
+        _ => Err(format!(
+            "invalid namespace '{}'. Must be one of: chronik, osctx, docs, code, insights",
+            namespace
+        )),
+    }
+}
+
+/// Response containing a versioned embedding with full provenance.
+///
+/// Schema-compliant with os.context.text.embed.schema.json
+#[derive(Debug, Serialize)]
+pub struct EmbedTextResponse {
+    /// Unique identifier for this embedding.
+    pub embedding_id: String,
+    /// Original text that was embedded.
+    pub text: String,
+    /// Embedding vector (list of floats).
+    pub embedding: Vec<f32>,
+    /// Model identifier (e.g., 'nomic-embed-text').
+    pub embedding_model: String,
+    /// Dimensionality of the embedding vector.
+    pub embedding_dim: usize,
+    /// Model revision or version hash.
+    pub model_revision: String,
+    /// Timestamp when embedding was generated (ISO-8601).
+    pub generated_at: String,
+    /// Logical namespace.
+    pub namespace: String,
+    /// Reference to source.
+    pub source_ref: String,
+    /// Component that produced this embedding.
+    pub producer: String,
+    /// Numerical tolerance for reproducibility.
+    pub determinism_tolerance: f64,
+}
+
 pub fn router(state: Arc<AppState>) -> Router {
     // NOTE: Only API routes here. Base routes (e.g. /healthz) are merged in `indexd::run`
     // (and in Tests explizit), um doppelte Registrierung zu vermeiden.
@@ -129,6 +180,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/index/upsert", post(handle_upsert))
         .route("/index/delete", post(handle_delete))
         .route("/index/search", post(handle_search))
+        .route("/embed/text", post(handle_embed_text))
         .with_state(state)
 }
 
@@ -332,6 +384,79 @@ async fn handle_search(
         .collect();
 
     Ok(Json(SearchResponse { results }))
+}
+
+async fn handle_embed_text(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<EmbedTextRequest>,
+) -> Result<Json<EmbedTextResponse>, (StatusCode, Json<Value>)> {
+    let EmbedTextRequest {
+        text,
+        namespace,
+        source_ref,
+    } = payload;
+
+    // Validate namespace
+    validate_namespace(&namespace).map_err(bad_request)?;
+
+    // Validate source_ref is not empty
+    if source_ref.trim().is_empty() {
+        return Err(bad_request("source_ref cannot be empty"));
+    }
+
+    // Get embedder or fail
+    let embedder = state
+        .embedder()
+        .ok_or_else(|| bad_request("embedder not configured. Set INDEXD_EMBEDDER_PROVIDER"))?;
+
+    // Generate embedding
+    let mut embeddings = embedder
+        .embed(&[text.clone()])
+        .await
+        .map_err(|err| server_unavailable(format!("failed to generate embedding: {err}")))?;
+
+    let embedding = embeddings
+        .pop()
+        .ok_or_else(|| server_unavailable("embedder returned no embeddings"))?;
+
+    // Generate unique ID
+    let embedding_id = format!("embed-{}", uuid::Uuid::new_v4());
+
+    // Get current timestamp
+    let now = chrono::Utc::now();
+    let generated_at = now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+
+    // Get model info from embedder
+    let embedding_model = embedder.id().to_string();
+    let embedding_dim = embedder.dim();
+
+    // Model revision: For now, use model name + dim as revision
+    // In production, this should track actual model version/hash
+    let model_revision = format!("{}-{}", embedding_model, embedding_dim);
+
+    let response = EmbedTextResponse {
+        embedding_id,
+        text,
+        embedding,
+        embedding_model,
+        embedding_dim,
+        model_revision,
+        generated_at,
+        namespace,
+        source_ref,
+        producer: "semantAH".to_string(),
+        determinism_tolerance: 1e-6,
+    };
+
+    info!(
+        namespace = %response.namespace,
+        source_ref = %response.source_ref,
+        model = %response.embedding_model,
+        dim = response.embedding_dim,
+        "generated embedding"
+    );
+
+    Ok(Json(response))
 }
 
 fn parse_embedding(value: Value) -> Result<Vec<f32>, String> {

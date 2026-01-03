@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.heimgewebe.org/contracts/os.context.text.embed.schema.json",
+  "title": "OSContextTextEmbed",
+  "x-producers": ["semantAH"],
+  "x-consumers": ["hausKI", "heimgeist", "leitstand"],
+  "description": "Versioned text embedding with provenance for OS context or text input.",
+  "type": "object",
+  "properties": {
+    "embedding_id": {
+      "type": "string",
+      "description": "Unique identifier for this embedding."
+    },
+    "text": {
+      "type": "string",
+      "description": "Original text that was embedded."
+    },
+    "embedding": {
+      "type": "array",
+      "description": "Embedding vector (list of floats).",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 1
+    },
+    "embedding_model": {
+      "type": "string",
+      "description": "Model identifier (e.g., 'nomic-embed-text', 'text-embedding-3-small')."
+    },
+    "embedding_dim": {
+      "type": "integer",
+      "description": "Dimensionality of the embedding vector.",
+      "minimum": 1
+    },
+    "model_revision": {
+      "type": "string",
+      "description": "Model revision or version hash. Required for reproducibility."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when embedding was generated (ISO-8601)."
+    },
+    "namespace": {
+      "type": "string",
+      "description": "Logical namespace (chronik, osctx, docs, code, insights).",
+      "enum": ["chronik", "osctx", "docs", "code", "insights"]
+    },
+    "source_ref": {
+      "type": "string",
+      "description": "Reference to source (event ID, file path, hash, etc.). Required for provenance."
+    },
+    "producer": {
+      "type": "string",
+      "description": "Component that produced this embedding.",
+      "const": "semantAH"
+    },
+    "determinism_tolerance": {
+      "type": "number",
+      "description": "Numerical tolerance for reproducibility (e.g., 1e-6).",
+      "default": 1e-6
+    }
+  },
+  "required": [
+    "embedding_id",
+    "text",
+    "embedding",
+    "embedding_model",
+    "embedding_dim",
+    "model_revision",
+    "generated_at",
+    "namespace",
+    "source_ref",
+    "producer"
+  ],
+  "additionalProperties": false
+}
