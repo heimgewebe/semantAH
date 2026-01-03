@@ -20,10 +20,6 @@ def _load_jsonschema():
                 file=sys.stderr,
             )
             sys.exit(1)
-        print(
-            "Warning: jsonschema is missing. Skipping schema validation.",
-            file=sys.stderr,
-        )
         return None
 
     return jsonschema
@@ -43,7 +39,7 @@ def validate_payload_if_available(
     jsonschema = _load_jsonschema()
     if jsonschema is None:
         print(
-            f"Skipping {label} schema validation because jsonschema is unavailable.",
+            f"Warning: jsonschema missing; skipping schema validation for {label}.",
             file=sys.stderr,
         )
         return
