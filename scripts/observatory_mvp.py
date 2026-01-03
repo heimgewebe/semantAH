@@ -30,11 +30,134 @@ def clamp01(x: float) -> float:
     return 0.0 if x < 0 else 1.0 if x > 1 else x
 
 
+def collect_embedding_stats():
+    """
+    Collect embedding statistics from available sources.
+    Returns dict with namespace counts and model info.
+    """
+    stats = {
+        "namespaces": {
+            "chronik": 0,
+            "osctx": 0,
+            "docs": 0,
+            "code": 0,
+            "insights": 0,
+        },
+        "model_revision": None,
+        "total_count": 0,
+    }
+
+    # Check for embedding data in .gewebe or artifacts
+    # For now, return mock data since we're in MVP phase
+    # In production, this would scan actual embedding storage
+
+    # Check if indexd store exists
+    indexd_store = Path(".gewebe/indexd/store.jsonl")
+    if indexd_store.exists():
+        try:
+            with open(indexd_store, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip():
+                        stats["total_count"] += 1
+                        # Would parse namespace from actual data
+        except Exception:
+            pass
+
+    return stats
+
+
 def main() -> int:
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
     # version: prefer env injected by CI; otherwise fall back to a safe dev marker
     version = os.getenv("SEMANTAH_VERSION") or os.getenv("GITHUB_SHA") or "0.0.0-dev"
+
+    # Collect embedding statistics
+    embedding_stats = collect_embedding_stats()
+    
+    # Build topics list with embedding-aware content
+    topics = [
+        {
+            "topic": "Epistemic Drift",
+            "confidence": clamp01(0.80),
+            "sources": [
+                {"type": "repo_file", "ref": "contracts/", "weight": 0.6},
+                {"type": "repo_file", "ref": "docs/", "weight": 0.4},
+            ],
+            "suggested_questions": [
+                "Which contracts changed since the last snapshot?",
+                "Is drift concentrated in one subsystem (semantics, CI, UI)?",
+            ],
+        },
+        {
+            "topic": "System Resilience",
+            "confidence": clamp01(0.70),
+            "sources": [],
+            "suggested_questions": [
+                "Which single failure would break the artifact pipeline first?"
+            ],
+        },
+    ]
+
+    # Add embedding infrastructure topic if we have data
+    if embedding_stats["total_count"] > 0 or any(
+        count > 0 for count in embedding_stats["namespaces"].values()
+    ):
+        topics.append(
+            {
+                "topic": "Semantic Infrastructure",
+                "confidence": clamp01(0.85),
+                "sources": [
+                    {"type": "repo_file", "ref": "crates/indexd/", "weight": 0.7},
+                    {
+                        "type": "repo_file",
+                        "ref": "contracts/os.context.text.embed.schema.json",
+                        "weight": 0.3,
+                    },
+                ],
+                "suggested_questions": [
+                    "Are all namespaces receiving embeddings?",
+                    "Has the model revision changed?",
+                ],
+            }
+        )
+
+    # Build signals list
+    signals = [
+        {
+            "type": "trend",
+            "description": "Contract-first enforcement is tightening; examples act as the nail.",
+        }
+    ]
+
+    # Add embedding-related signals
+    empty_namespaces = [
+        ns for ns, count in embedding_stats["namespaces"].items() if count == 0
+    ]
+    if empty_namespaces:
+        signals.append(
+            {
+                "type": "gap",
+                "description": f"Embedding namespaces with no data: {', '.join(empty_namespaces)}",
+            }
+        )
+
+    if embedding_stats["model_revision"]:
+        signals.append(
+            {
+                "type": "metadata",
+                "description": f"Active embedding model revision: {embedding_stats['model_revision']}",
+            }
+        )
+
+    # Build blind spots list
+    blind_spots = [
+        "No real vault ingestion wired in this MVP.",
+        "No external web signals ingested (by design).",
+    ]
+
+    if embedding_stats["total_count"] == 0:
+        blind_spots.append("No embedding data available for analysis.")
 
     # Minimal, contract-konformes MVP:
     # - topics[]: topic + confidence required, sources/suggested_questions optional
@@ -46,38 +169,9 @@ def main() -> int:
             "component": "semantAH",
             "version": version,
         },
-        "topics": [
-            {
-                "topic": "Epistemic Drift",
-                "confidence": clamp01(0.80),
-                "sources": [
-                    {"type": "repo_file", "ref": "contracts/", "weight": 0.6},
-                    {"type": "repo_file", "ref": "docs/", "weight": 0.4},
-                ],
-                "suggested_questions": [
-                    "Which contracts changed since the last snapshot?",
-                    "Is drift concentrated in one subsystem (semantics, CI, UI)?",
-                ],
-            },
-            {
-                "topic": "System Resilience",
-                "confidence": clamp01(0.70),
-                "sources": [],
-                "suggested_questions": [
-                    "Which single failure would break the artifact pipeline first?"
-                ],
-            },
-        ],
-        "signals": [
-            {
-                "type": "trend",
-                "description": "Contract-first enforcement is tightening; examples act as the nail.",
-            }
-        ],
-        "blind_spots": [
-            "No real vault ingestion wired in this MVP.",
-            "No external web signals ingested (by design).",
-        ],
+        "topics": topics,
+        "signals": signals,
+        "blind_spots": blind_spots,
         "considered_but_rejected": [
             {
                 "hypothesis": "Overfit schema too early",
