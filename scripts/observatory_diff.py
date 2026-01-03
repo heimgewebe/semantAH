@@ -127,7 +127,9 @@ def main() -> None:
         print(f"Error: Failed to read snapshot file: {e}", file=sys.stderr)
         sys.exit(1)
 
-    observatory_lib.validate_payload(snapshot, args.schema, label="Current Snapshot")
+    observatory_lib.validate_payload_if_available(
+        snapshot, args.schema, label="Current Snapshot"
+    )
 
     baseline = None
     baseline_status = {"missing": False, "error": False, "reason": None}
@@ -142,7 +144,9 @@ def main() -> None:
             baseline = json.loads(baseline_text)
 
             # Validate baseline
-            observatory_lib.validate_payload(baseline, args.schema, label="Baseline")
+            observatory_lib.validate_payload_if_available(
+                baseline, args.schema, label="Baseline"
+            )
 
             # Check for empty topics
             if not baseline.get("topics"):

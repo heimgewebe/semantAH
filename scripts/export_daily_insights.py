@@ -39,11 +39,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Iterable, List, Tuple, Optional
 
-try:
-    import jsonschema
-except ImportError:
-    print("Error: jsonschema is missing. Install it via 'uv sync'.", file=sys.stderr)
-    sys.exit(1)
+from observatory_lib import validate_payload_if_available
 
 
 SCHEMA_PATH = Path("contracts") / "insights.daily.schema.json"
@@ -80,25 +76,6 @@ def iso_now() -> str:
         .isoformat()
         .replace("+00:00", "Z")
     )
-
-
-def validate_payload(payload: dict, schema_path: Path):
-    if not schema_path.exists():
-        print(f"Error: Schema file not found at {schema_path}", file=sys.stderr)
-        sys.exit(1)
-
-    try:
-        schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        validator = jsonschema.Draft202012Validator(
-            schema, format_checker=jsonschema.FormatChecker()
-        )
-        validator.validate(payload)
-    except json.JSONDecodeError as e:
-        print(f"Error: Failed to parse schema JSON: {e}", file=sys.stderr)
-        sys.exit(1)
-    except jsonschema.ValidationError as e:
-        print(f"Error: Payload failed schema validation: {e.message}", file=sys.stderr)
-        sys.exit(1)
 
 
 def _iter_markdown_files(root: Path) -> Iterable[Path]:
@@ -261,7 +238,7 @@ def main() -> int:
     insights = _build_payload(args.vault_root, args.observatory).to_json()
 
     # Validate
-    validate_payload(insights, schema_path)
+    validate_payload_if_available(insights, schema_path)
 
     # Ensure output directory exists
     args.output.parent.mkdir(parents=True, exist_ok=True)

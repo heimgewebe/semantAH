@@ -5,23 +5,48 @@ Shared utilities for observatory scripts.
 """
 
 import json
+import os
 import sys
 from pathlib import Path
 
-try:
-    import jsonschema
-except ImportError:
-    print("Error: jsonschema is missing. Install it via 'uv sync'.", file=sys.stderr)
-    sys.exit(1)
+
+def _load_jsonschema():
+    try:
+        import jsonschema  # type: ignore
+    except ImportError:
+        if os.getenv("CI") == "true" or os.getenv("STRICT_CONTRACTS") == "1":
+            print(
+                "Error: jsonschema is required in strict mode. Install it to validate contracts.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        print(
+            "Warning: jsonschema is missing. Skipping schema validation.",
+            file=sys.stderr,
+        )
+        return None
+
+    return jsonschema
 
 
-def validate_payload(payload: dict, schema_path: Path, label: str = "Payload"):
+def validate_payload_if_available(
+    payload: dict, schema_path: Path, label: str = "Payload"
+):
     """
-    Validates a payload against the knowledge observatory schema.
+    Validate a payload against the knowledge observatory schema when jsonschema is
+    available.
     """
     if not schema_path.exists():
         print(f"Error: Schema file not found at {schema_path}", file=sys.stderr)
         sys.exit(1)
+
+    jsonschema = _load_jsonschema()
+    if jsonschema is None:
+        print(
+            f"Skipping {label} schema validation because jsonschema is unavailable.",
+            file=sys.stderr,
+        )
+        return
 
     try:
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
@@ -35,3 +60,7 @@ def validate_payload(payload: dict, schema_path: Path, label: str = "Payload"):
     except jsonschema.ValidationError as e:
         print(f"Error: {label} failed schema validation: {e.message}", file=sys.stderr)
         sys.exit(1)
+
+
+# Backwards-compatible alias for existing scripts
+validate_payload = validate_payload_if_available
