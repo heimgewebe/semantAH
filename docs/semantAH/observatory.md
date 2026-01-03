@@ -145,11 +145,13 @@ Ohne strikte Versionierung ist **Vergleich über Zeit unmöglich** (epistemische
 
 ### Determinismus
 
-**Garantie**: Gleicher Input + gleiche Modellrevision → identischer Vektor (bis auf float-Toleranz).
+**Ziel**: Gleicher Input + gleiche Modellrevision sollte reproduzierbare Vektoren liefern (innerhalb Provider-Grenzen).
 
-**Toleranz**: ε = 1e-6 (dokumentiert in Schema)
+**Toleranz**: ε = 1e-6 (dokumentiert in Schema als Vergleichstoleranz)
 
-**Test**: CI prüft, dass derselbe Text zweimal eingebettet eine Cosine-Similarity ≥ 0.9999 ergibt.
+**Wichtig**: Reproduzierbarkeit ist **provider-abhängig**. Faktoren wie GPU-Quantisierung, BLAS-Implementierung, Provider-Updates können Varianz verursachen. Der Test mit deterministischem Mock-Embedder validiert die API-Struktur, nicht die Provider-Garantie.
+
+**Test**: CI prüft, dass der Test-Embedder identische Vektoren erzeugt (komponentenweise `|a-b| < 1e-6`).
 
 ## Namespaces & Provenienz
 

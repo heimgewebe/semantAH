@@ -37,7 +37,7 @@ async fn embed_text_requires_embedder() {
         .unwrap();
 
     let (status, body) = request_as_json(app, req).await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     assert!(body["error"]
         .as_str()
         .unwrap()

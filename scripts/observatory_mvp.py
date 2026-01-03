@@ -35,22 +35,18 @@ def collect_embedding_stats():
     """
     Collect embedding statistics from available sources.
     Returns dict with namespace counts and model info.
+    
+    NOTE: This is MVP-level - only counts total embeddings.
+    Namespace-level tracking requires parsing the actual store format.
     """
     stats = {
-        "namespaces": {
-            "chronik": 0,
-            "osctx": 0,
-            "docs": 0,
-            "code": 0,
-            "insights": 0,
-        },
+        "namespaces": None,  # Not yet implemented - would need store format parser
         "model_revision": None,
         "total_count": 0,
     }
 
     # Check for embedding data in .gewebe or artifacts
-    # For now, return mock data since we're in MVP phase
-    # In production, this would scan actual embedding storage
+    # For now, only count total lines - namespace extraction needs store format definition
 
     # Check if indexd store exists
     indexd_store = Path(".gewebe/indexd/store.jsonl")
@@ -60,7 +56,7 @@ def collect_embedding_stats():
                 for line in f:
                     if line.strip():
                         stats["total_count"] += 1
-                        # Would parse namespace from actual data
+                        # TODO: Parse namespace from actual data once store format is stable
         except (FileNotFoundError, IOError) as e:
             # Store file disappeared or is unreadable - not critical for MVP
             pass
@@ -104,10 +100,8 @@ def main() -> int:
         },
     ]
 
-    # Add embedding infrastructure topic if we have data
-    if embedding_stats["total_count"] > 0 or any(
-        count > 0 for count in embedding_stats["namespaces"].values()
-    ):
+    # Add embedding infrastructure topic only if we have actual data
+    if embedding_stats["total_count"] > 0:
         topics.append(
             {
                 "topic": "Semantic Infrastructure",
@@ -121,8 +115,8 @@ def main() -> int:
                     },
                 ],
                 "suggested_questions": [
-                    "Are all namespaces receiving embeddings?",
-                    "Has the model revision changed?",
+                    "Are embeddings being generated?",
+                    "Is the store format stable?",
                 ],
             }
         )
@@ -135,15 +129,12 @@ def main() -> int:
         }
     ]
 
-    # Add embedding-related signals
-    empty_namespaces = [
-        ns for ns, count in embedding_stats["namespaces"].items() if count == 0
-    ]
-    if empty_namespaces:
+    # Add embedding-related signals only if we have data
+    if embedding_stats["total_count"] > 0:
         signals.append(
             {
-                "type": "gap",
-                "description": f"Embedding namespaces with no data: {', '.join(empty_namespaces)}",
+                "type": "metadata",
+                "description": f"Total embeddings in store: {embedding_stats['total_count']}",
             }
         )
 
@@ -163,6 +154,10 @@ def main() -> int:
 
     if embedding_stats["total_count"] == 0:
         blind_spots.append("No embedding data available for analysis.")
+    
+    # Add namespace tracking as explicit blind spot
+    if embedding_stats["namespaces"] is None:
+        blind_spots.append("Namespace-level embedding tracking not yet implemented (requires stable store format).")
 
     # Minimal, contract-konformes MVP:
     # - topics[]: topic + confidence required, sources/suggested_questions optional

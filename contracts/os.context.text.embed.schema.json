@@ -4,7 +4,7 @@
   "title": "OSContextTextEmbed",
   "x-producers": ["semantAH"],
   "x-consumers": ["hausKI", "heimgeist", "leitstand"],
-  "description": "Versioned text embedding with provenance for OS context or text input.",
+  "description": "Versioned text embedding with provenance. Note: embedding_dim must match length of embedding array (validated by producer).",
   "type": "object",
   "properties": {
     "embedding_id": {
@@ -57,7 +57,7 @@
     },
     "determinism_tolerance": {
       "type": "number",
-      "description": "Numerical tolerance for reproducibility (e.g., 1e-6).",
+      "description": "Numerical tolerance for comparison (e.g., 1e-6). Note: actual reproducibility is provider-dependent.",
       "default": 1e-6
     }
   },

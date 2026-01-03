@@ -61,12 +61,17 @@ This PR implements the stable embedding service and knowledge observatory tracki
 
 **Implementation:**
 - Model revision tracking: `{model_name}-{dimension}`
-- Float tolerance: ε = 1e-6 (documented in schema)
-- Reproducibility test ensures same input → same output
+- Float tolerance: ε = 1e-6 (documented in schema as comparison tolerance)
+- Reproducibility test ensures API structure works correctly
+
+**Important Caveat:**
+- **Actual determinism is provider-dependent**. Factors like GPU quantization, BLAS implementation, and provider updates can cause variation.
+- The test validates the API with a deterministic mock embedder, not real provider guarantees.
+- `determinism_tolerance` is a comparison/goal tolerance, not a guarantee.
 
 **Tests:**
-- `embed_text_determinism` - Verifies identical embeddings for same input
-- Tolerance check: Cosine similarity ≥ 0.9999
+- `embed_text_determinism` - Verifies mock embedder produces identical outputs
+- Component-wise comparison: `|a-b| < 1e-6`
 
 ### 4. Knowledge Observatory Enhancement ✅
 
@@ -75,11 +80,15 @@ This PR implements the stable embedding service and knowledge observatory tracki
 
 **Features:**
 - Collects embedding statistics from `.gewebe/indexd/store.jsonl`
-- Tracks namespace-level counts
-- Detects embedding gaps (namespaces without data)
-- Monitors model revision changes
-- Adds "Semantic Infrastructure" topic when embeddings present
-- Adds signals for empty namespaces
+- Tracks total count (namespace-level tracking marked as TODO)
+- Reports when embedding data is absent
+- Explicitly documents namespace tracking as not yet implemented
+- Maintains minimalist approach (counts only, no false precision)
+
+**Observatory Output:**
+- No false namespace gap signals (addressed in review)
+- Blind spots explicitly list unimplemented features
+- Only adds "Semantic Infrastructure" topic when actual data exists
 
 **Observatory Output Example:**
 ```json
@@ -157,10 +166,16 @@ This PR implements the stable embedding service and knowledge observatory tracki
 - ❌ **Overloaded observatory** - Maintains minimalist approach
 
 ### Guaranteed
-- ✅ **Determinism** - Same input → same output (±1e-6)
+- ✅ **API Structure** - Schema-compliant responses
 - ✅ **Provenance** - Every embedding has source_ref
 - ✅ **Versionability** - Model revision tracked
 - ✅ **Schema compliance** - Validated against contracts
+- ✅ **Dimension validation** - Vector length matches specified dimension
+- ✅ **Producer constant** - Uses `const PRODUCER: &str`
+
+### Not Guaranteed (Provider-Dependent)
+- ⚠️ **Determinism** - Reproducibility varies by provider
+- ⚠️ **Namespace tracking** - Not yet implemented in observatory
 
 ## Dependencies Added
 
@@ -196,8 +211,10 @@ No migration needed. Existing functionality unchanged.
 ## Known Limitations
 
 1. **Model revision** currently uses `{model}-{dim}` format. TODO added for tracking actual model hash.
-2. **Embedding statistics** in observatory are MVP-level (counts only, no deep analysis).
-3. **Test embedder** uses simple hash function (acceptable for testing).
+2. **Embedding statistics** in observatory are MVP-level (total count only, no namespace breakdown yet).
+3. **Test embedder** uses simple hash function (acceptable for testing API structure).
+4. **Determinism** is provider-dependent; API tests validate structure, not provider guarantees.
+5. **Error code for missing embedder** is 503 (service configuration issue) not 400.
 
 ## Next Steps
 
