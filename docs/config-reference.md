@@ -74,9 +74,10 @@ python scripts/export_daily_insights.py --output insights.json
 # Lokal, strict mode enforcement
 STRICT_CONTRACTS=1 python scripts/export_daily_insights.py --output insights.json
 
-# CI (automatisch strict durch CI=true)
-# GitHub Actions setzt CI=true automatisch
-python scripts/export_daily_insights.py --output insights.json
+# CI (strict via CI=true)
+# Hinweis: GitHub Actions setzt CI=true automatisch.
+# In anderen CI-Systemen ggf. explizit setzen.
+CI=true python scripts/export_daily_insights.py --output insights.json
 ```
 
 ### Schema-Pfade
