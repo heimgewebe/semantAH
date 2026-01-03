@@ -48,3 +48,42 @@ alerts:
 ```
 
 Nutze `examples/semantah.example.yml` als Ausgangspunkt und erweitere die Datei entsprechend deiner Umgebung. Pflichtfelder sollten im CI/Deployment validiert werden, bevor die Pipeline gestartet wird.
+
+## Umgebungsvariablen
+
+Zusätzlich zur `semantah.yml` unterstützen die Skripte folgende Umgebungsvariablen:
+
+### Schema-Validierung
+
+| Variable | Werte | Beschreibung | Standard |
+| --- | --- | --- | --- |
+| `CI` | `true` / (leer) | Aktiviert Strict Mode für Schema-Validierung in CI-Umgebungen. Wenn gesetzt, ist `jsonschema` verpflichtend. | (leer) |
+| `STRICT_CONTRACTS` | `1` / (leer) | Aktiviert Strict Mode für Schema-Validierung auch lokal. Wenn gesetzt, ist `jsonschema` verpflichtend. | (leer) |
+
+**Validierungsmodi:**
+
+- **Optional (Standard):** Validierung läuft nur wenn `jsonschema` installiert ist. Bei fehlendem `jsonschema` wird eine Warnung ausgegeben und die Validierung übersprungen.
+- **Strict Mode:** Aktiviert durch `CI=true` **oder** `STRICT_CONTRACTS=1`. Bei fehlendem `jsonschema` bricht das Skript mit Exit-Code 1 ab.
+
+**Beispiele:**
+
+```bash
+# Lokal, tolerant (optional validation)
+python scripts/export_daily_insights.py --output insights.json
+
+# Lokal, strict mode enforcement
+STRICT_CONTRACTS=1 python scripts/export_daily_insights.py --output insights.json
+
+# CI (strict via CI=true)
+# Hinweis: GitHub Actions setzt CI=true automatisch.
+# In anderen CI-Systemen ggf. explizit setzen.
+CI=true python scripts/export_daily_insights.py --output insights.json
+```
+
+### Schema-Pfade
+
+| Variable | Beschreibung | Verwendet von |
+| --- | --- | --- |
+| `METAREPO_SCHEMA_INSIGHTS_DAILY` | Pfad zum `insights.daily.schema.json` Schema | `export_daily_insights.py` |
+
+**Hinweis:** Schema-Pfade können auch über CLI-Argumente überschrieben werden (siehe `--schema` Flag).

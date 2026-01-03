@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from observatory_lib import (
-    validate_payload as validate_json,
+    validate_payload_if_available as validate_json,
 )  # keeps local validation semantics
 
 
