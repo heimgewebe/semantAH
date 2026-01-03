@@ -263,7 +263,8 @@ async fn embed_text_determinism() {
     #[async_trait]
     impl Embedder for DeterministicEmbedder {
         async fn embed(&self, texts: &[String]) -> anyhow::Result<Vec<Vec<f32>>> {
-            // Simple deterministic hash-like embedding
+            // Simple deterministic embedding for testing purposes
+            // Note: Uses basic hash function; collisions possible but acceptable for tests
             Ok(texts
                 .iter()
                 .map(|t| {

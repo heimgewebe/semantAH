@@ -249,7 +249,9 @@ curl -L https://github.com/heimgewebe/semantAH/releases/download/knowledge-obser
 3. **Konsumieren** (hausKI):
    ```python
    import requests
-   obs = requests.get("https://github.com/.../knowledge.observatory.json").json()
+   # Replace {owner}/{repo} with actual values
+   obs_url = "https://github.com/heimgewebe/semantAH/releases/download/knowledge-observatory/knowledge.observatory.json"
+   obs = requests.get(obs_url).json()
    for topic in obs["topics"]:
        if topic["topic"] == "Semantic Infrastructure":
            print(topic["suggested_questions"])

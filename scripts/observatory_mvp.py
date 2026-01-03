@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -60,8 +61,12 @@ def collect_embedding_stats():
                     if line.strip():
                         stats["total_count"] += 1
                         # Would parse namespace from actual data
-        except Exception:
+        except (FileNotFoundError, IOError) as e:
+            # Store file disappeared or is unreadable - not critical for MVP
             pass
+        except Exception as e:
+            # Unexpected error - log for debugging but don't fail
+            print(f"Warning: Failed to read indexd store: {e}", file=sys.stderr)
 
     return stats
 

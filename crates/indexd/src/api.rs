@@ -431,7 +431,8 @@ async fn handle_embed_text(
     let embedding_dim = embedder.dim();
 
     // Model revision: For now, use model name + dim as revision
-    // In production, this should track actual model version/hash
+    // TODO: In production, track actual model version/hash from the provider
+    // See: https://github.com/heimgewebe/semantAH/issues/... (add issue link when available)
     let model_revision = format!("{}-{}", embedding_model, embedding_dim);
 
     let response = EmbedTextResponse {
