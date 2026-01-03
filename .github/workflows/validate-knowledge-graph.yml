@@ -1,5 +1,7 @@
 ---
 name: validate-knowledge-graph
+permissions:
+  contents: read
 
 "on":
   push:
