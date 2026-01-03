@@ -20,16 +20,16 @@ import scripts.observatory_lib as observatory_lib
 def mock_missing_jsonschema(monkeypatch):
     """
     Fixture to mock missing jsonschema import.
-    
+
     Removes jsonschema from sys.modules to ensure the mocked ImportError
     is triggered reliably, regardless of whether jsonschema was previously imported.
     """
     import builtins
-    
+
     # Remove jsonschema from sys.modules to ensure deterministic test behavior
     if "jsonschema" in sys.modules:
         monkeypatch.delitem(sys.modules, "jsonschema", raising=False)
-    
+
     original_import = builtins.__import__
 
     def mock_import(name, *args, **kwargs):
@@ -62,7 +62,7 @@ def test_load_jsonschema_missing_non_strict(
     """
     Test that _load_jsonschema returns None without emitting warnings
     when jsonschema is missing in non-strict mode.
-    
+
     Note: Warnings are emitted by validate_payload_if_available, not by
     _load_jsonschema itself.
     """
@@ -141,7 +141,10 @@ def test_validate_payload_if_available_with_missing_jsonschema(
     )
 
     captured = capsys.readouterr()
-    assert "Warning: jsonschema missing; skipping schema validation for Test Payload." in captured.err
+    assert (
+        "Warning: jsonschema missing; skipping schema validation for Test Payload."
+        in captured.err
+    )
 
 
 def test_validate_payload_if_available_schema_not_found(tmp_path, capsys):
@@ -253,4 +256,7 @@ def test_backwards_compatible_alias():
     """
     Test that validate_payload is an alias for validate_payload_if_available.
     """
-    assert observatory_lib.validate_payload is observatory_lib.validate_payload_if_available
+    assert (
+        observatory_lib.validate_payload
+        is observatory_lib.validate_payload_if_available
+    )
