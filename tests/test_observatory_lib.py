@@ -17,6 +17,22 @@ import pytest
 import scripts.observatory_lib as observatory_lib
 
 
+@pytest.fixture
+def mock_missing_jsonschema(monkeypatch):
+    """
+    Fixture to mock missing jsonschema import.
+    """
+    import builtins
+    original_import = builtins.__import__
+
+    def mock_import(name, *args, **kwargs):
+        if name == "jsonschema":
+            raise ImportError("No module named 'jsonschema'")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", mock_import)
+
+
 def test_load_jsonschema_when_available():
     """
     Test that _load_jsonschema returns jsonschema module when it's available.
@@ -33,7 +49,9 @@ def test_load_jsonschema_when_available():
     assert hasattr(result, "Draft202012Validator")
 
 
-def test_load_jsonschema_missing_non_strict(monkeypatch, capsys):
+def test_load_jsonschema_missing_non_strict(
+    monkeypatch, mock_missing_jsonschema, capsys
+):
     """
     Test that _load_jsonschema returns None and prints warning
     when jsonschema is missing in non-strict mode.
@@ -41,17 +59,6 @@ def test_load_jsonschema_missing_non_strict(monkeypatch, capsys):
     # Unset strict mode environment variables
     monkeypatch.delenv("CI", raising=False)
     monkeypatch.delenv("STRICT_CONTRACTS", raising=False)
-
-    # Mock the import to raise ImportError
-    import builtins
-    original_import = builtins.__import__
-
-    def mock_import(name, *args, **kwargs):
-        if name == "jsonschema":
-            raise ImportError("No module named 'jsonschema'")
-        return original_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", mock_import)
 
     result = observatory_lib._load_jsonschema()
 
@@ -62,24 +69,15 @@ def test_load_jsonschema_missing_non_strict(monkeypatch, capsys):
     assert captured.err == ""
 
 
-def test_load_jsonschema_missing_strict_via_ci(monkeypatch, capsys):
+def test_load_jsonschema_missing_strict_via_ci(
+    monkeypatch, mock_missing_jsonschema, capsys
+):
     """
     Test that _load_jsonschema exits with code 1 when jsonschema is missing
     and CI=true is set (strict mode).
     """
     monkeypatch.setenv("CI", "true")
     monkeypatch.delenv("STRICT_CONTRACTS", raising=False)
-
-    # Mock the import to raise ImportError
-    import builtins
-    original_import = builtins.__import__
-
-    def mock_import(name, *args, **kwargs):
-        if name == "jsonschema":
-            raise ImportError("No module named 'jsonschema'")
-        return original_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", mock_import)
 
     with pytest.raises(SystemExit) as exc_info:
         observatory_lib._load_jsonschema()
@@ -90,24 +88,15 @@ def test_load_jsonschema_missing_strict_via_ci(monkeypatch, capsys):
     assert "Error: jsonschema is required in strict mode" in captured.err
 
 
-def test_load_jsonschema_missing_strict_via_strict_contracts(monkeypatch, capsys):
+def test_load_jsonschema_missing_strict_via_strict_contracts(
+    monkeypatch, mock_missing_jsonschema, capsys
+):
     """
     Test that _load_jsonschema exits with code 1 when jsonschema is missing
     and STRICT_CONTRACTS=1 is set (strict mode).
     """
     monkeypatch.delenv("CI", raising=False)
     monkeypatch.setenv("STRICT_CONTRACTS", "1")
-
-    # Mock the import to raise ImportError
-    import builtins
-    original_import = builtins.__import__
-
-    def mock_import(name, *args, **kwargs):
-        if name == "jsonschema":
-            raise ImportError("No module named 'jsonschema'")
-        return original_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", mock_import)
 
     with pytest.raises(SystemExit) as exc_info:
         observatory_lib._load_jsonschema()
