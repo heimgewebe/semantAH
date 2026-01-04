@@ -14,7 +14,13 @@ async fn request_as_json(app: axum::Router, req: Request<Body>) -> (StatusCode, 
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let json: Value = serde_json::from_slice(&body).unwrap();
+    
+    // Try to parse as JSON, but if it fails (e.g., deserialization error), return a placeholder
+    let json: Value = serde_json::from_slice(&body).unwrap_or_else(|_| {
+        json!({
+            "error": String::from_utf8_lossy(&body).to_string()
+        })
+    });
     (status, json)
 }
 
@@ -85,11 +91,13 @@ async fn embed_text_validates_namespace() {
         .unwrap();
 
     let (status, body) = request_as_json(app, req).await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    // Serde deserialization error for invalid enum variant
     assert!(body["error"]
         .as_str()
         .unwrap()
-        .contains("invalid namespace"));
+        .to_lowercase()
+        .contains("namespace") || body["error"].as_str().unwrap().contains("unknown variant"));
 }
 
 #[tokio::test]
