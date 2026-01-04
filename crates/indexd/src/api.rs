@@ -504,7 +504,7 @@ async fn handle_embed_text(
 
     // Generate embedding
     let mut embeddings = embedder
-        .embed(&[text.clone()])
+        .embed(std::slice::from_ref(&text))
         .await
         .map_err(|err| server_unavailable(format!("failed to generate embedding: {err}")))?;
 
