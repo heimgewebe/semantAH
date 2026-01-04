@@ -284,6 +284,16 @@ Das Schema setzt `producer: "semantAH"` konstant. Technisch wird der Endpoint vo
 - `producer="semantAH/indexd"` (hierarchisch)
 - Envelope-Format mit `source: {component, subsystem}` (Heimgewebe-Standard)
 
+### Error Format Consistency
+**Aktueller Stand**: Anwendungsfehler (fehlender Embedder, leerer source_ref) liefern JSON-Format `{"error": "..."}`. Deserialisierungsfehler (ungültiges namespace-Enum, malformed JSON) nutzen Axums Default-Verhalten (422 mit Plain-Text).
+
+**Tradeoff**: Einheitliches JSON-Error-Envelope erfordert custom Axum rejection handler - signifikante Architekturänderung für MVP.
+
+**Alternativen**:
+- Status quo: Test-Code handhabt beide Formate pragmatisch
+- Custom rejection handler: Garantiert JSON für alle Fehler, erhöht Contract-Stabilität für Konsumenten
+- Entscheidung: Relevant wenn Konsumenten garantiertes Error-Format benötigen
+
 ### Store-Format-Contract
 Aktuell nutzt das Observatory `.gewebe/indexd/store.jsonl` als Datenquelle, aber ohne stabilen Contract für das Format. Namespace-level Tracking erfordert:
 - Schema-Definition für Store-Einträge
