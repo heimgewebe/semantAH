@@ -335,3 +335,119 @@ async fn embed_text_determinism() {
         );
     }
 }
+
+#[tokio::test]
+async fn embed_text_rejects_empty_text() {
+    use async_trait::async_trait;
+    use embeddings::Embedder;
+
+    #[derive(Debug)]
+    struct TestEmbedder;
+
+    #[async_trait]
+    impl Embedder for TestEmbedder {
+        async fn embed(&self, texts: &[String]) -> anyhow::Result<Vec<Vec<f32>>> {
+            Ok(texts.iter().map(|_| vec![1.0f32, 0.0]).collect())
+        }
+
+        fn dim(&self) -> usize {
+            2
+        }
+
+        fn id(&self) -> &'static str {
+            "test"
+        }
+    }
+
+    let embedder: Arc<dyn Embedder> = Arc::new(TestEmbedder);
+    let state = Arc::new(AppState::with_embedder(Some(embedder)));
+    let app = api::router(state.clone()).merge(indexd::router(state.clone()));
+
+    // Test empty string
+    let payload = json!({
+        "text": "",
+        "namespace": "osctx",
+        "source_ref": "test-ref"
+    });
+
+    let req = Request::builder()
+        .uri("/embed/text")
+        .method("POST")
+        .header("content-type", "application/json")
+        .body(Body::from(payload.to_string()))
+        .unwrap();
+
+    let (status, body) = request_as_json(app.clone(), req).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(body["error"]
+        .as_str()
+        .unwrap()
+        .contains("text cannot be empty"));
+
+    // Test whitespace-only string
+    let payload = json!({
+        "text": "   \t\n  ",
+        "namespace": "osctx",
+        "source_ref": "test-ref"
+    });
+
+    let req = Request::builder()
+        .uri("/embed/text")
+        .method("POST")
+        .header("content-type", "application/json")
+        .body(Body::from(payload.to_string()))
+        .unwrap();
+
+    let (status, body) = request_as_json(app, req).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(body["error"]
+        .as_str()
+        .unwrap()
+        .contains("text cannot be empty"));
+}
+
+#[tokio::test]
+async fn embed_text_rejects_malformed_json() {
+    let state = Arc::new(AppState::new());
+    let app = api::router(state.clone()).merge(indexd::router(state.clone()));
+
+    // Malformed JSON (missing quote, trailing comma, etc.)
+    let malformed_json = r#"{"text": "hello", "namespace": "osctx", "source_ref": "ref"#;
+
+    let req = Request::builder()
+        .uri("/embed/text")
+        .method("POST")
+        .header("content-type", "application/json")
+        .body(Body::from(malformed_json))
+        .unwrap();
+
+    let (status, body) = request_as_json(app, req).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(body["error"].is_string());
+}
+
+#[tokio::test]
+async fn embed_text_rejects_missing_content_type() {
+    let state = Arc::new(AppState::new());
+    let app = api::router(state.clone()).merge(indexd::router(state.clone()));
+
+    let payload = json!({
+        "text": "hello",
+        "namespace": "osctx",
+        "source_ref": "ref"
+    });
+
+    // Request without Content-Type header
+    let req = Request::builder()
+        .uri("/embed/text")
+        .method("POST")
+        .body(Body::from(payload.to_string()))
+        .unwrap();
+
+    let (status, body) = request_as_json(app, req).await;
+    assert_eq!(status, StatusCode::UNSUPPORTED_MEDIA_TYPE);
+    assert!(body["error"]
+        .as_str()
+        .unwrap()
+        .contains("Content-Type"));
+}

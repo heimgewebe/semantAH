@@ -34,34 +34,43 @@ where
             Ok(Json(value)) => Ok(ApiJson(value)),
             Err(rejection) => {
                 // Convert Axum's rejection to our consistent JSON error format
-                // Extract the underlying error message for better context
-                let error_string = rejection.body_text();
+                // Use status code from rejection for robust classification
+                let status = rejection.status();
+                let error_message = rejection.body_text();
                 
-                let (status, message) = if error_string.contains("unknown variant")
-                    || error_string.contains("invalid type")
-                    || error_string.contains("missing field")
-                {
-                    // Deserialization error with details
-                    (StatusCode::UNPROCESSABLE_ENTITY, error_string)
-                } else if error_string.contains("expected") {
-                    // JSON syntax error
-                    (StatusCode::BAD_REQUEST, format!("Invalid JSON: {}", error_string))
-                } else if error_string.contains("Content-Type") {
-                    (
-                        StatusCode::UNSUPPORTED_MEDIA_TYPE,
-                        "Missing or invalid Content-Type header. Expected 'application/json'"
-                            .to_string(),
-                    )
-                } else {
-                    // Generic deserialization error
-                    (StatusCode::UNPROCESSABLE_ENTITY, error_string)
+                // Map status codes to appropriate responses
+                let (final_status, message) = match status {
+                    StatusCode::UNSUPPORTED_MEDIA_TYPE => {
+                        // Missing or invalid Content-Type header
+                        (
+                            status,
+                            "Missing or invalid Content-Type header. Expected 'application/json'"
+                                .to_string(),
+                        )
+                    }
+                    StatusCode::PAYLOAD_TOO_LARGE => {
+                        // Request body too large
+                        (status, format!("Request body too large: {}", error_message))
+                    }
+                    StatusCode::BAD_REQUEST => {
+                        // JSON syntax error or other bad request
+                        (status, error_message)
+                    }
+                    StatusCode::UNPROCESSABLE_ENTITY => {
+                        // Deserialization/validation error (e.g., wrong type, missing field, invalid enum)
+                        (status, error_message)
+                    }
+                    _ => {
+                        // Fallback for any other rejection status
+                        (status, error_message)
+                    }
                 };
                 
                 let body = json!({
                     "error": message,
                 });
                 
-                Err((status, Json(body)))
+                Err((final_status, Json(body)))
             }
         }
     }
@@ -477,6 +486,11 @@ async fn handle_embed_text(
         namespace,
         source_ref,
     } = payload;
+
+    // Validate text is not empty
+    if text.trim().is_empty() {
+        return Err(bad_request("text cannot be empty"));
+    }
 
     // Validate source_ref is not empty
     if source_ref.trim().is_empty() {
