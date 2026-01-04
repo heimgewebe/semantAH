@@ -57,7 +57,7 @@ def collect_embedding_stats():
                     if line.strip():
                         stats["total_count"] += 1
                         # TODO: Parse namespace from actual data once store format is stable
-        except (FileNotFoundError, IOError) as e:
+        except (FileNotFoundError, IOError):
             # Store file disappeared or is unreadable - not critical for MVP
             pass
         except Exception as e:
