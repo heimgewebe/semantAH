@@ -121,7 +121,7 @@ Lokale Entwicklungsumgebungen laufen ohne Authentifizierung. Für produktive Set
   - `422 Unprocessable Entity`: Ungültiger Namespace (nicht einer der 5 kanonischen Namespaces).
   - `503 Service Unavailable`: Embedder nicht konfiguriert oder fehlgeschlagen.
 - **Garantien:**
-  - **Determinismus**: Gleicher Input + gleiche Modellrevision → identischer Vektor (±1e-6).
+  - **Determinismus (Ziel)**: Gleicher Input + gleiche Modellrevision sollte reproduzierbare Vektoren liefern (innerhalb Provider-Grenzen). Reproduzierbarkeit ist provider-abhängig (GPU, BLAS, Provider-Updates können Varianz verursachen). `determinism_tolerance` (1e-6) ist Vergleichstoleranz, keine Garantie.
   - **Versionierung**: `model_revision` identifiziert Modell und Dimensionalität eindeutig.
   - **Provenienz**: Jedes Embedding hat `source_ref` und `producer`.
 
