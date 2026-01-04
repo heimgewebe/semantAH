@@ -1,0 +1,13 @@
+{
+  "embedding_id": "embed-uuid-1234-5678",
+  "text": "Example text for semantic embedding",
+  "embedding": [0.123, -0.456, 0.789, 0.012],
+  "embedding_model": "nomic-embed-text",
+  "embedding_dim": 4,
+  "model_revision": "v1.5",
+  "generated_at": "2026-01-03T21:00:00Z",
+  "namespace": "osctx",
+  "source_ref": "event-abc-123",
+  "producer": "semantAH",
+  "determinism_tolerance": 1e-6
+}
