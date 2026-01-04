@@ -15,12 +15,8 @@ async fn request_as_json(app: axum::Router, req: Request<Body>) -> (StatusCode, 
         .await
         .unwrap();
     
-    // Try to parse as JSON, but if it fails (e.g., deserialization error), return a placeholder
-    let json: Value = serde_json::from_slice(&body).unwrap_or_else(|_| {
-        json!({
-            "error": String::from_utf8_lossy(&body).to_string()
-        })
-    });
+    // With custom ApiJson extractor, all errors are now JSON format
+    let json: Value = serde_json::from_slice(&body).unwrap();
     (status, json)
 }
 
@@ -92,12 +88,9 @@ async fn embed_text_validates_namespace() {
 
     let (status, body) = request_as_json(app, req).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-    // Serde deserialization error for invalid enum variant
-    assert!(body["error"]
-        .as_str()
-        .unwrap()
-        .to_lowercase()
-        .contains("namespace") || body["error"].as_str().unwrap().contains("unknown variant"));
+    // With custom ApiJson extractor, we get consistent JSON error format with details
+    let error_msg = body["error"].as_str().unwrap();
+    assert!(error_msg.contains("namespace") || error_msg.contains("unknown variant"));
 }
 
 #[tokio::test]

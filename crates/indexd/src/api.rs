@@ -1,11 +1,71 @@
 use std::sync::Arc;
 
-use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
+use axum::{
+    extract::State,
+    http::StatusCode,
+    routing::post,
+    Json, Router,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tracing::{debug, info};
 
 use crate::AppState;
+
+/// Custom JSON extractor that returns consistent error format.
+///
+/// Wraps Axum's Json extractor to ensure all deserialization errors
+/// return JSON format `{"error": "..."}` instead of plain text.
+pub struct ApiJson<T>(pub T);
+
+#[axum::async_trait]
+impl<S, T> axum::extract::FromRequest<S> for ApiJson<T>
+where
+    T: serde::de::DeserializeOwned,
+    S: Send + Sync,
+{
+    type Rejection = (StatusCode, Json<Value>);
+
+    async fn from_request(
+        req: axum::extract::Request,
+        state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        match Json::<T>::from_request(req, state).await {
+            Ok(Json(value)) => Ok(ApiJson(value)),
+            Err(rejection) => {
+                // Convert Axum's rejection to our consistent JSON error format
+                // Extract the underlying error message for better context
+                let error_string = rejection.body_text();
+                
+                let (status, message) = if error_string.contains("unknown variant")
+                    || error_string.contains("invalid type")
+                    || error_string.contains("missing field")
+                {
+                    // Deserialization error with details
+                    (StatusCode::UNPROCESSABLE_ENTITY, error_string)
+                } else if error_string.contains("expected") {
+                    // JSON syntax error
+                    (StatusCode::BAD_REQUEST, format!("Invalid JSON: {}", error_string))
+                } else if error_string.contains("Content-Type") {
+                    (
+                        StatusCode::UNSUPPORTED_MEDIA_TYPE,
+                        "Missing or invalid Content-Type header. Expected 'application/json'"
+                            .to_string(),
+                    )
+                } else {
+                    // Generic deserialization error
+                    (StatusCode::UNPROCESSABLE_ENTITY, error_string)
+                };
+                
+                let body = json!({
+                    "error": message,
+                });
+                
+                Err((status, Json(body)))
+            }
+        }
+    }
+}
 
 /// Request to insert or update document chunks with embeddings.
 ///
@@ -216,7 +276,7 @@ fn default_meta() -> Value {
 
 async fn handle_upsert(
     State(state): State<Arc<AppState>>,
-    Json(payload): Json<UpsertRequest>,
+    ApiJson(payload): ApiJson<UpsertRequest>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let chunk_count = payload.chunks.len();
     info!(doc_id = %payload.doc_id, namespace = %payload.namespace, chunks = chunk_count, "received upsert");
@@ -295,7 +355,7 @@ async fn handle_upsert(
 
 async fn handle_delete(
     State(state): State<Arc<AppState>>,
-    Json(payload): Json<DeleteRequest>,
+    ApiJson(payload): ApiJson<DeleteRequest>,
 ) -> Json<Value> {
     info!(doc_id = %payload.doc_id, namespace = %payload.namespace, "received delete");
 
@@ -309,7 +369,7 @@ async fn handle_delete(
 
 async fn handle_search(
     State(state): State<Arc<AppState>>,
-    Json(payload): Json<SearchRequest>,
+    ApiJson(payload): ApiJson<SearchRequest>,
 ) -> Result<Json<SearchResponse>, (StatusCode, Json<Value>)> {
     if payload.k == 0 {
         return Err(bad_request("k must be greater than 0"));
@@ -410,7 +470,7 @@ async fn handle_search(
 
 async fn handle_embed_text(
     State(state): State<Arc<AppState>>,
-    Json(payload): Json<EmbedTextRequest>,
+    ApiJson(payload): ApiJson<EmbedTextRequest>,
 ) -> Result<Json<EmbedTextResponse>, (StatusCode, Json<Value>)> {
     let EmbedTextRequest {
         text,
@@ -574,7 +634,7 @@ mod tests {
             ],
         };
 
-        let result = handle_upsert(State(state.clone()), Json(payload)).await;
+        let result = handle_upsert(State(state.clone()), ApiJson(payload)).await;
         assert!(
             result.is_err(),
             "upsert should fail on mismatched dimensions"
@@ -596,7 +656,7 @@ mod tests {
             meta: None,
         };
 
-        let result = handle_search(State(state), Json(payload)).await;
+        let result = handle_search(State(state), ApiJson(payload)).await;
         assert!(result.is_err());
     }
 
@@ -614,7 +674,7 @@ mod tests {
             }],
         };
 
-        let upsert_result = handle_upsert(State(state.clone()), Json(upsert_payload)).await;
+        let upsert_result = handle_upsert(State(state.clone()), ApiJson(upsert_payload)).await;
         assert!(upsert_result.is_ok(), "upsert should succeed");
 
         let payload = SearchRequest {
@@ -626,7 +686,7 @@ mod tests {
             meta: None,
         };
 
-        let result = handle_search(State(state), Json(payload)).await;
+        let result = handle_search(State(state), ApiJson(payload)).await;
         assert!(result.is_ok(), "search should accept top-level embedding");
     }
 
@@ -644,7 +704,7 @@ mod tests {
             }],
         };
 
-        let upsert_result = handle_upsert(State(state.clone()), Json(upsert_payload)).await;
+        let upsert_result = handle_upsert(State(state.clone()), ApiJson(upsert_payload)).await;
         assert!(upsert_result.is_ok(), "upsert should succeed");
 
         let payload = SearchRequest {
@@ -659,7 +719,7 @@ mod tests {
             meta: None,
         };
 
-        let result = handle_search(State(state), Json(payload)).await;
+        let result = handle_search(State(state), ApiJson(payload)).await;
         assert!(result.is_ok(), "search should accept query.meta.embedding");
     }
 
@@ -677,7 +737,7 @@ mod tests {
             }],
         };
 
-        let upsert_result = handle_upsert(State(state.clone()), Json(upsert_payload)).await;
+        let upsert_result = handle_upsert(State(state.clone()), ApiJson(upsert_payload)).await;
         assert!(upsert_result.is_ok(), "upsert should succeed");
 
         let payload = SearchRequest {
@@ -689,7 +749,7 @@ mod tests {
             meta: Some(json!({ "embedding": [0.1, 0.2] })),
         };
 
-        let result = handle_search(State(state), Json(payload)).await;
+        let result = handle_search(State(state), ApiJson(payload)).await;
         assert!(result.is_ok(), "search should accept legacy meta.embedding");
     }
 
@@ -708,7 +768,7 @@ mod tests {
             }],
         };
 
-        let upsert_result = handle_upsert(State(state.clone()), Json(upsert_payload)).await;
+        let upsert_result = handle_upsert(State(state.clone()), ApiJson(upsert_payload)).await;
         assert!(upsert_result.is_ok(), "upsert should succeed");
 
         let payload = SearchRequest {
@@ -720,7 +780,7 @@ mod tests {
             meta: None,
         };
 
-        let result = handle_search(State(state), Json(payload)).await;
+        let result = handle_search(State(state), ApiJson(payload)).await;
         let Json(response) = result.expect("search should succeed when embedder is configured");
         assert_eq!(response.results.len(), 1);
         assert_eq!(response.results[0].doc_id, "doc");
@@ -759,7 +819,7 @@ mod tests {
             meta: None,
         };
 
-        let result = handle_search(State(state), Json(payload)).await;
+        let result = handle_search(State(state), ApiJson(payload)).await;
         let (status, body) = result.expect_err("search should fail when embedder returns an error");
         assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
         assert_eq!(
@@ -782,7 +842,7 @@ mod tests {
             meta: None,
         };
 
-        let result = handle_search(State(state), Json(payload)).await;
+        let result = handle_search(State(state), ApiJson(payload)).await;
         assert!(result.is_err(), "search with k=0 should be rejected");
         let (status, _) = result.unwrap_err();
         assert_eq!(status, StatusCode::BAD_REQUEST);
