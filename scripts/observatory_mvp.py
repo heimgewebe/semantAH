@@ -35,7 +35,7 @@ def collect_embedding_stats():
     """
     Collect embedding statistics from available sources.
     Returns dict with namespace counts and model info.
-    
+
     NOTE: This is MVP-level - only counts total embeddings.
     Namespace-level tracking requires parsing the actual store format.
     """
@@ -75,7 +75,7 @@ def main() -> int:
 
     # Collect embedding statistics
     embedding_stats = collect_embedding_stats()
-    
+
     # Build topics list with embedding-aware content
     topics = [
         {
@@ -154,10 +154,12 @@ def main() -> int:
 
     if embedding_stats["total_count"] == 0:
         blind_spots.append("No embedding data available for analysis.")
-    
+
     # Add namespace tracking as explicit blind spot
     if embedding_stats["namespaces"] is None:
-        blind_spots.append("Namespace-level embedding tracking not yet implemented (requires stable store format).")
+        blind_spots.append(
+            "Namespace-level embedding tracking not yet implemented (requires stable store format)."
+        )
 
     # Minimal, contract-konformes MVP:
     # - topics[]: topic + confidence required, sources/suggested_questions optional

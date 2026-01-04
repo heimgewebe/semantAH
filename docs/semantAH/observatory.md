@@ -67,10 +67,6 @@ Das Observatory verfolgt Embeddings über fünf kanonische Namespaces:
 |-----------|--------|-------|
 | `chronik` | Event-Log | Aktivitätsverlauf |
 | `osctx` | OS-Kontext | Systemzustand |
-| Namespace | Quelle | Zweck |
-|-----------|--------|-------|
-| `chronik` | Event-Log | Aktivitätsverlauf |
-| `osctx` | OS-Kontext | Systemzustand |
 | `docs` | Dokumentation | Wissensbasis |
 | `code` | Repository | Code-Semantik |
 | `insights` | Analysen | Aggregierte Erkenntnisse |
@@ -169,7 +165,7 @@ Ohne strikte Versionierung ist **Vergleich über Zeit unmöglich** (epistemische
 Alle fünf Namespaces sind **hard-coded** und werden validiert:
 - `chronik` | `osctx` | `docs` | `code` | `insights`
 
-Ungültige Namespaces werden mit HTTP 400 abgelehnt.
+Ungültige Namespaces werden mit HTTP 422 (Unprocessable Entity) abgelehnt.
 
 ### Provenienz-Pflicht
 

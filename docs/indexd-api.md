@@ -117,8 +117,9 @@ Lokale Entwicklungsumgebungen laufen ohne Authentifizierung. Für produktive Set
   }
   ```
 - **Fehler:**
-  - `400 Bad Request`: Ungültiger Namespace, leerer `source_ref`, oder Embedder nicht konfiguriert.
-  - `503 Service Unavailable`: Embedder fehlgeschlagen (Provider nicht erreichbar).
+  - `400 Bad Request`: Leerer `text` oder leerer `source_ref`.
+  - `422 Unprocessable Entity`: Ungültiger Namespace (nicht einer der 5 kanonischen Namespaces).
+  - `503 Service Unavailable`: Embedder nicht konfiguriert oder fehlgeschlagen.
 - **Garantien:**
   - **Determinismus**: Gleicher Input + gleiche Modellrevision → identischer Vektor (±1e-6).
   - **Versionierung**: `model_revision` identifiziert Modell und Dimensionalität eindeutig.
