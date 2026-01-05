@@ -87,6 +87,44 @@ Lokale Entwicklungsumgebungen laufen ohne Authentifizierung. Für produktive Set
 ### `GET /healthz`
 - **Zweck:** Liveness-Check; antwortet mit `200 OK` und Body `"ok"`.
 
+### `POST /embed/text`
+- **Zweck:** Erzeugt ein versioniertes, schema-konformes Embedding mit vollständiger Provenienz.
+- **Requires:** `INDEXD_EMBEDDER_PROVIDER` muss konfiguriert sein (z.B. `ollama`).
+- **Body:**
+  ```json
+  {
+    "text": "Text to embed",
+    "namespace": "osctx",
+    "source_ref": "event-abc-123"
+  }
+  ```
+  - `namespace`: Muss einer der fünf kanonischen Namespaces sein: `chronik`, `osctx`, `docs`, `code`, `insights`.
+  - `source_ref`: Eindeutige Referenz zur Quelle (Event-ID, Pfad, Hash). Darf nicht leer sein.
+- **Antwort (Schema-konform mit `os.context.text.embed.schema.json`):**
+  ```json
+  {
+    "embedding_id": "embed-uuid-...",
+    "text": "Text to embed",
+    "embedding": [0.123, -0.456, 0.789, ...],
+    "embedding_model": "nomic-embed-text",
+    "embedding_dim": 768,
+    "model_revision": "nomic-embed-text-768",
+    "generated_at": "2026-01-03T21:00:00Z",
+    "namespace": "osctx",
+    "source_ref": "event-abc-123",
+    "producer": "semantAH",
+    "determinism_tolerance": 1e-6
+  }
+  ```
+- **Fehler:**
+  - `400 Bad Request`: Leerer `text` oder leerer `source_ref`.
+  - `422 Unprocessable Entity`: Ungültiger Namespace (nicht einer der 5 kanonischen Namespaces).
+  - `503 Service Unavailable`: Embedder nicht konfiguriert oder fehlgeschlagen.
+- **Garantien:**
+  - **Determinismus (Ziel)**: Gleicher Input + gleiche Modellrevision sollte reproduzierbare Vektoren liefern (innerhalb Provider-Grenzen). Reproduzierbarkeit ist provider-abhängig (GPU, BLAS, Provider-Updates können Varianz verursachen). `determinism_tolerance` (1e-6) ist Vergleichstoleranz, keine Garantie.
+  - **Versionierung**: `model_revision` identifiziert Modell und Dimensionalität eindeutig.
+  - **Provenienz**: Jedes Embedding hat `source_ref` und `producer`.
+
 ## Antwortschema & Fehlercodes
 - Erfolgreiche Antworten sind JSON (`application/json`).
 +- **400 Bad Request**: Clientseitige Probleme (z. B. falsches `embedding`-Format,
