@@ -58,6 +58,7 @@ test:
 
 # Integration-Tests (nur @integration)
 test-integration:
+	uv sync --extra test
 	uv run pytest $(PYTEST_ADDOPTS) -m "integration" -v
 
 # Coverage-Report (Unit-only standardmäßig). Erzeugt:
