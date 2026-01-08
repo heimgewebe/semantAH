@@ -89,7 +89,7 @@ Für ein ausführliches Step-by-Step siehe **docs/quickstart.md**. Kurzform:
 Lokal kannst du die Test-Extras mit `uv` aktivieren:
 
 ```bash
-uv sync -E test
+uv sync --extra test
 uv run pytest
 ```
 
@@ -98,6 +98,8 @@ Oder bequem per `make`:
 ```bash
 # Unit-Tests (ohne @integration)
 make test
+# Optional: zusätzliche pytest-Optionen, z. B. kürzere CI-Ausgabe
+# PYTEST_ADDOPTS=-q make test
 # Coverage-Report unter ./reports/
 make coverage
 # Integration-Tests (mit @integration)
