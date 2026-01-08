@@ -34,10 +34,12 @@ where = ["."]
 include = ["scripts*", "cli*", "tools*"]
 
 [tool.pytest.ini_options]
-addopts = "-q"
+addopts = "-ra"
 markers = [
-    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "integration: marks tests as integration (deselect with '-m \"not integration\"')",
 ]
+testpaths = ["tests"]
+pythonpath = ["."]
 
 [tool.coverage.run]
 branch = true
