@@ -406,6 +406,7 @@ async fn handle_search(
     } = payload;
 
     let embedder = state.embedder();
+    let mut store_dims = None;
 
     let (query_text, query_embedding_value) = match query {
         QueryPayload::Text(text) => (text, None),
@@ -423,10 +424,10 @@ async fn handle_search(
     let filter_value = filters.unwrap_or(Value::Null);
 
     // Priority: query.meta.embedding > top-level embedding > legacy meta.embedding
-    let embedding: Vec<f32> = if let Some(value) = query_embedding_value {
-        parse_embedding(value).map_err(bad_request)?
+    let (embedding, embedding_generated): (Vec<f32>, bool) = if let Some(value) = query_embedding_value {
+        (parse_embedding(value).map_err(bad_request)?, false)
     } else if let Some(value) = embedding {
-        parse_embedding(value).map_err(bad_request)?
+        (parse_embedding(value).map_err(bad_request)?, false)
     } else if let Some(meta) = meta {
         let mut legacy_meta = match meta {
             Value::Object(map) => map,
@@ -439,13 +440,27 @@ async fn handle_search(
             ));
         };
 
-        parse_embedding(value).map_err(bad_request)?
+        (parse_embedding(value).map_err(bad_request)?, false)
     } else if let Some(embedder) = embedder {
+        if store_dims.is_none() {
+            store_dims = state.store.read().await.dims;
+        }
+        if let Some(expected_dim) = store_dims {
+            let embedder_dim = embedder.dim();
+            if expected_dim != embedder_dim {
+                return Err(server_unavailable(format!(
+                    "embedding dimensionality mismatch: expected {expected_dim}, got {embedder_dim}"
+                )));
+            }
+        }
         let vectors = embedder.embed(std::slice::from_ref(&query_text)).await
             .map_err(|err| server_unavailable(format!("failed to generate embedding: {err}")))?;
-        vectors.into_iter().next().ok_or_else(|| {
+        (
+            vectors.into_iter().next().ok_or_else(|| {
             server_unavailable("failed to generate embedding: embedder returned no embeddings")
-        })?
+        })?,
+            true,
+        )
     } else {
         return Err(bad_request(
             "embedding is required (provide query.meta.embedding, top-level embedding, legacy meta.embedding, or configure INDEXD_EMBEDDER_PROVIDER)",
@@ -453,6 +468,20 @@ async fn handle_search(
     };
 
     let store = state.store.read().await;
+    let expected_dim = store_dims.or(store.dims);
+    if let Some(expected_dim) = expected_dim {
+        if expected_dim != embedding.len() {
+            let message = format!(
+                "embedding dimensionality mismatch: expected {expected_dim}, got {}",
+                embedding.len()
+            );
+            return Err(if embedding_generated {
+                server_unavailable(message)
+            } else {
+                bad_request(message)
+            });
+        }
+    }
     let scored = store.search(&namespace, &embedding, k, &filter_value);
 
     let results = scored
@@ -860,5 +889,140 @@ mod tests {
         assert!(result.is_err(), "search with k=0 should be rejected");
         let (status, _) = result.unwrap_err();
         assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn search_rejects_mismatched_embedding_dimensions() {
+        let state = Arc::new(AppState::new());
+
+        let upsert_payload = UpsertRequest {
+            doc_id: "doc".into(),
+            namespace: "ns".into(),
+            chunks: vec![ChunkPayload {
+                id: "chunk-1".into(),
+                _text: "ignored".into(),
+                meta: json!({ "embedding": [0.1, 0.2] }),
+            }],
+        };
+
+        let upsert_result = handle_upsert(State(state.clone()), ApiJson(upsert_payload)).await;
+        assert!(upsert_result.is_ok(), "upsert should succeed");
+
+        let payload = SearchRequest {
+            query: QueryPayload::Text("hello".into()),
+            k: 1,
+            namespace: "ns".into(),
+            filters: None,
+            embedding: Some(json!([0.1])),
+            meta: None,
+        };
+
+        let result = handle_search(State(state), ApiJson(payload)).await;
+        let (status, _) = result.expect_err("search should reject dimensionality mismatch");
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    #[derive(Debug)]
+    struct MismatchedEmbedder;
+
+    #[async_trait]
+    impl Embedder for MismatchedEmbedder {
+        async fn embed(&self, _texts: &[String]) -> anyhow::Result<Vec<Vec<f32>>> {
+            Ok(vec![vec![1.0, 0.0, 0.5]])
+        }
+
+        fn dim(&self) -> usize {
+            3
+        }
+
+        fn id(&self) -> &'static str {
+            "mismatch"
+        }
+    }
+
+    #[tokio::test]
+    async fn search_returns_503_on_generated_embedding_dimension_mismatch() {
+        #[derive(Debug)]
+        struct WrongVectorEmbedder;
+
+        #[async_trait]
+        impl Embedder for WrongVectorEmbedder {
+            async fn embed(&self, _texts: &[String]) -> anyhow::Result<Vec<Vec<f32>>> {
+                Ok(vec![vec![1.0, 0.0, 0.5]])
+            }
+
+            fn dim(&self) -> usize {
+                2
+            }
+
+            fn id(&self) -> &'static str {
+                "wrong-vector"
+            }
+        }
+
+        let embedder: Arc<dyn Embedder> = Arc::new(WrongVectorEmbedder);
+        let state = Arc::new(AppState::with_embedder(Some(embedder)));
+
+        let upsert_payload = UpsertRequest {
+            doc_id: "doc".into(),
+            namespace: "ns".into(),
+            chunks: vec![ChunkPayload {
+                id: "chunk-1".into(),
+                _text: "ignored".into(),
+                meta: json!({ "embedding": [0.1, 0.2] }),
+            }],
+        };
+
+        let upsert_result = handle_upsert(State(state.clone()), ApiJson(upsert_payload)).await;
+        assert!(upsert_result.is_ok(), "upsert should succeed");
+        let store = state.store.read().await;
+        assert_eq!(store.dims, Some(2));
+
+        let payload = SearchRequest {
+            query: QueryPayload::Text("hello".into()),
+            k: 1,
+            namespace: "ns".into(),
+            filters: None,
+            embedding: None,
+            meta: None,
+        };
+
+        let result = handle_search(State(state), ApiJson(payload)).await;
+        let (status, _) = result.expect_err("search should fail on embedder/store mismatch");
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
+    async fn search_returns_503_when_embedder_dim_mismatches_store() {
+        let embedder: Arc<dyn Embedder> = Arc::new(MismatchedEmbedder);
+        let state = Arc::new(AppState::with_embedder(Some(embedder)));
+
+        let upsert_payload = UpsertRequest {
+            doc_id: "doc".into(),
+            namespace: "ns".into(),
+            chunks: vec![ChunkPayload {
+                id: "chunk-1".into(),
+                _text: "ignored".into(),
+                meta: json!({ "embedding": [0.1, 0.2] }),
+            }],
+        };
+
+        let upsert_result = handle_upsert(State(state.clone()), ApiJson(upsert_payload)).await;
+        assert!(upsert_result.is_ok(), "upsert should succeed");
+        let store = state.store.read().await;
+        assert_eq!(store.dims, Some(2));
+
+        let payload = SearchRequest {
+            query: QueryPayload::Text("hello".into()),
+            k: 1,
+            namespace: "ns".into(),
+            filters: None,
+            embedding: None,
+            meta: None,
+        };
+
+        let result = handle_search(State(state), ApiJson(payload)).await;
+        let (status, _) = result.expect_err("search should fail on embedder/store dim mismatch");
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     }
 }
