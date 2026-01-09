@@ -406,7 +406,7 @@ async fn handle_search(
     } = payload;
 
     let embedder = state.embedder();
-    let mut store_dims = None;
+    let mut store_dims: Option<usize> = None;
 
     let (query_text, query_embedding_value) = match query {
         QueryPayload::Text(text) => (text, None),
@@ -449,7 +449,7 @@ async fn handle_search(
             let embedder_dim = embedder.dim();
             if expected_dim != embedder_dim {
                 return Err(server_unavailable(format!(
-                    "embedding dimensionality mismatch: expected {expected_dim}, got {embedder_dim}"
+                    "embedder dimension mismatch: expected {expected_dim}, got {embedder_dim}"
                 )));
             }
         }
@@ -975,8 +975,10 @@ mod tests {
 
         let upsert_result = handle_upsert(State(state.clone()), ApiJson(upsert_payload)).await;
         assert!(upsert_result.is_ok(), "upsert should succeed");
-        let store = state.store.read().await;
-        assert_eq!(store.dims, Some(2));
+        {
+            let store = state.store.read().await;
+            assert_eq!(store.dims, Some(2));
+        }
 
         let payload = SearchRequest {
             query: QueryPayload::Text("hello".into()),
@@ -1009,8 +1011,10 @@ mod tests {
 
         let upsert_result = handle_upsert(State(state.clone()), ApiJson(upsert_payload)).await;
         assert!(upsert_result.is_ok(), "upsert should succeed");
-        let store = state.store.read().await;
-        assert_eq!(store.dims, Some(2));
+        {
+            let store = state.store.read().await;
+            assert_eq!(store.dims, Some(2));
+        }
 
         let payload = SearchRequest {
             query: QueryPayload::Text("hello".into()),
