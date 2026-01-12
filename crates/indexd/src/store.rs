@@ -15,8 +15,8 @@ use crate::key::{make_chunk_key, split_chunk_key, KEY_SEPARATOR};
 pub struct VectorStore {
     /// Expected dimensionality of all vectors. Set by the first insertion.
     pub dims: Option<usize>,
-    /// Storage: (namespace, chunk_key) -> (embedding_vector, metadata)
-    pub items: HashMap<(String, String), (Vec<f32>, Value)>,
+    /// Storage: namespace -> (chunk_key -> (embedding_vector, metadata))
+    pub items: HashMap<String, HashMap<String, (Vec<f32>, Value)>>,
 }
 
 impl VectorStore {
@@ -26,6 +26,16 @@ impl VectorStore {
             dims: None,
             items: HashMap::new(),
         }
+    }
+
+    /// Returns total number of chunks across all namespaces.
+    pub fn len(&self) -> usize {
+        self.items.values().map(|ns| ns.len()).sum()
+    }
+
+    /// Returns true if the store is empty.
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty() || self.items.values().all(|ns| ns.is_empty())
     }
 
     /// Insert or update a chunk's embedding and metadata.
@@ -56,8 +66,11 @@ impl VectorStore {
             self.dims = Some(vector.len());
         }
 
-        let key = (namespace.to_string(), make_chunk_key(doc_id, chunk_id));
-        self.items.insert(key, (vector, meta));
+        let chunk_key = make_chunk_key(doc_id, chunk_id);
+        self.items
+            .entry(namespace.to_string())
+            .or_default()
+            .insert(chunk_key, (vector, meta));
         Ok(())
     }
 
@@ -65,11 +78,19 @@ impl VectorStore {
     ///
     /// If this leaves the store empty, the dimensionality constraint is reset.
     pub fn delete_doc(&mut self, namespace: &str, doc_id: &str) {
-        let prefix = format!("{doc_id}{KEY_SEPARATOR}");
-        self.items
-            .retain(|(ns, key), _| !(ns == namespace && key.starts_with(&prefix)));
+        let is_empty = if let Some(ns_items) = self.items.get_mut(namespace) {
+            let prefix = format!("{doc_id}{KEY_SEPARATOR}");
+            ns_items.retain(|key, _| !key.starts_with(&prefix));
+            ns_items.is_empty()
+        } else {
+            false
+        };
 
-        if self.items.is_empty() {
+        if is_empty {
+            self.items.remove(namespace);
+        }
+
+        if self.is_empty() {
             self.dims = None;
         }
     }
@@ -77,10 +98,11 @@ impl VectorStore {
     pub fn all_in_namespace<'a>(
         &'a self,
         namespace: &'a str,
-    ) -> impl Iterator<Item = (&'a (String, String), &'a (Vec<f32>, Value))> + 'a {
+    ) -> impl Iterator<Item = (&'a String, &'a (Vec<f32>, Value))> + 'a {
         self.items
-            .iter()
-            .filter(move |((ns, _), _)| ns == namespace)
+            .get(namespace)
+            .into_iter()
+            .flat_map(|ns_items| ns_items.iter())
     }
 
     /// Executes a cosine-similarity search over all items in the namespace and
@@ -107,7 +129,7 @@ impl VectorStore {
 
         let mut scored: Vec<(String, String, f32)> = self
             .all_in_namespace(namespace)
-            .map(|((_, key), (embedding, _meta))| {
+            .map(|(key, (embedding, _meta))| {
                 let score = cosine(query, embedding);
                 let (doc_id, chunk_id) = split_chunk_key(key);
                 (doc_id, chunk_id, score)
@@ -141,8 +163,11 @@ impl VectorStore {
     }
 
     pub fn chunk_meta(&self, namespace: &str, doc_id: &str, chunk_id: &str) -> Option<&Value> {
-        let key = (namespace.to_string(), make_chunk_key(doc_id, chunk_id));
-        self.items.get(&key).map(|(_, meta)| meta)
+        let chunk_key = make_chunk_key(doc_id, chunk_id);
+        self.items
+            .get(namespace)
+            .and_then(|ns_items| ns_items.get(&chunk_key))
+            .map(|(_, meta)| meta)
     }
 }
 
@@ -183,11 +208,11 @@ mod tests {
             .upsert("namespace", "doc", "chunk-2", vec![0.3, 0.4], meta)
             .expect("second insert matches dims");
 
-        assert_eq!(store.items.len(), 2);
+        assert_eq!(store.len(), 2);
 
         store.delete_doc("namespace", "doc");
 
-        assert!(store.items.is_empty(), "store should be empty after delete");
+        assert!(store.is_empty(), "store should be empty after delete");
         assert!(
             store.dims.is_none(),
             "dims should reset after deleting all items"

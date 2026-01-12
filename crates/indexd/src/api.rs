@@ -684,7 +684,7 @@ mod tests {
         );
 
         let store = state.store.read().await;
-        assert!(store.items.is_empty(), "store must remain empty");
+        assert!(store.is_empty(), "store must remain empty");
     }
 
     #[tokio::test]
