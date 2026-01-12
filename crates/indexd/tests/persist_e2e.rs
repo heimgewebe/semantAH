@@ -58,7 +58,7 @@ async fn vector_store_persist_and_load_roundtrip() {
     assert_eq!(store_b.dims, Some(2));
 
     // Zwei Items (ns/doc-1#{c1,c2})
-    assert_eq!(store_b.items.len(), 2, "must have exactly two items");
+    assert_eq!(store_b.len(), 2, "must have exactly two items");
 
     // Metadatenprüfung: snippet
     let meta_c1 = store_b

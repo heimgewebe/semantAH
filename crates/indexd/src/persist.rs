@@ -73,7 +73,7 @@ pub async fn maybe_load_from_env(state: &Arc<AppState>) -> anyhow::Result<()> {
 
     info!(
         path = %path.display(),
-        count = store.items.len(),
+        count = store.len(),
         skipped,
         "loaded vector store"
     );
@@ -86,17 +86,19 @@ pub async fn maybe_save_from_env(state: &Arc<AppState>) -> anyhow::Result<()> {
     };
 
     let store = state.store.read().await;
-    let mut rows = Vec::with_capacity(store.items.len());
+    let mut rows = Vec::with_capacity(store.len());
 
-    for ((namespace, key), (embedding, meta)) in store.items.iter() {
-        let (doc_id, chunk_id) = split_chunk_key(key);
-        rows.push(RowOwned {
-            namespace: namespace.clone(),
-            doc_id,
-            chunk_id,
-            embedding: embedding.clone(),
-            meta: meta.clone(),
-        });
+    for (namespace, ns_items) in store.items.iter() {
+        for (key, (embedding, meta)) in ns_items.iter() {
+            let (doc_id, chunk_id) = split_chunk_key(key);
+            rows.push(RowOwned {
+                namespace: namespace.clone(),
+                doc_id,
+                chunk_id,
+                embedding: embedding.clone(),
+                meta: meta.clone(),
+            });
+        }
     }
 
     let row_count = rows.len();
