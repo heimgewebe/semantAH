@@ -47,3 +47,7 @@ path = "tests/upsert.rs"
 [[test]]
 name = "embed_text"
 path = "tests/embed_text.rs"
+
+[[test]]
+name = "migration"
+path = "tests/migration.rs"
