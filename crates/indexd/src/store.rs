@@ -43,6 +43,8 @@ impl VectorStore {
     /// The first insertion sets the expected dimensionality for all future
     /// insertions. Subsequent insertions with mismatched dimensions will fail.
     ///
+    /// Vectors are normalized to unit length upon insertion to optimize search.
+    ///
     /// # Errors
     ///
     /// Returns `VectorStoreError::DimensionalityMismatch` if the vector
@@ -52,7 +54,7 @@ impl VectorStore {
         namespace: &str,
         doc_id: &str,
         chunk_id: &str,
-        vector: Vec<f32>,
+        mut vector: Vec<f32>,
         meta: Value,
     ) -> Result<(), VectorStoreError> {
         if let Some(expected) = self.dims {
@@ -65,6 +67,8 @@ impl VectorStore {
         } else {
             self.dims = Some(vector.len());
         }
+
+        normalize(&mut vector);
 
         let chunk_key = make_chunk_key(doc_id, chunk_id);
         self.items
@@ -127,10 +131,14 @@ impl VectorStore {
             return Vec::new();
         }
 
+        let mut query = query.to_vec();
+        normalize(&mut query);
+
         let mut scored: Vec<(String, String, f32)> = self
             .all_in_namespace(namespace)
             .map(|(key, (embedding, _meta))| {
-                let score = cosine(query, embedding);
+                // Since both vectors are normalized, cosine similarity is just the dot product.
+                let score = dot(&query, embedding);
                 let (doc_id, chunk_id) = split_chunk_key(key);
                 (doc_id, chunk_id, score)
             })
@@ -185,12 +193,14 @@ fn l2_norm(vector: &[f32]) -> f32 {
     vector.iter().map(|x| x * x).sum::<f32>().sqrt()
 }
 
-fn cosine(a: &[f32], b: &[f32]) -> f32 {
-    let denom = l2_norm(a) * l2_norm(b);
-    if denom == 0.0 {
-        return 0.0;
+fn normalize(vector: &mut [f32]) {
+    let norm = l2_norm(vector);
+    if norm > f32::EPSILON {
+        let inv_norm = 1.0 / norm;
+        for x in vector.iter_mut() {
+            *x *= inv_norm;
+        }
     }
-    dot(a, b) / denom
 }
 
 #[cfg(test)]
