@@ -118,6 +118,10 @@ impl VectorStore {
         k: usize,
         _filters: &Value,
     ) -> Vec<(String, String, f32)> {
+        if k == 0 {
+            return Vec::new();
+        }
+
         let Some(expected) = self.dims else {
             return Vec::new();
         };
@@ -166,7 +170,9 @@ impl VectorStore {
 
         if k < scored.len() {
             // O(N) selection of top-k
-            scored.select_nth_unstable_by(k, compare_hits);
+            // We want the best k elements, so we select the element at index k-1.
+            // Elements 0..=k-1 will be partition <= element[k-1] (better or equal).
+            scored.select_nth_unstable_by(k - 1, compare_hits);
             scored.truncate(k);
         }
 

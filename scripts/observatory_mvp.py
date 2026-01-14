@@ -40,6 +40,7 @@ def collect_embedding_stats():
         "namespaces": {},
         "model_revision": None,
         "total_count": 0,
+        "invalid_count": 0,
     }
 
     # Check if indexd store exists
@@ -52,9 +53,10 @@ def collect_embedding_stats():
                     if not line:
                         continue
 
-                    stats["total_count"] += 1
                     try:
                         record = json.loads(line)
+                        stats["total_count"] += 1  # Only count valid JSON records as valid embeddings
+
                         if "namespace" in record:
                             ns = record["namespace"]
                             stats["namespaces"][ns] = stats["namespaces"].get(ns, 0) + 1
@@ -62,6 +64,7 @@ def collect_embedding_stats():
                         if stats["model_revision"] is None and "model_revision" in record:
                             stats["model_revision"] = record["model_revision"]
                     except json.JSONDecodeError:
+                        stats["invalid_count"] += 1
                         continue
 
         except (FileNotFoundError, IOError):
@@ -160,6 +163,14 @@ def main() -> int:
             {
                 "type": "metadata",
                 "description": f"Active embedding model revision: {embedding_stats['model_revision']}",
+            }
+        )
+
+    if embedding_stats["invalid_count"] > 0:
+        signals.append(
+            {
+                "type": "warn",
+                "description": f"Invalid JSON lines in store: {embedding_stats['invalid_count']}",
             }
         )
 
