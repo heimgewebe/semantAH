@@ -55,13 +55,18 @@ def collect_embedding_stats():
 
                     try:
                         record = json.loads(line)
-                        stats["total_count"] += 1  # Only count valid JSON records as valid embeddings
+                        stats["total_count"] += (
+                            1  # Only count valid JSON records as valid embeddings
+                        )
 
                         if "namespace" in record:
                             ns = record["namespace"]
                             stats["namespaces"][ns] = stats["namespaces"].get(ns, 0) + 1
                         # Opportunistically grab model revision from the first record if available
-                        if stats["model_revision"] is None and "model_revision" in record:
+                        if (
+                            stats["model_revision"] is None
+                            and "model_revision" in record
+                        ):
                             stats["model_revision"] = record["model_revision"]
                     except json.JSONDecodeError:
                         stats["invalid_count"] += 1
