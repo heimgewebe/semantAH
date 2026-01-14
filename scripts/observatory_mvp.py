@@ -35,18 +35,13 @@ def collect_embedding_stats():
     """
     Collect embedding statistics from available sources.
     Returns dict with namespace counts and model info.
-
-    NOTE: This is MVP-level - only counts total embeddings.
-    Namespace-level tracking requires parsing the actual store format.
     """
     stats = {
-        "namespaces": None,  # Not yet implemented - would need store format parser
+        "namespaces": {},
         "model_revision": None,
         "total_count": 0,
+        "invalid_count": 0,
     }
-
-    # Check for embedding data in .gewebe or artifacts
-    # For now, only count total lines - namespace extraction needs store format definition
 
     # Check if indexd store exists
     indexd_store = Path(".gewebe/indexd/store.jsonl")
@@ -54,9 +49,29 @@ def collect_embedding_stats():
         try:
             with open(indexd_store, "r", encoding="utf-8") as f:
                 for line in f:
-                    if line.strip():
-                        stats["total_count"] += 1
-                        # TODO: Parse namespace from actual data once store format is stable
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    try:
+                        record = json.loads(line)
+                        stats["total_count"] += (
+                            1  # Only count valid JSON records as valid embeddings
+                        )
+
+                        if "namespace" in record:
+                            ns = record["namespace"]
+                            stats["namespaces"][ns] = stats["namespaces"].get(ns, 0) + 1
+                        # Opportunistically grab model revision from the first record if available
+                        if (
+                            stats["model_revision"] is None
+                            and "model_revision" in record
+                        ):
+                            stats["model_revision"] = record["model_revision"]
+                    except json.JSONDecodeError:
+                        stats["invalid_count"] += 1
+                        continue
+
         except (FileNotFoundError, IOError):
             # Store file disappeared or is unreadable - not critical for MVP
             pass
@@ -137,12 +152,30 @@ def main() -> int:
                 "description": f"Total embeddings in store: {embedding_stats['total_count']}",
             }
         )
+        if embedding_stats["namespaces"]:
+            breakdown = ", ".join(
+                f"{k}: {v}" for k, v in sorted(embedding_stats["namespaces"].items())
+            )
+            signals.append(
+                {
+                    "type": "metadata",
+                    "description": f"Embedding breakdown: {breakdown}",
+                }
+            )
 
     if embedding_stats["model_revision"]:
         signals.append(
             {
                 "type": "metadata",
                 "description": f"Active embedding model revision: {embedding_stats['model_revision']}",
+            }
+        )
+
+    if embedding_stats["invalid_count"] > 0:
+        signals.append(
+            {
+                "type": "warn",
+                "description": f"Invalid JSON lines in store: {embedding_stats['invalid_count']}",
             }
         )
 
@@ -154,12 +187,6 @@ def main() -> int:
 
     if embedding_stats["total_count"] == 0:
         blind_spots.append("No embedding data available for analysis.")
-
-    # Add namespace tracking as explicit blind spot
-    if embedding_stats["namespaces"] is None:
-        blind_spots.append(
-            "Namespace-level embedding tracking not yet implemented (requires stable store format)."
-        )
 
     # Minimal, contract-konformes MVP:
     # - topics[]: topic + confidence required, sources/suggested_questions optional

@@ -118,6 +118,10 @@ impl VectorStore {
         k: usize,
         _filters: &Value,
     ) -> Vec<(String, String, f32)> {
+        if k == 0 {
+            return Vec::new();
+        }
+
         let Some(expected) = self.dims else {
             return Vec::new();
         };
@@ -157,15 +161,23 @@ impl VectorStore {
 
         // Deterministic sorting: Score (desc) > DocID (asc) > ChunkID (asc).
         // Note: We filter NaNs above, so partial_cmp should not return None, but we use unwrap_or(Equal) just in case.
-        scored.sort_by(|a, b| {
+        let compare_hits = |a: &(String, String, f32), b: &(String, String, f32)| {
             b.2.partial_cmp(&a.2)
                 .unwrap_or(Ordering::Equal)
                 .then_with(|| a.0.cmp(&b.0))
                 .then_with(|| a.1.cmp(&b.1))
-        });
-        if scored.len() > k {
+        };
+
+        if k < scored.len() {
+            // O(N) selection of top-k
+            // We want the best k elements, so we select the element at index k-1.
+            // Elements 0..=k-1 will be partition <= element[k-1] (better or equal).
+            scored.select_nth_unstable_by(k - 1, compare_hits);
             scored.truncate(k);
         }
+
+        // Final sort of the top-k results
+        scored.sort_by(compare_hits);
 
         scored
     }
