@@ -100,7 +100,7 @@ def main():
     # Event Payload (Strict Schema: url, generated_at, repo, status)
     report_url = os.getenv(
         "INTEGRITY_REPORT_URL",
-        "https://github.com/heimgewebe/semantAH/releases/download/knowledge-observatory/summary.json",
+        "https://github.com/heimgewebe/semantAH/releases/download/integrity/summary.json",
     )
 
     event_payload = {

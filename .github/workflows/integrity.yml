@@ -1,0 +1,53 @@
+name: Publish Integrity Report
+
+on:
+  schedule:
+    - cron: '30 06 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Fetch Artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p artifacts
+
+          echo "Fetching knowledge.observatory.json..."
+          gh release download knowledge-observatory --repo "$GITHUB_REPOSITORY" \
+            --pattern "knowledge.observatory.json" \
+            --dir "artifacts" \
+            --clobber || echo "::warning::Failed to download knowledge.observatory.json"
+
+          echo "Fetching insights.daily.json..."
+          gh release download insights-daily --repo "$GITHUB_REPOSITORY" \
+            --pattern "insights.daily.json" \
+            --dir "artifacts" \
+            --clobber || echo "::warning::Failed to download insights.daily.json"
+
+      - name: Generate Integrity Summary
+        run: |
+          uv run scripts/generate_integrity_summary.py
+
+      - name: Publish Release Asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: integrity
+        run: |
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" || gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --title "System Integrity" --notes "Canonical integrity report."
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --prerelease=false
+          gh release upload "$RELEASE_TAG" reports/integrity/summary.json --repo "$GITHUB_REPOSITORY" --clobber
