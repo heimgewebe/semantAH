@@ -98,10 +98,9 @@ def main():
     print(f"Generated Integrity Summary at {summary_path}")
 
     # Event Payload (Strict Schema: url, generated_at, repo, status)
-    report_url = os.getenv(
-        "INTEGRITY_REPORT_URL",
-        "https://github.com/heimgewebe/semantAH/releases/download/integrity/summary.json",
-    )
+    repo_name = os.getenv("GITHUB_REPOSITORY", "heimgewebe/semantAH")
+    default_url = f"https://github.com/{repo_name}/releases/download/integrity/summary.json"
+    report_url = os.getenv("INTEGRITY_REPORT_URL", default_url)
 
     event_payload = {
         "url": report_url,

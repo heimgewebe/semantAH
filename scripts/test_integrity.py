@@ -47,6 +47,21 @@ class TestIntegrity(unittest.TestCase):
         self.assertEqual(summary["counts"]["claims"], 0)
         self.assertEqual(summary["counts"]["loop_gaps"], 0)
 
+    def test_dynamic_url_generation(self):
+        """Test that report URL respects GITHUB_REPOSITORY env var."""
+        os.environ["GITHUB_REPOSITORY"] = "test-org/test-repo"
+        try:
+            generate_integrity_summary.main()
+            with open(self.reports_dir / "event_payload.json") as f:
+                payload = json.load(f)
+            self.assertEqual(
+                payload["url"],
+                "https://github.com/test-org/test-repo/releases/download/integrity/summary.json"
+            )
+        finally:
+            if "GITHUB_REPOSITORY" in os.environ:
+                del os.environ["GITHUB_REPOSITORY"]
+
     def test_missing_artifact_warn(self):
         """Test status is WARN when a contract exists but artifact is missing."""
         (self.contracts_dir / "test.schema.json").touch()
