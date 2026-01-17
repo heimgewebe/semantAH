@@ -58,9 +58,31 @@ class TestIntegrity(unittest.TestCase):
                 payload["url"],
                 "https://github.com/test-org/test-repo/releases/download/integrity/summary.json"
             )
+            self.assertEqual(payload["repo"], "test-org/test-repo")
         finally:
             if "GITHUB_REPOSITORY" in os.environ:
                 del os.environ["GITHUB_REPOSITORY"]
+
+    def test_generated_at_format(self):
+        """Test that generated_at is ISO-8601 with Z suffix."""
+        generate_integrity_summary.main()
+        with open(self.reports_dir / "summary.json") as f:
+            summary = json.load(f)
+
+        generated_at = summary["generated_at"]
+        self.assertTrue(generated_at.endswith("Z"))
+        # Validate simple ISO format (approximate)
+        # e.g. 2023-10-27T10:00:00.123456Z
+        self.assertIn("T", generated_at)
+
+    def test_event_payload_strictness(self):
+        """Test that event payload contains only allowed keys."""
+        generate_integrity_summary.main()
+        with open(self.reports_dir / "event_payload.json") as f:
+            payload = json.load(f)
+
+        allowed_keys = {"url", "generated_at", "repo", "status"}
+        self.assertEqual(set(payload.keys()), allowed_keys)
 
     def test_missing_artifact_warn(self):
         """Test status is WARN when a contract exists but artifact is missing."""

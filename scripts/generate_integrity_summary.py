@@ -84,9 +84,11 @@ def main():
     else:
         generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
+    repo_name = os.getenv("GITHUB_REPOSITORY", "heimgewebe/semantAH")
+
     # Summary (Canonical Artifact)
     summary = {
-        "repo": "heimgewebe/semantAH",
+        "repo": repo_name,
         "generated_at": generated_at,
         "status": status,
         "counts": {
@@ -114,14 +116,13 @@ def main():
     print(f"Generated Integrity Summary at {summary_path}")
 
     # Event Payload (Strict Schema: url, generated_at, repo, status)
-    repo_name = os.getenv("GITHUB_REPOSITORY", "heimgewebe/semantAH")
     default_url = f"https://github.com/{repo_name}/releases/download/integrity/summary.json"
     report_url = os.getenv("INTEGRITY_REPORT_URL", default_url)
 
     event_payload = {
         "url": report_url,
         "generated_at": summary["generated_at"],
-        "repo": "heimgewebe/semantAH",
+        "repo": repo_name,
         "status": status,
     }
 
@@ -134,7 +135,7 @@ def main():
     # Full Event Envelope (Optional convenience)
     event_envelope = {
         "type": "integrity.summary.published.v1",
-        "source": os.getenv("GITHUB_REPOSITORY", "heimgewebe/semantAH"),
+        "source": repo_name,
         "payload": event_payload,
     }
 
