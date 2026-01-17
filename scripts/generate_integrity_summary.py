@@ -86,6 +86,12 @@ def main():
 
     repo_name = os.getenv("GITHUB_REPOSITORY", "heimgewebe/semantAH")
 
+    # Validate Repo Name Format (owner/repo)
+    repo_error = None
+    if "/" not in repo_name or len(repo_name.split("/")) != 2:
+        repo_error = f"Invalid repository name format: '{repo_name}'. Expected 'owner/repo'."
+        status = "FAIL"
+
     # Summary (Canonical Artifact)
     summary = {
         "repo": repo_name,
@@ -104,6 +110,9 @@ def main():
             "unclear": unclear_list,
         },
     }
+
+    if repo_error:
+        summary["details"]["repo_error"] = repo_error
 
     # Document filter if active
     if integrity_claims_env:

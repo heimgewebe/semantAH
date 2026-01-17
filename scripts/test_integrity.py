@@ -63,6 +63,21 @@ class TestIntegrity(unittest.TestCase):
             if "GITHUB_REPOSITORY" in os.environ:
                 del os.environ["GITHUB_REPOSITORY"]
 
+    def test_invalid_repo_name_fail(self):
+        """Test status is FAIL when GITHUB_REPOSITORY format is invalid."""
+        os.environ["GITHUB_REPOSITORY"] = "invalid-repo-name"
+        try:
+            generate_integrity_summary.main()
+            with open(self.reports_dir / "summary.json") as f:
+                summary = json.load(f)
+
+            self.assertEqual(summary["status"], "FAIL")
+            self.assertIn("repo_error", summary["details"])
+            self.assertIn("Invalid repository name format", summary["details"]["repo_error"])
+        finally:
+             if "GITHUB_REPOSITORY" in os.environ:
+                del os.environ["GITHUB_REPOSITORY"]
+
     def test_generated_at_format(self):
         """Test that generated_at is ISO-8601 with Z suffix."""
         generate_integrity_summary.main()
