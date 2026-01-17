@@ -7,7 +7,7 @@ on:
 
 concurrency:
   group: integrity-${{ github.repository }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -24,11 +24,6 @@ jobs:
 
       - name: Install dependencies
         run: uv sync
-
-      - name: Toolchain Diagnostics
-        run: |
-          gh --version
-          uv --version
 
       - name: Run Integrity Tests
         run: uv run scripts/test_integrity.py
