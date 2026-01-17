@@ -73,6 +73,14 @@ def main():
     else:
         status = "OK"
 
+    repo_name = os.getenv("GITHUB_REPOSITORY", "heimgewebe/semantAH")
+
+    # Validate Repo Name Format (owner/repo)
+    repo_error = None
+    if "/" not in repo_name or len(repo_name.split("/")) != 2:
+        repo_error = f"Invalid repository name format: '{repo_name}'. Expected 'owner/repo'."
+        status = "FAIL"
+
     # Timestamp
     source_date_epoch = os.getenv("SOURCE_DATE_EPOCH")
     if source_date_epoch:
@@ -83,14 +91,6 @@ def main():
         )
     else:
         generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-
-    repo_name = os.getenv("GITHUB_REPOSITORY", "heimgewebe/semantAH")
-
-    # Validate Repo Name Format (owner/repo)
-    repo_error = None
-    if "/" not in repo_name or len(repo_name.split("/")) != 2:
-        repo_error = f"Invalid repository name format: '{repo_name}'. Expected 'owner/repo'."
-        status = "FAIL"
 
     # Summary (Canonical Artifact)
     summary = {
