@@ -103,6 +103,10 @@ def main():
         },
     }
 
+    # Document filter if active
+    if integrity_claims_env:
+        summary["details"]["claims_filter"] = sorted(list(allowed_claims))
+
     summary_path = output_dir / "summary.json"
     with open(summary_path, "w") as f:
         json.dump(summary, f, indent=2)

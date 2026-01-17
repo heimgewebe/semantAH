@@ -96,6 +96,7 @@ class TestIntegrity(unittest.TestCase):
             self.assertEqual(summary["counts"]["loop_gaps"], 0)
             self.assertIn("relevant.schema.json", summary["details"]["claims"])
             self.assertNotIn("ignored.schema.json", summary["details"]["claims"])
+            self.assertEqual(summary["details"]["claims_filter"], ["relevant"])
         finally:
             del os.environ["INTEGRITY_CLAIMS"]
 

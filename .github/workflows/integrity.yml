@@ -32,7 +32,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p artifacts
+          # Strict workspace hygiene: ensure no stale artifacts exist
+          rm -rf artifacts && mkdir -p artifacts
 
           echo "Fetching knowledge.observatory.json..."
           gh release download knowledge-observatory --repo "$GITHUB_REPOSITORY" \
@@ -46,6 +47,9 @@ jobs:
             --dir "artifacts" \
             --clobber || echo "::warning::Failed to download insights.daily.json"
 
+          # Diagnostics
+          ls -lah artifacts
+
       - name: Generate Integrity Summary
         env:
           INTEGRITY_CLAIMS: "knowledge.observatory,insights.daily"
@@ -57,6 +61,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: integrity
         run: |
+          set -euo pipefail
           gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" || gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --title "System Integrity" --notes "Canonical integrity report."
           gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --prerelease=false
           gh release upload "$RELEASE_TAG" reports/integrity/summary.json --repo "$GITHUB_REPOSITORY" --clobber
