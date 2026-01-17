@@ -2,6 +2,11 @@
 
 This document defines the invariants for the integrity loop in `semantAH`.
 
+## 0. Architecture: Pull-First
+The primary integrity loop is **Pull-based**.
+- **Canonical Source:** The `summary.json` artifact published as a Release Asset under the tag `integrity`.
+- **Event as Hint:** The `integrity.summary.published.v1` event is a **best-effort hint** for consumers to trigger an immediate fetch. It is NOT the source of truth and transport failures MUST NOT break the loop.
+
 ## 1. Payload URL Semantics
 The `url` field in the integrity event payload MUST point to the **full report artifact** (`summary.json`), NOT to the payload file itself (`event_payload.json`).
 
