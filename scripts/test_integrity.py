@@ -76,6 +76,29 @@ class TestIntegrity(unittest.TestCase):
         self.assertEqual(summary["counts"]["loop_gaps"], 1)
         self.assertIn("test", summary["details"]["loop_gaps"])
 
+    def test_claims_filtering(self):
+        """Test that INTEGRITY_CLAIMS filters out unrelated schemas."""
+        (self.contracts_dir / "relevant.schema.json").touch()
+        (self.contracts_dir / "ignored.schema.json").touch()
+
+        # Only artifacts for 'relevant' exist
+        (self.artifacts_dir / "relevant.json").touch()
+
+        os.environ["INTEGRITY_CLAIMS"] = "relevant"
+        try:
+            generate_integrity_summary.main()
+            with open(self.reports_dir / "summary.json") as f:
+                summary = json.load(f)
+
+            # Should be OK because 'ignored' is filtered out
+            self.assertEqual(summary["status"], "OK")
+            self.assertEqual(summary["counts"]["claims"], 1) # Only relevant
+            self.assertEqual(summary["counts"]["loop_gaps"], 0)
+            self.assertIn("relevant.schema.json", summary["details"]["claims"])
+            self.assertNotIn("ignored.schema.json", summary["details"]["claims"])
+        finally:
+            del os.environ["INTEGRITY_CLAIMS"]
+
     def test_matching_artifact_ok(self):
         """Test status is OK when contract matches artifact."""
         (self.contracts_dir / "test.schema.json").touch()

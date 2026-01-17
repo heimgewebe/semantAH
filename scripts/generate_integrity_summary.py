@@ -32,6 +32,18 @@ def main():
 
     # 1. Claims (Schemas)
     schemas = list(contracts_dir.glob("*.schema.json"))
+
+    # Optional Filter: INTEGRITY_CLAIMS (comma-separated basenames)
+    # e.g. "knowledge.observatory,insights.daily"
+    integrity_claims_env = os.getenv("INTEGRITY_CLAIMS")
+    if integrity_claims_env:
+        allowed_claims = set(x.strip() for x in integrity_claims_env.split(","))
+        schemas = [
+            s
+            for s in schemas
+            if s.name.replace(".schema.json", "") in allowed_claims
+        ]
+
     claims_list = sorted([s.name for s in schemas])
 
     # 2. Artifacts (Output)

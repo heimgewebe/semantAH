@@ -7,7 +7,7 @@ on:
 
 concurrency:
   group: integrity-${{ github.repository }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -47,6 +47,8 @@ jobs:
             --clobber || echo "::warning::Failed to download insights.daily.json"
 
       - name: Generate Integrity Summary
+        env:
+          INTEGRITY_CLAIMS: "knowledge.observatory,insights.daily"
         run: |
           uv run scripts/generate_integrity_summary.py
 
