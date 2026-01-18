@@ -47,8 +47,10 @@ jobs:
               --clobber; then
               break
             fi
-            echo "Attempt $i failed. Retrying in 10s..."
-            sleep 10
+            if [[ $i -lt 5 ]]; then
+              echo "Attempt $i failed. Retrying in 10s..."
+              sleep 10
+            fi
           done
 
           # Strict check for knowledge.observatory.json
@@ -65,8 +67,10 @@ jobs:
               --clobber; then
               break
             fi
-            echo "Attempt $i failed. Retrying in 10s..."
-            sleep 10
+            if [[ $i -lt 5 ]]; then
+              echo "Attempt $i failed. Retrying in 10s..."
+              sleep 10
+            fi
           done
 
           # Strict check for insights.daily.json
@@ -114,7 +118,10 @@ jobs:
 
           # Verify Upload
           echo "Verifying release asset..."
-          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' | grep -q summary.json
+          if ! gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' | grep -q '^summary\.json$'; then
+            echo "::error::Failed to verify summary.json in release assets"
+            exit 1
+          fi
           echo "Verification successful."
 
       - name: Notify Plexer (integrity)

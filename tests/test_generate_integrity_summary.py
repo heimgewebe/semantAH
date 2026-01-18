@@ -322,7 +322,7 @@ def test_claims_filtering_active_flag(tmp_path, monkeypatch):
     summary_path = tmp_path / "reports" / "integrity" / "summary.json"
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
 
-    assert "claims_filter_active" not in summary["details"] or summary["details"]["claims_filter_active"] is False
+    assert "claims_filter_active" not in summary["details"]
 
     # Case 2: INTEGRITY_CLAIMS set
     monkeypatch.setenv("INTEGRITY_CLAIMS", "foo")
