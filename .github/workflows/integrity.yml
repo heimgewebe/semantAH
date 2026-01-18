@@ -36,16 +36,28 @@ jobs:
           rm -rf artifacts && mkdir -p artifacts
 
           echo "Fetching knowledge.observatory.json..."
-          gh release download knowledge-observatory --repo "$GITHUB_REPOSITORY" \
-            --pattern "knowledge.observatory.json" \
-            --dir "artifacts" \
-            --clobber || echo "::warning::Failed to download knowledge.observatory.json"
+          for i in {1..3}; do
+            if gh release download knowledge-observatory --repo "$GITHUB_REPOSITORY" \
+              --pattern "knowledge.observatory.json" \
+              --dir "artifacts" \
+              --clobber; then
+              break
+            fi
+            echo "Attempt $i failed. Retrying in 10s..."
+            sleep 10
+          done || echo "::warning::Failed to download knowledge.observatory.json"
 
           echo "Fetching insights.daily.json..."
-          gh release download insights-daily --repo "$GITHUB_REPOSITORY" \
-            --pattern "insights.daily.json" \
-            --dir "artifacts" \
-            --clobber || echo "::warning::Failed to download insights.daily.json"
+          for i in {1..3}; do
+            if gh release download insights-daily --repo "$GITHUB_REPOSITORY" \
+              --pattern "insights.daily.json" \
+              --dir "artifacts" \
+              --clobber; then
+              break
+            fi
+            echo "Attempt $i failed. Retrying in 10s..."
+            sleep 10
+          done || echo "::warning::Failed to download insights.daily.json"
 
           # Guardrail: Ensure at least one artifact was downloaded (or both if critical)
           # Here we fail only if BOTH are missing, as partial integrity is better than none.
