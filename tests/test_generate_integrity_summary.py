@@ -210,3 +210,118 @@ def test_missing_contracts_directory_raises_error(tmp_path, monkeypatch):
         assert False, "Expected SystemExit to be raised"
     except SystemExit as e:
         assert "contracts/ missing: integrity loop cannot evaluate claims" in str(e)
+
+
+def test_dynamic_url_generation(tmp_path, monkeypatch):
+    """Test that report URL respects GITHUB_REPOSITORY env var."""
+    # Setup
+    contracts_dir = tmp_path / "contracts"
+    artifacts_dir = tmp_path / "artifacts"
+    contracts_dir.mkdir()
+    artifacts_dir.mkdir()
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GITHUB_REPOSITORY", "test-org/test-repo")
+
+    # Run
+    script = _import_script()
+    script.main()
+
+    # Assert
+    event_payload_path = tmp_path / "reports" / "integrity" / "event_payload.json"
+    payload = json.loads(event_payload_path.read_text(encoding="utf-8"))
+
+    assert (
+        payload["url"]
+        == "https://github.com/test-org/test-repo/releases/download/integrity/summary.json"
+    )
+    assert payload["repo"] == "test-org/test-repo"
+
+
+def test_invalid_repo_name_fail(tmp_path, monkeypatch):
+    """Test status is FAIL when GITHUB_REPOSITORY format is invalid."""
+    # Setup
+    contracts_dir = tmp_path / "contracts"
+    artifacts_dir = tmp_path / "artifacts"
+    contracts_dir.mkdir()
+    artifacts_dir.mkdir()
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GITHUB_REPOSITORY", "invalid-repo-name")
+
+    # Run
+    script = _import_script()
+    script.main()
+
+    # Assert
+    summary_path = tmp_path / "reports" / "integrity" / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+
+    assert summary["status"] == "FAIL"
+    assert "repo_error" in summary["details"]
+    assert "Invalid repository name format" in summary["details"]["repo_error"]
+
+    # Test edge case: valid slash but empty parts (e.g. "owner/")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/")
+    script.main()
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary["status"] == "FAIL"
+    assert "repo_error" in summary["details"]
+
+
+def test_claims_filtering(tmp_path, monkeypatch):
+    """Test that INTEGRITY_CLAIMS filters out unrelated schemas."""
+    # Setup
+    contracts_dir = tmp_path / "contracts"
+    artifacts_dir = tmp_path / "artifacts"
+    contracts_dir.mkdir()
+    artifacts_dir.mkdir()
+
+    (contracts_dir / "relevant.schema.json").write_text(json.dumps({}))
+    (contracts_dir / "ignored.schema.json").write_text(json.dumps({}))
+
+    # Only artifacts for 'relevant' exist
+    (artifacts_dir / "relevant.json").write_text(json.dumps({}))
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("INTEGRITY_CLAIMS", "relevant")
+
+    # Run
+    script = _import_script()
+    script.main()
+
+    # Assert
+    summary_path = tmp_path / "reports" / "integrity" / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+
+    # Should be OK because 'ignored' is filtered out
+    assert summary["status"] == "OK"
+    assert summary["counts"]["claims"] == 1  # Only relevant
+    assert summary["counts"]["loop_gaps"] == 0
+    assert "relevant.schema.json" in summary["details"]["claims"]
+    assert "ignored.schema.json" not in summary["details"]["claims"]
+    assert summary["details"]["claims_filter"] == ["relevant"]
+    assert summary["details"]["claims_filter_active"] is True
+
+
+def test_generated_at_format(tmp_path, monkeypatch):
+    """Test that generated_at is ISO-8601 with Z suffix."""
+    # Setup
+    contracts_dir = tmp_path / "contracts"
+    artifacts_dir = tmp_path / "artifacts"
+    contracts_dir.mkdir()
+    artifacts_dir.mkdir()
+
+    monkeypatch.chdir(tmp_path)
+
+    # Run
+    script = _import_script()
+    script.main()
+
+    # Assert
+    summary_path = tmp_path / "reports" / "integrity" / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+
+    generated_at = summary["generated_at"]
+    assert generated_at.endswith("Z")
+    assert "T" in generated_at

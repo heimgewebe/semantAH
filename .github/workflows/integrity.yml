@@ -1,0 +1,129 @@
+name: Publish Integrity Report
+
+on:
+  schedule:
+    # Run daily at 06:30 UTC. Note: GHA schedule timing is not guaranteed and may be delayed.
+    # We rely on artifact existence/freshness checks rather than precise start times.
+    - cron: '30 06 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: integrity-${{ github.repository }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run Integrity Tests
+        run: uv run pytest -q tests/test_generate_integrity_summary.py
+
+      - name: Fetch Artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Strict workspace hygiene: ensure no stale artifacts exist
+          rm -rf artifacts && mkdir -p artifacts
+
+          echo "Fetching knowledge.observatory.json..."
+          for i in {1..5}; do
+            if gh release download knowledge-observatory --repo "$GITHUB_REPOSITORY" \
+              --pattern "knowledge.observatory.json" \
+              --dir "artifacts" \
+              --clobber; then
+              break
+            fi
+            echo "Attempt $i failed. Retrying in 10s..."
+            sleep 10
+          done || echo "::warning::Failed to download knowledge.observatory.json"
+
+          echo "Fetching insights.daily.json..."
+          for i in {1..5}; do
+            if gh release download insights-daily --repo "$GITHUB_REPOSITORY" \
+              --pattern "insights.daily.json" \
+              --dir "artifacts" \
+              --clobber; then
+              break
+            fi
+            echo "Attempt $i failed. Retrying in 10s..."
+            sleep 10
+          done || echo "::warning::Failed to download insights.daily.json"
+
+          # Guardrail: Strict Integrity - All claimed artifacts must be present
+          # Since INTEGRITY_CLAIMS requires both, we fail if either is missing.
+          if [[ ! -f artifacts/knowledge.observatory.json || ! -f artifacts/insights.daily.json ]]; then
+            echo "::error::Missing required artifacts. Strict integrity check failed."
+            ls -lah artifacts/ || true
+            exit 1
+          fi
+
+          # Diagnostics
+          ls -lah artifacts
+
+      - name: Generate Integrity Summary
+        env:
+          INTEGRITY_CLAIMS: "knowledge.observatory,insights.daily"
+          INTEGRITY_REPORT_URL: "https://github.com/${{ github.repository }}/releases/download/integrity/summary.json"
+        run: |
+          uv run scripts/generate_integrity_summary.py
+
+      - name: Publish Release Asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: integrity
+        run: |
+          set -euo pipefail
+
+          # Create or update release
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            || gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+               --title "System Integrity" \
+               --notes "Canonical integrity report."
+
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --prerelease=false
+
+          gh release upload "$RELEASE_TAG" reports/integrity/summary.json \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber
+
+      - name: Notify Plexer (integrity)
+        if: ${{ success() && secrets.PLEXER_URL != '' }}
+        continue-on-error: true
+        env:
+          PLEXER_URL: ${{ secrets.PLEXER_URL }}
+          PLEXER_TOKEN: ${{ secrets.PLEXER_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # Skip if secrets are not available (e.g. forks)
+          if [[ -z "${PLEXER_URL:-}" || -z "${PLEXER_TOKEN:-}" ]]; then
+            echo "::notice::PLEXER_URL or PLEXER_TOKEN not set, skipping notification."
+            exit 0
+          fi
+
+          EVENT_FILE="reports/integrity/event.json"
+          if [[ ! -f "$EVENT_FILE" ]]; then
+            echo "::error::Integrity event file missing: $EVENT_FILE"
+            exit 1
+          fi
+
+          echo "::notice::Notifying Plexer (Integrity): $(cat "$EVENT_FILE")"
+
+          curl -X POST "${PLEXER_URL%/}/events" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${PLEXER_TOKEN}" \
+            -d @"$EVENT_FILE" \
+            --fail-with-body \
+            || echo "::notice::Failed to notify plexer (integrity), but release succeeded."

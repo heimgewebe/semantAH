@@ -32,6 +32,16 @@ def main():
 
     # 1. Claims (Schemas)
     schemas = list(contracts_dir.glob("*.schema.json"))
+
+    # Optional Filter: INTEGRITY_CLAIMS (comma-separated basenames)
+    # e.g. "knowledge.observatory,insights.daily"
+    integrity_claims_env = os.getenv("INTEGRITY_CLAIMS")
+    if integrity_claims_env:
+        allowed_claims = set(x.strip() for x in integrity_claims_env.split(","))
+        schemas = [
+            s for s in schemas if s.name.replace(".schema.json", "") in allowed_claims
+        ]
+
     claims_list = sorted([s.name for s in schemas])
 
     # 2. Artifacts (Output)
@@ -61,6 +71,23 @@ def main():
     else:
         status = "OK"
 
+    repo_name = os.getenv("GITHUB_REPOSITORY", "heimgewebe/semantAH")
+
+    # Validate Repo Name Format (owner/repo)
+    repo_error = None
+    if "/" not in repo_name:
+        repo_error = (
+            f"Invalid repository name format: '{repo_name}'. Expected 'owner/repo'."
+        )
+        status = "FAIL"
+    else:
+        parts = repo_name.split("/")
+        if len(parts) != 2 or not parts[0] or not parts[1]:
+            repo_error = (
+                f"Invalid repository name format: '{repo_name}'. Expected 'owner/repo'."
+            )
+            status = "FAIL"
+
     # Timestamp
     source_date_epoch = os.getenv("SOURCE_DATE_EPOCH")
     if source_date_epoch:
@@ -74,7 +101,7 @@ def main():
 
     # Summary (Canonical Artifact)
     summary = {
-        "repo": "heimgewebe/semantAH",
+        "repo": repo_name,
         "generated_at": generated_at,
         "status": status,
         "counts": {
@@ -91,6 +118,14 @@ def main():
         },
     }
 
+    if repo_error:
+        summary["details"]["repo_error"] = repo_error
+
+    # Document filter if active
+    if integrity_claims_env:
+        summary["details"]["claims_filter"] = sorted(list(allowed_claims))
+        summary["details"]["claims_filter_active"] = True
+
     summary_path = output_dir / "summary.json"
     with open(summary_path, "w") as f:
         json.dump(summary, f, indent=2)
@@ -98,15 +133,15 @@ def main():
     print(f"Generated Integrity Summary at {summary_path}")
 
     # Event Payload (Strict Schema: url, generated_at, repo, status)
-    report_url = os.getenv(
-        "INTEGRITY_REPORT_URL",
-        "https://github.com/heimgewebe/semantAH/releases/download/knowledge-observatory/summary.json",
+    default_url = (
+        f"https://github.com/{repo_name}/releases/download/integrity/summary.json"
     )
+    report_url = os.getenv("INTEGRITY_REPORT_URL", default_url)
 
     event_payload = {
         "url": report_url,
         "generated_at": summary["generated_at"],
-        "repo": "heimgewebe/semantAH",
+        "repo": repo_name,
         "status": status,
     }
 
@@ -119,7 +154,7 @@ def main():
     # Full Event Envelope (Optional convenience)
     event_envelope = {
         "type": "integrity.summary.published.v1",
-        "source": os.getenv("GITHUB_REPOSITORY", "heimgewebe/semantAH"),
+        "source": repo_name,
         "payload": event_payload,
     }
 
