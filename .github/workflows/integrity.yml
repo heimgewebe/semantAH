@@ -55,7 +55,10 @@ jobs:
 
           # Strict check for knowledge.observatory.json
           if [[ ! -s artifacts/knowledge.observatory.json ]]; then
-            echo "::error::Failed to download knowledge.observatory.json (empty or missing)."
+            echo "::error::knowledge.observatory.json missing or empty after retries."
+            echo "::error::Release tag: knowledge-observatory"
+            echo "::error::Repo: $GITHUB_REPOSITORY"
+            ls -lah artifacts/ || true
             exit 1
           fi
 
@@ -75,7 +78,10 @@ jobs:
 
           # Strict check for insights.daily.json
           if [[ ! -s artifacts/insights.daily.json ]]; then
-            echo "::error::Failed to download insights.daily.json (empty or missing)."
+            echo "::error::insights.daily.json missing or empty after retries."
+            echo "::error::Release tag: insights-daily"
+            echo "::error::Repo: $GITHUB_REPOSITORY"
+            ls -lah artifacts/ || true
             exit 1
           fi
 
@@ -93,8 +99,13 @@ jobs:
           # Preflight Checks
           echo "Running preflight checks on summary.json..."
           test -s reports/integrity/summary.json
-          jq -e '.repo and .generated_at and .status' reports/integrity/summary.json >/dev/null
-          jq -e '.repo|test("^[^/]+/[^/]+$")' reports/integrity/summary.json >/dev/null
+          # Validate types and formats (ISO 8601 with optional fractional seconds)
+          jq -e '
+            .repo and (.repo | type=="string") and (.repo | test("^[^/]+/[^/]+$"))
+            and .status and (.status | type=="string")
+            and .generated_at and (.generated_at | type=="string")
+            and (.generated_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"))
+          ' reports/integrity/summary.json >/dev/null
           echo "Preflight checks passed."
 
       - name: Publish Release Asset
