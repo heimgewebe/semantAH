@@ -261,6 +261,13 @@ def test_invalid_repo_name_fail(tmp_path, monkeypatch):
     assert "repo_error" in summary["details"]
     assert "Invalid repository name format" in summary["details"]["repo_error"]
 
+    # Test edge case: valid slash but empty parts (e.g. "owner/")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/")
+    script.main()
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary["status"] == "FAIL"
+    assert "repo_error" in summary["details"]
+
 
 def test_claims_filtering(tmp_path, monkeypatch):
     """Test that INTEGRITY_CLAIMS filters out unrelated schemas."""
@@ -294,6 +301,7 @@ def test_claims_filtering(tmp_path, monkeypatch):
     assert "relevant.schema.json" in summary["details"]["claims"]
     assert "ignored.schema.json" not in summary["details"]["claims"]
     assert summary["details"]["claims_filter"] == ["relevant"]
+    assert summary["details"]["claims_filter_active"] is True
 
 
 def test_generated_at_format(tmp_path, monkeypatch):

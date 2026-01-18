@@ -75,11 +75,18 @@ def main():
 
     # Validate Repo Name Format (owner/repo)
     repo_error = None
-    if "/" not in repo_name or len(repo_name.split("/")) != 2:
+    if "/" not in repo_name:
         repo_error = (
             f"Invalid repository name format: '{repo_name}'. Expected 'owner/repo'."
         )
         status = "FAIL"
+    else:
+        parts = repo_name.split("/")
+        if len(parts) != 2 or not parts[0] or not parts[1]:
+            repo_error = (
+                f"Invalid repository name format: '{repo_name}'. Expected 'owner/repo'."
+            )
+            status = "FAIL"
 
     # Timestamp
     source_date_epoch = os.getenv("SOURCE_DATE_EPOCH")
@@ -117,6 +124,7 @@ def main():
     # Document filter if active
     if integrity_claims_env:
         summary["details"]["claims_filter"] = sorted(list(allowed_claims))
+        summary["details"]["claims_filter_active"] = True
 
     summary_path = output_dir / "summary.json"
     with open(summary_path, "w") as f:
