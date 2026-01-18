@@ -34,6 +34,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
+
           # Strict workspace hygiene: ensure no stale artifacts exist
           rm -rf artifacts && mkdir -p artifacts
 
@@ -45,9 +47,20 @@ jobs:
               --clobber; then
               break
             fi
-            echo "Attempt $i failed. Retrying in 10s..."
-            sleep 10
-          done || echo "::warning::Failed to download knowledge.observatory.json"
+            if [[ $i -lt 5 ]]; then
+              echo "Attempt $i failed. Retrying in 10s..."
+              sleep 10
+            fi
+          done
+
+          # Strict check for knowledge.observatory.json
+          if [[ ! -s artifacts/knowledge.observatory.json ]]; then
+            echo "::error::knowledge.observatory.json missing or empty after retries."
+            echo "::error::Release tag: knowledge-observatory"
+            echo "::error::Repo: $GITHUB_REPOSITORY"
+            ls -lah artifacts/ || true
+            exit 1
+          fi
 
           echo "Fetching insights.daily.json..."
           for i in {1..5}; do
@@ -57,14 +70,17 @@ jobs:
               --clobber; then
               break
             fi
-            echo "Attempt $i failed. Retrying in 10s..."
-            sleep 10
-          done || echo "::warning::Failed to download insights.daily.json"
+            if [[ $i -lt 5 ]]; then
+              echo "Attempt $i failed. Retrying in 10s..."
+              sleep 10
+            fi
+          done
 
-          # Guardrail: Strict Integrity - All claimed artifacts must be present
-          # Since INTEGRITY_CLAIMS requires both, we fail if either is missing.
-          if [[ ! -f artifacts/knowledge.observatory.json || ! -f artifacts/insights.daily.json ]]; then
-            echo "::error::Missing required artifacts. Strict integrity check failed."
+          # Strict check for insights.daily.json
+          if [[ ! -s artifacts/insights.daily.json ]]; then
+            echo "::error::insights.daily.json missing or empty after retries."
+            echo "::error::Release tag: insights-daily"
+            echo "::error::Repo: $GITHUB_REPOSITORY"
             ls -lah artifacts/ || true
             exit 1
           fi
@@ -77,7 +93,20 @@ jobs:
           INTEGRITY_CLAIMS: "knowledge.observatory,insights.daily"
           INTEGRITY_REPORT_URL: "https://github.com/${{ github.repository }}/releases/download/integrity/summary.json"
         run: |
+          set -euo pipefail
           uv run scripts/generate_integrity_summary.py
+
+          # Preflight Checks
+          echo "Running preflight checks on summary.json..."
+          test -s reports/integrity/summary.json
+          # Validate types and formats (ISO 8601 with optional fractional seconds)
+          jq -e '
+            .repo and (.repo | type=="string") and (.repo | test("^[^/]+/[^/]+$"))
+            and .status and (.status | type=="string")
+            and .generated_at and (.generated_at | type=="string")
+            and (.generated_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"))
+          ' reports/integrity/summary.json >/dev/null
+          echo "Preflight checks passed."
 
       - name: Publish Release Asset
         env:
@@ -97,6 +126,14 @@ jobs:
           gh release upload "$RELEASE_TAG" reports/integrity/summary.json \
             --repo "$GITHUB_REPOSITORY" \
             --clobber
+
+          # Verify Upload
+          echo "Verifying release asset..."
+          if ! gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' | grep -q '^summary\.json$'; then
+            echo "::error::Failed to verify summary.json in release assets"
+            exit 1
+          fi
+          echo "Verification successful."
 
       - name: Notify Plexer (integrity)
         if: ${{ success() && secrets.PLEXER_URL != '' }}
