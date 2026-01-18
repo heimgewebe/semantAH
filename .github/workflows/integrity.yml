@@ -2,6 +2,8 @@ name: Publish Integrity Report
 
 on:
   schedule:
+    # Run daily at 06:30 UTC. Note: GHA schedule timing is not guaranteed and may be delayed.
+    # We rely on artifact existence/freshness checks rather than precise start times.
     - cron: '30 06 * * *'
   workflow_dispatch:
 
@@ -36,7 +38,7 @@ jobs:
           rm -rf artifacts && mkdir -p artifacts
 
           echo "Fetching knowledge.observatory.json..."
-          for i in {1..3}; do
+          for i in {1..5}; do
             if gh release download knowledge-observatory --repo "$GITHUB_REPOSITORY" \
               --pattern "knowledge.observatory.json" \
               --dir "artifacts" \
@@ -48,7 +50,7 @@ jobs:
           done || echo "::warning::Failed to download knowledge.observatory.json"
 
           echo "Fetching insights.daily.json..."
-          for i in {1..3}; do
+          for i in {1..5}; do
             if gh release download insights-daily --repo "$GITHUB_REPOSITORY" \
               --pattern "insights.daily.json" \
               --dir "artifacts" \
