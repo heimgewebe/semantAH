@@ -304,6 +304,35 @@ def test_claims_filtering(tmp_path, monkeypatch):
     assert summary["details"]["claims_filter_active"] is True
 
 
+def test_claims_filtering_active_flag(tmp_path, monkeypatch):
+    """Test that claims_filter_active is set only when INTEGRITY_CLAIMS is present."""
+    # Setup
+    contracts_dir = tmp_path / "contracts"
+    artifacts_dir = tmp_path / "artifacts"
+    contracts_dir.mkdir()
+    artifacts_dir.mkdir()
+
+    # Case 1: No INTEGRITY_CLAIMS
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("INTEGRITY_CLAIMS", raising=False)
+
+    script = _import_script()
+    script.main()
+
+    summary_path = tmp_path / "reports" / "integrity" / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+
+    assert "claims_filter_active" not in summary["details"] or summary["details"]["claims_filter_active"] is False
+
+    # Case 2: INTEGRITY_CLAIMS set
+    monkeypatch.setenv("INTEGRITY_CLAIMS", "foo")
+
+    script.main()
+
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary["details"]["claims_filter_active"] is True
+
+
 def test_generated_at_format(tmp_path, monkeypatch):
     """Test that generated_at is ISO-8601 with Z suffix."""
     # Setup
