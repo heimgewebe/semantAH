@@ -39,9 +39,7 @@ def main():
     if integrity_claims_env:
         allowed_claims = set(x.strip() for x in integrity_claims_env.split(","))
         schemas = [
-            s
-            for s in schemas
-            if s.name.replace(".schema.json", "") in allowed_claims
+            s for s in schemas if s.name.replace(".schema.json", "") in allowed_claims
         ]
 
     claims_list = sorted([s.name for s in schemas])
@@ -78,7 +76,9 @@ def main():
     # Validate Repo Name Format (owner/repo)
     repo_error = None
     if "/" not in repo_name or len(repo_name.split("/")) != 2:
-        repo_error = f"Invalid repository name format: '{repo_name}'. Expected 'owner/repo'."
+        repo_error = (
+            f"Invalid repository name format: '{repo_name}'. Expected 'owner/repo'."
+        )
         status = "FAIL"
 
     # Timestamp
@@ -125,7 +125,9 @@ def main():
     print(f"Generated Integrity Summary at {summary_path}")
 
     # Event Payload (Strict Schema: url, generated_at, repo, status)
-    default_url = f"https://github.com/{repo_name}/releases/download/integrity/summary.json"
+    default_url = (
+        f"https://github.com/{repo_name}/releases/download/integrity/summary.json"
+    )
     report_url = os.getenv("INTEGRITY_REPORT_URL", default_url)
 
     event_payload = {
