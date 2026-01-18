@@ -61,10 +61,11 @@ jobs:
             sleep 10
           done || echo "::warning::Failed to download insights.daily.json"
 
-          # Guardrail: Ensure at least one artifact was downloaded (or both if critical)
-          # Here we fail only if BOTH are missing, as partial integrity is better than none.
-          if [[ ! -f artifacts/knowledge.observatory.json && ! -f artifacts/insights.daily.json ]]; then
-            echo "::error::No artifacts downloaded. Cannot proceed with integrity check."
+          # Guardrail: Strict Integrity - All claimed artifacts must be present
+          # Since INTEGRITY_CLAIMS requires both, we fail if either is missing.
+          if [[ ! -f artifacts/knowledge.observatory.json || ! -f artifacts/insights.daily.json ]]; then
+            echo "::error::Missing required artifacts. Strict integrity check failed."
+            ls -lah artifacts/ || true
             exit 1
           fi
 
