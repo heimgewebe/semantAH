@@ -124,8 +124,10 @@ jobs:
           PLEXER_TOKEN: ${{ secrets.PLEXER_TOKEN }}
           RELEASE_TAG: insights-daily
         run: |
+          set -euo pipefail
+
           # Skip if secrets are not available (e.g. in forks or initial setup)
-          if [[ -z "$PLEXER_URL" ]]; then
+          if [[ -z "${PLEXER_URL:-}" || -z "${PLEXER_TOKEN:-}" ]]; then
             echo "::notice::PLEXER_URL not set, skipping notification."
             exit 0
           fi
@@ -141,7 +143,10 @@ jobs:
           URL="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/insights.daily.json"
 
           # Calculate SHA256
-          SHA=$(sha256sum artifacts/insights.daily.json | cut -d ' ' -f 1)
+          if ! SHA=$(sha256sum artifacts/insights.daily.json | cut -d ' ' -f 1); then
+            echo "::error::SHA calculation failed for artifacts/insights.daily.json"
+            exit 1
+          fi
 
           echo "::notice::Notifying Plexer: ts=$TS, generated_at=$GEN_AT, url=$URL, sha=$SHA"
 
@@ -155,7 +160,7 @@ jobs:
               "url": "$URL",
               "generated_at": "$GEN_AT",
               "sha": "$SHA",
-              "schema_ref": "https://github.com/${{ github.repository }}/blob/${{ github.sha }}/contracts/insights.daily.schema.json"
+              "schema_ref": "https://schemas.heimgewebe.org/contracts/insights/daily.schema.json"
             }
           }
           EOF

@@ -122,7 +122,10 @@ jobs:
           if [ -z "${GEN_AT}" ]; then GEN_AT="${TS}"; fi
 
           # Calculate SHA256 of the artifact
-          SHA=$(sha256sum artifacts/knowledge.observatory.json | cut -d ' ' -f 1)
+          if ! SHA=$(sha256sum artifacts/knowledge.observatory.json | cut -d ' ' -f 1); then
+            echo "::error::SHA calculation failed for artifacts/knowledge.observatory.json"
+            exit 1
+          fi
 
           echo "::notice::Notifying Plexer: ts=${TS}, generated_at=${GEN_AT}, url=${URL}, sha=${SHA}"
 
@@ -135,7 +138,7 @@ jobs:
               "url": "${URL}",
               "generated_at": "${GEN_AT}",
               "sha": "${SHA}",
-              "schema_ref": "https://github.com/${{ github.repository }}/blob/${{ github.sha }}/contracts/knowledge.observatory.schema.json"
+              "schema_ref": "https://schemas.heimgewebe.org/contracts/knowledge/observatory.schema.json"
             }
           }
           EOF
