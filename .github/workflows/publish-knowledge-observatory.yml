@@ -128,6 +128,12 @@ jobs:
             exit 1
           fi
 
+          # Ensure 64-character hex format
+          if [[ ! "$SHA" =~ ^[a-f0-9]{64}$ ]]; then
+            echo "::error::Invalid SHA format: $SHA"
+            exit 1
+          fi
+
           # Extract canonical Schema Ref from contract (fallback to hardcoded if missing)
           SCHEMA_REF=$(jq -r '."$id" // "https://schemas.heimgewebe.org/contracts/knowledge/observatory.schema.json"' contracts/knowledge.observatory.schema.json)
 
@@ -147,10 +153,9 @@ jobs:
           }
           EOF
 
-          # Send to Plexer with dual auth headers and capture response for debugging
+          # Send to Plexer with X-Auth header (preferred) and capture response for debugging
           if ! curl -X POST "${PLEXER_URL%/}/events" \
             -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${PLEXER_TOKEN}" \
             -H "X-Auth: ${PLEXER_TOKEN}" \
             -d @event.json \
             --fail-with-body \
