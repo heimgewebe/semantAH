@@ -117,6 +117,7 @@ jobs:
           gh release upload "$RELEASE_TAG" artifacts/insights.daily.json --clobber
 
       - name: Notify Plexer
+        id: notify
         if: success()
         continue-on-error: true
         env:
@@ -142,13 +143,16 @@ jobs:
 
           URL="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/insights.daily.json"
 
-          # Calculate SHA256
-          if ! SHA=$(sha256sum artifacts/insights.daily.json | cut -d ' ' -f 1); then
+          # Calculate SHA256 (portable)
+          if ! SHA=$( (sha256sum artifacts/insights.daily.json 2>/dev/null || shasum -a 256 artifacts/insights.daily.json) | cut -d ' ' -f 1 ); then
             echo "::error::SHA calculation failed for artifacts/insights.daily.json"
             exit 1
           fi
 
-          echo "::notice::Notifying Plexer: ts=$TS, generated_at=$GEN_AT, url=$URL, sha=$SHA"
+          # Extract canonical Schema Ref from contract
+          SCHEMA_REF=$(jq -r '."$id" // "https://schemas.heimgewebe.org/contracts/insights/daily.schema.json"' contracts/insights.daily.schema.json)
+
+          echo "::notice::Notifying Plexer: ts=$TS, generated_at=$GEN_AT, url=$URL, sha=$SHA, schema_ref=$SCHEMA_REF"
 
           # Construct notification payload
           cat > event.json <<EOF
@@ -160,14 +164,38 @@ jobs:
               "url": "$URL",
               "generated_at": "$GEN_AT",
               "sha": "$SHA",
-              "schema_ref": "https://schemas.heimgewebe.org/contracts/insights/daily.schema.json"
+              "schema_ref": "$SCHEMA_REF"
             }
           }
           EOF
 
-          # Send notification
-          curl -X POST "${PLEXER_URL%/}/events" \
+          # Send to Plexer with dual auth headers and capture response for debugging
+          if ! curl -X POST "${PLEXER_URL%/}/events" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $PLEXER_TOKEN" \
+            -H "X-Auth: ${PLEXER_TOKEN}" \
             -d @event.json \
-            --fail-with-body || echo "::notice::Failed to notify plexer, but release succeeded."
+            --fail-with-body \
+            -o plexer_response.txt 2>plexer_error.log; then
+
+            echo "::warning::Failed to notify plexer."
+            echo "::group::Plexer Debug Logs"
+            cat plexer_error.log || true
+            cat plexer_response.txt || true
+            echo "::endgroup::"
+
+            # Save logs as artifact for post-mortem
+            mkdir -p plexer_logs
+            cp event.json plexer_logs/
+            cp plexer_response.txt plexer_logs/
+            cp plexer_error.log plexer_logs/
+          fi
+
+      - name: Upload Plexer Debug Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plexer-notification-logs-insights
+          path: plexer_logs/
+          if-no-files-found: ignore
+          retention-days: 3
