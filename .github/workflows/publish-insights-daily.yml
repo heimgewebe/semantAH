@@ -140,26 +140,29 @@ jobs:
 
           URL="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/insights.daily.json"
 
-          echo "::notice::Notifying Plexer: ts=$TS, generated_at=$GEN_AT, url=$URL"
+          # Calculate SHA256
+          SHA=$(sha256sum artifacts/insights.daily.json | cut -d ' ' -f 1)
 
-          # Construct minimal notification payload
-          # TYPE updated to insights.daily.published.v1 as per instructions
-          PAYLOAD=$(cat <<EOF
+          echo "::notice::Notifying Plexer: ts=$TS, generated_at=$GEN_AT, url=$URL, sha=$SHA"
+
+          # Construct notification payload
+          cat > event.json <<EOF
           {
             "type": "insights.daily.published.v1",
             "source": "semantAH",
             "payload": {
               "ts": "$TS",
               "url": "$URL",
-              "generated_at": "$GEN_AT"
+              "generated_at": "$GEN_AT",
+              "sha": "$SHA",
+              "schema_ref": "https://github.com/${{ github.repository }}/blob/${{ github.sha }}/contracts/insights.daily.schema.json"
             }
           }
           EOF
-          )
 
           # Send notification
-          curl -X POST "$PLEXER_URL/events" \
+          curl -X POST "${PLEXER_URL%/}/events" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $PLEXER_TOKEN" \
-            -d "$PAYLOAD" \
+            -d @event.json \
             --fail-with-body || echo "::notice::Failed to notify plexer, but release succeeded."

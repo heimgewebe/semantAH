@@ -121,7 +121,10 @@ jobs:
           )"
           if [ -z "${GEN_AT}" ]; then GEN_AT="${TS}"; fi
 
-          echo "::notice::Notifying Plexer: ts=${TS}, generated_at=${GEN_AT}, url=${URL}"
+          # Calculate SHA256 of the artifact
+          SHA=$(sha256sum artifacts/knowledge.observatory.json | cut -d ' ' -f 1)
+
+          echo "::notice::Notifying Plexer: ts=${TS}, generated_at=${GEN_AT}, url=${URL}, sha=${SHA}"
 
           cat > event.json <<EOF
           {
@@ -130,7 +133,9 @@ jobs:
             "payload": {
               "ts": "${TS}",
               "url": "${URL}",
-              "generated_at": "${GEN_AT}"
+              "generated_at": "${GEN_AT}",
+              "sha": "${SHA}",
+              "schema_ref": "https://github.com/${{ github.repository }}/blob/${{ github.sha }}/contracts/knowledge.observatory.schema.json"
             }
           }
           EOF
