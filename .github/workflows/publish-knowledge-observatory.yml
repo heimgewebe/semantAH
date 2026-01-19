@@ -135,7 +135,7 @@ jobs:
           fi
 
           # Extract canonical Schema Ref from contract (fallback to hardcoded if missing)
-          SCHEMA_REF=$(jq -r '."$id" // "https://schemas.heimgewebe.org/contracts/knowledge/observatory.schema.json"' contracts/knowledge.observatory.schema.json)
+          SCHEMA_REF=$(jq -r '."$id" // "https://schemas.heimgewebe.org/contracts/knowledge.observatory.schema.json"' contracts/knowledge.observatory.schema.json)
 
           echo "::notice::Notifying Plexer: ts=${TS}, generated_at=${GEN_AT}, url=${URL}, sha=${SHA}, schema_ref=${SCHEMA_REF}"
 
