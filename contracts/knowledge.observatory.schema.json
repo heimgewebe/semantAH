@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.heimgewebe.org/contracts/knowledge/observatory.schema.json",
+  "$id": "https://schemas.heimgewebe.org/contracts/knowledge.observatory.schema.json",
   "title": "KnowledgeObservatory",
   "x-producers": ["semantAH"],
   "x-consumers": ["leitstand", "hausKI", "heimlern"],
