@@ -1,0 +1,14 @@
+{
+  "flows": [
+    {
+      "name": "knowledge-observatory",
+      "data_pattern": "artifacts/knowledge.observatory.json",
+      "schema_path": "contracts/knowledge.observatory.schema.json"
+    },
+    {
+      "name": "insights-daily",
+      "data_pattern": "artifacts/insights.daily.json",
+      "schema_path": "contracts/insights.daily.schema.json"
+    }
+  ]
+}
