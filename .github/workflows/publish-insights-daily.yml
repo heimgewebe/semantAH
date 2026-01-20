@@ -155,6 +155,9 @@ jobs:
             exit 1
           fi
 
+          # Apply canonical prefix
+          SHA="sha256:$SHA"
+
           # Extract canonical Schema Ref from contract
           SCHEMA_REF=$(jq -r '."$id" // "https://schemas.heimgewebe.org/contracts/insights.daily.schema.json"' contracts/insights.daily.schema.json)
 
