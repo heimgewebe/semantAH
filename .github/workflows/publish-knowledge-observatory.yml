@@ -89,7 +89,7 @@ jobs:
 
       - name: Notify Plexer (knowledge.observatory)
         id: notify
-        if: ${{ success() && secrets.PLEXER_URL != '' }}
+        if: ${{ success() && secrets.PLEXER_URL != '' && secrets.PLEXER_TOKEN != '' }}
         continue-on-error: true
         env:
           PLEXER_URL: ${{ secrets.PLEXER_URL }}
