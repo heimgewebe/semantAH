@@ -143,7 +143,28 @@ jobs:
 
           URL="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/insights.daily.json"
 
-          echo "::notice::Notifying Plexer: ts=$TS, generated_at=$GEN_AT, url=$URL"
+          # Calculate SHA256 (portable)
+          if ! SHA=$( (sha256sum artifacts/insights.daily.json 2>/dev/null || shasum -a 256 artifacts/insights.daily.json) | cut -d ' ' -f 1 ); then
+            echo "::error::SHA calculation failed for artifacts/insights.daily.json"
+            exit 1
+          fi
+
+          # Ensure 64-character hex format
+          if [[ ! "$SHA" =~ ^[a-f0-9]{64}$ ]]; then
+            echo "::error::Invalid SHA format: $SHA"
+            exit 1
+          fi
+
+          # Apply canonical prefix
+          SHA="sha256:$SHA"
+
+          # Extract canonical Schema Ref from contract
+          SCHEMA_REF=$(jq -r '."$id"' contracts/insights.daily.schema.json 2>/dev/null || true)
+          if [[ -z "${SCHEMA_REF}" || "${SCHEMA_REF}" == "null" ]]; then
+            SCHEMA_REF="https://schemas.heimgewebe.org/contracts/insights.daily.schema.json"
+          fi
+
+          echo "::notice::Notifying Plexer: ts=$TS, generated_at=$GEN_AT, url=$URL, sha=$SHA, schema_ref=$SCHEMA_REF"
 
           # Construct notification payload
           cat > event.json <<EOF
@@ -153,15 +174,17 @@ jobs:
             "payload": {
               "ts": "$TS",
               "url": "$URL",
-              "generated_at": "$GEN_AT"
+              "generated_at": "$GEN_AT",
+              "sha": "$SHA",
+              "schema_ref": "$SCHEMA_REF"
             }
           }
           EOF
 
-          # Send to Plexer with Bearer auth and capture response for debugging
+          # Send to Plexer with X-Auth header (preferred) and capture response for debugging
           if ! curl -X POST "${PLEXER_URL%/}/events" \
             -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${PLEXER_TOKEN}" \
+            -H "X-Auth: ${PLEXER_TOKEN}" \
             -d @event.json \
             --fail-with-body \
             -o plexer_response.txt 2>plexer_error.log; then
