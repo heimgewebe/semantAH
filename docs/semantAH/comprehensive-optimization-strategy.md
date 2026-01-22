@@ -8,6 +8,38 @@ Das Projekt *semantAH* dient als semantische Index- und Graph-Pipeline für Obsi
 
 Das Repository ist als Rust-Workspace organisiert und besteht aus zwei Haupt-Crates (`embeddings` und `indexd`) sowie Python-Skripten zur Pipeline-Steuerung. Derzeit handelt es sich um einen Initialzustand: Die Python-Skripte in `tools/` sind teilweise noch Stubs, und die vollständige Pipeline ist skizziert. `docs/blueprint.md` beschreibt eine detaillierte Blaupause der geplanten Funktionen – vom Chunking über Schlagwort- und Entitätserkennung bis zur Graph-Generierung.
 
+## 1a. Contracts, Artefakte und Heimgewebe-Einordnung
+
+semantAH ist im Heimgewebe kein „Feature-Sammler“, sondern ein **Semantik- und Beobachtungsorgan**.
+Wahrheit entsteht ausschließlich über explizite Artefakte mit klaren Contracts.
+
+### Produzierte Artefakte (Output)
+
+| Artefakt | Zweck | Konsumenten |
+|--------|------|-------------|
+| `knowledge.observatory.v1.json` | Metriken, Drift, Coverage, Qualität | leitstand, hausKI, heimlern |
+| `insights.daily.v1.json` | Verdichtete semantische Auffälligkeiten | heimgeist |
+| `edges.semantic.v1.jsonl` | Semantische Kanten inkl. `why` | leitstand, Obsidian-Tools |
+| `nodes.semantic.v1.jsonl` | Knoten (Files, Topics, Persons, Projects) | leitstand |
+| `semantah.meta.v1.json` | Provenienz (Modelle, Parameter, Hashes) | CI/WGX, Review |
+
+### Konsumierte Artefakte (Input)
+
+| Artefakt | Herkunft | Zweck |
+|--------|---------|-------|
+| `os.context.state.v1` | mitschreiber | Session- und Arbeitskontext |
+| `policy.decisions.v1` | hausKI | Cutoff-Profile, Gates |
+| `policy.feedback.v1` | heimlern | Lernrückkopplung |
+| externe Events | chronik | Zeitliche Einordnung |
+
+### Contract-Regel (bindend)
+
+- **Kein Artefakt ohne Schema**
+- **Kein Schema ohne Owner**
+- **Keine impliziten Entscheidungen in semantAH**
+
+Alle Schema-Definitionen liegen kanonisch im `metarepo/contracts/`.
+
 ## 2. Architektur und Codequalität
 
 ### Rust-Teil
@@ -75,25 +107,77 @@ Neben der technischen Basis muss semantAH inhaltlich „verständiger“ werden.
 *   **Chunk-Größe:** Blöcke von 200–300 Tokens (ca. 1200 Zeichen) mit 40–60 Tokens (ca. 200 Zeichen) Überlappung bieten optimalen Kontext ohne Verwässerung.
 *   **Normalisierung:** Zwingende L2-Normalisierung der Vektoren vor dem Persistieren für direkte Kosinus-Ähnlichkeit.
 
-### 4.2 Ranking-Regeln und Cutoffs verbessern
+### 4.2 Formale Gate-Regeln für Auto-Linking
 
-Implementierung einer Score-Formel aus Basis-Ähnlichkeit und spezifischen Boosts:
+Auto-Links sind nur zulässig, wenn **mehrere unabhängige Kriterien** erfüllt sind.
 
-| Boost / Schwellwert | Zweck |
-| :--- | :--- |
-| **+0.05 Cluster-Boost** | Gleiche Cluster erhalten einen Bonus. |
-| **+0.03 pro Keyphrase** | Fördert inhaltliche Überschneidungen (max. +0.09). |
-| **+0.04 Canvas-Hop ≤ 2** | Kurze Verbindungswege im Obsidian-Canvas steigern den Score. |
-| **+0.02 Recency-Bonus** | Kürzlich geänderte Notizen werden bevorzugt. |
-| **Cutoffs** | Score ≥ 0.82 (+ Zusatzkriterium) → **Auto-Link**<br>Score 0.70–0.81 → **Vorschlag** |
+#### Basisformel
 
-Die Heuristiken sollten in `.gewebe/config.yml` konfigurierbar sein, um A/B-Tests zu ermöglichen. Ein Auto-Link sollte nur gesetzt werden, wenn mindestens zwei unabhängige Kriterien (z. B. Score + Keyphrases) erfüllt sind.
+```
+score = cosine_similarity + boosts
+```
+
+#### Boosts (konfigurierbar)
+- +0.05 gleicher Cluster
+- +0.03 je Keyphrase (max +0.09)
+- +0.04 Canvas-Hop ≤ 2
+- +0.02 Recency (< 30 Tage, gedeckelt)
+
+#### Hard Gates (alle erforderlich)
+- `score >= auto_cutoff`
+- mindestens **eines**:
+  - Keyphrases ≥ 2
+  - Canvas-Hop ≤ 2
+  - shared project
+- `relations_lock != true`
+- Zielkante nicht in `rejected_edges`
+
+#### Hard Blocks (überschreiben alles)
+- Cosine ≥ 0.97 → **kein Auto-Link**, nur Duplicate-Report
+- Namespace-Policy = read-only
+- Manuell gelöschte Kante (Explizitverbot)
+
+#### Ergebnisstufen
+| Score | Aktion |
+|------|--------|
+| ≥ auto_cutoff + Gates | Auto-Link |
+| suggest_cutoff–auto_cutoff | Vorschlag (Review) |
+| < suggest_cutoff | Ignorieren |
+
+Alle Grenzwerte sind in `.gewebe/config.yml` versioniert und A/B-testfähig.
 
 ### 4.3 Synonyme, Entitäten und Taxonomie
 
 *   **Frontmatter:** Nutzung von Feldern wie `topics`, `persons`, `places`, `projects`.
 *   **Taxonomie:** Zentrale Dateien (`.gewebe/taxonomy/synonyms.yml`, `entities.yml`) zum Zusammenführen unterschiedlicher Schreibweisen (z. B. `hauski` ↦ `haus-ki`).
 *   **Extraktion:** Einsatz von YAKE/RAKE und spaCy (NER) zur Begründung von Graph-Kanten (`about`, `similar`).
+
+### 4a. Ebenentrennung: Beobachtung, Entscheidung, Lernen
+
+Zur Wahrung der Heimgewebe-Integrität gelten folgende Rollen strikt:
+
+### semantAH (Beobachtung)
+- berechnet Embeddings, Ähnlichkeiten, Cluster, Kanten
+- erzeugt **beschreibende Artefakte**
+- trifft **keine autonomen Entscheidungen**
+- passt keine Cutoffs selbstständig an
+
+### hausKI (Entscheidung)
+- wertet semantAH-Artefakte aus
+- entscheidet über:
+  - aktive Cutoff-Profile
+  - Auto-Link-Freigaben
+  - Safe-Mode-Umschaltungen
+- publiziert `policy.decisions.v1`
+
+### heimlern (Lernen)
+- analysiert Accept/Reject-Feedback
+- erkennt systematische Fehlannahmen
+- erzeugt `policy.feedback.v1`
+
+**Grundregel:**
+semantAH misst. hausKI entscheidet. heimlern lernt.
+Alles andere gilt als Architekturdrift.
 
 ### 4.4 Feedback-Loop implementieren
 
