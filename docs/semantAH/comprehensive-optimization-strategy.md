@@ -1,4 +1,4 @@
-# SemantAH: Umfassende Optimierungsstrategie und Architektur-Analyse
+# semantAH: Umfassende Optimierungsstrategie und Architektur-Analyse
 
 Dieses Dokument vereint die technische Architektur-Analyse mit den semantischen Optimierungsstrategien, um *semantAH* zu einem robusten, leistungsfähigen und „verständigen“ Wissens-Organ im Heimgewebe-Organismus zu entwickeln.
 
