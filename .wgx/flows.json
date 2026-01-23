@@ -1,12 +1,12 @@
 [
   {
-    "name": "knowledge-observatory",
-    "data_pattern": "artifacts/knowledge.observatory.json",
-    "schema_path": "contracts/knowledge.observatory.schema.json"
+    "id": "knowledge-observatory",
+    "pattern": "artifacts/knowledge.observatory.json",
+    "schema": "contracts/knowledge.observatory.schema.json"
   },
   {
-    "name": "insights-daily",
-    "data_pattern": "artifacts/insights.daily.json",
-    "schema_path": "contracts/insights.daily.schema.json"
+    "id": "insights-daily",
+    "pattern": "artifacts/insights.daily.json",
+    "schema": "contracts/insights.daily.schema.json"
   }
 ]

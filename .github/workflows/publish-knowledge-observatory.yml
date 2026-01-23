@@ -173,6 +173,9 @@ jobs:
             cat plexer_response.txt || true
             echo "::endgroup::"
 
+          # Redact secrets from logs
+          sed -i "s/${PLEXER_TOKEN}/[REDACTED]/g" plexer_error.log plexer_response.txt 2>/dev/null || true
+
             # Save logs as artifact for post-mortem, but do not fail the release
             mkdir -p plexer_logs
             cp event.json plexer_logs/
@@ -181,7 +184,7 @@ jobs:
           fi
 
       - name: Upload Plexer Debug Logs
-        if: always()
+        if: always() && steps.notify.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: plexer-notification-logs-observatory
