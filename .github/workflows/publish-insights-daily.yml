@@ -203,6 +203,7 @@ jobs:
             cp event.json plexer_logs/
             cp plexer_response.txt plexer_logs/
             cp plexer_error.log plexer_logs/
+            exit 1
           fi
 
       - name: Upload Plexer Debug Logs
