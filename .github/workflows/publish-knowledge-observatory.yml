@@ -168,20 +168,20 @@ jobs:
             -o plexer_response.txt 2>plexer_error.log; then
 
             echo "::warning::Failed to notify plexer."
+
+            # Redact secrets from logs BEFORE outputting (robust python replacement)
+            python3 -c "import os, pathlib; tok=os.environ.get('PLEXER_TOKEN',''); [pathlib.Path(f).write_text(pathlib.Path(f).read_text().replace(tok, '[REDACTED]')) for f in ['plexer_error.log', 'plexer_response.txt'] if pathlib.Path(f).exists() and tok]" || true
+
             echo "::group::Plexer Debug Logs"
             cat plexer_error.log || true
             cat plexer_response.txt || true
             echo "::endgroup::"
-
-          # Redact secrets from logs (robust python replacement)
-          python3 -c "import os, pathlib; tok=os.environ.get('PLEXER_TOKEN',''); [pathlib.Path(f).write_text(pathlib.Path(f).read_text().replace(tok, '[REDACTED]')) for f in ['plexer_error.log', 'plexer_response.txt'] if pathlib.Path(f).exists() and tok]" || true
 
             # Save logs as artifact for post-mortem, but do not fail the release
             mkdir -p plexer_logs
             cp event.json plexer_logs/
             cp plexer_response.txt plexer_logs/
             cp plexer_error.log plexer_logs/
-            exit 1
           fi
 
       - name: Upload Plexer Debug Logs
