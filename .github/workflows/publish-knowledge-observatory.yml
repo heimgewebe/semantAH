@@ -88,7 +88,8 @@ jobs:
           echo "::notice title=Canonical Download URL::https://github.com/${OWNER}/${REPO}/releases/download/${RELEASE_TAG}/${ASSET}"
 
       - name: Notify Plexer (knowledge.observatory)
-        if: ${{ success() && secrets.PLEXER_URL != '' }}
+        id: notify
+        if: ${{ success() && secrets.PLEXER_URL != '' && secrets.PLEXER_TOKEN != '' }}
         continue-on-error: true
         env:
           PLEXER_URL: ${{ secrets.PLEXER_URL }}
@@ -121,7 +122,28 @@ jobs:
           )"
           if [ -z "${GEN_AT}" ]; then GEN_AT="${TS}"; fi
 
-          echo "::notice::Notifying Plexer: ts=${TS}, generated_at=${GEN_AT}, url=${URL}"
+          # Calculate SHA256 of the artifact (portable)
+          if ! SHA=$( (sha256sum artifacts/knowledge.observatory.json 2>/dev/null || shasum -a 256 artifacts/knowledge.observatory.json) | cut -d ' ' -f 1 ); then
+            echo "::error::SHA calculation failed for artifacts/knowledge.observatory.json"
+            exit 1
+          fi
+
+          # Ensure 64-character hex format
+          if [[ ! "$SHA" =~ ^[a-f0-9]{64}$ ]]; then
+            echo "::error::Invalid SHA format: $SHA"
+            exit 1
+          fi
+
+          # Apply canonical prefix
+          SHA="sha256:$SHA"
+
+          # Extract canonical Schema Ref from contract (fallback to hardcoded if missing)
+          SCHEMA_REF=$(jq -r '."$id"' contracts/knowledge.observatory.schema.json 2>/dev/null || true)
+          if [[ -z "${SCHEMA_REF}" || "${SCHEMA_REF}" == "null" ]]; then
+            SCHEMA_REF="https://schemas.heimgewebe.org/contracts/knowledge.observatory.schema.json"
+          fi
+
+          echo "::notice::Notifying Plexer: ts=${TS}, generated_at=${GEN_AT}, url=${URL}, sha=${SHA}, schema_ref=${SCHEMA_REF}"
 
           cat > event.json <<EOF
           {
@@ -130,14 +152,43 @@ jobs:
             "payload": {
               "ts": "${TS}",
               "url": "${URL}",
-              "generated_at": "${GEN_AT}"
+              "generated_at": "${GEN_AT}",
+              "sha": "${SHA}",
+              "schema_ref": "${SCHEMA_REF}"
             }
           }
           EOF
 
-          curl -X POST "${PLEXER_URL%/}/events" \
+          # Send to Plexer with X-Auth header (preferred) and capture response for debugging
+          if ! curl -X POST "${PLEXER_URL%/}/events" \
             -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${PLEXER_TOKEN}" \
+            -H "X-Auth: ${PLEXER_TOKEN}" \
             -d @event.json \
             --fail-with-body \
-            || echo "::notice::Failed to notify plexer, but release succeeded."
+            -o plexer_response.txt 2>plexer_error.log; then
+
+            echo "::warning::Failed to notify plexer."
+
+            # Redact secrets from logs BEFORE outputting (robust python replacement)
+            python3 -c "import os, pathlib; tok=os.environ.get('PLEXER_TOKEN',''); [pathlib.Path(f).write_text(pathlib.Path(f).read_text().replace(tok, '[REDACTED]')) for f in ['plexer_error.log', 'plexer_response.txt'] if pathlib.Path(f).exists() and tok]" || true
+
+            echo "::group::Plexer Debug Logs"
+            cat plexer_error.log || true
+            cat plexer_response.txt || true
+            echo "::endgroup::"
+
+            # Save logs as artifact for post-mortem, but do not fail the release
+            mkdir -p plexer_logs
+            cp event.json plexer_logs/
+            cp plexer_response.txt plexer_logs/
+            cp plexer_error.log plexer_logs/
+          fi
+
+      - name: Upload Plexer Debug Logs
+        if: always() && steps.notify.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: plexer-notification-logs-observatory
+          path: plexer_logs/
+          if-no-files-found: ignore
+          retention-days: 3

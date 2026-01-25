@@ -1,0 +1,12 @@
+[
+  {
+    "id": "knowledge-observatory",
+    "pattern": "artifacts/knowledge.observatory.json",
+    "schema": "contracts/knowledge.observatory.schema.json"
+  },
+  {
+    "id": "insights-daily",
+    "pattern": "artifacts/insights.daily.json",
+    "schema": "contracts/insights.daily.schema.json"
+  }
+]
