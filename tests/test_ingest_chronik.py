@@ -100,7 +100,6 @@ def test_read_last_records_large_record_chunk_boundary(tmp_path: Path):
 def test_read_last_records_utf8_split_at_chunk_boundary(tmp_path: Path):
     """Verify multi-byte UTF-8 characters split across chunks are handled correctly."""
     source = tmp_path / "chronik.jsonl"
-    chunk_size = 16 * 1024
 
     # We want to place a multi-byte character exactly at the chunk boundary.
     # The chunk boundary is relative to the *end* of the file because we read backwards.
@@ -113,7 +112,6 @@ def test_read_last_records_utf8_split_at_chunk_boundary(tmp_path: Path):
     # And place a 4-byte emoji such that it is split between the two reads.
     # Emoji: 🚀 (4 bytes: \xf0\x9f\x9a\x80)
 
-    prefix_len = 100  # Some data at the start
     # We want the split to happen inside the emoji.
     # So we need (data + newline) to align such that chunk boundary hits inside emoji.
 
@@ -122,11 +120,6 @@ def test_read_last_records_utf8_split_at_chunk_boundary(tmp_path: Path):
     # To force a split, we can just fill data such that a specific line lands on the boundary.
 
     # Construct a line with emojis
-    emoji_data = "🚀" * 100  # 400 bytes
-    record = {"id": 1, "data": emoji_data}
-    line = json.dumps(
-        record
-    )  # ensure_ascii=True by default in json.dumps? No, implementation might use default which is True.
     # Wait, json.dumps defaults to ensure_ascii=True, which escapes emojis to \uXXXX.
     # We need ensure_ascii=False to get raw UTF-8 bytes to test the splitter.
 
