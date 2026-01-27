@@ -4,6 +4,7 @@ observatory_lib.py
 Shared utilities for observatory scripts.
 """
 
+import functools
 import json
 import os
 import sys
@@ -23,6 +24,21 @@ def _load_jsonschema():
         return None
 
     return jsonschema
+
+
+@functools.lru_cache(maxsize=32)
+def _get_cached_validator(path_str: str, mtime: int, size: int):
+    """
+    Load and parse a JSON schema, returning a validator.
+    Cached based on path and file metadata (mtime, size) to ensure freshness.
+    """
+    jsonschema = _load_jsonschema()
+    # Note: caller ensures jsonschema is available before calling this.
+
+    schema = json.loads(Path(path_str).read_text(encoding="utf-8"))
+    return jsonschema.Draft202012Validator(
+        schema, format_checker=jsonschema.FormatChecker()
+    )
 
 
 def validate_payload_if_available(
@@ -45,9 +61,11 @@ def validate_payload_if_available(
         return
 
     try:
-        schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        validator = jsonschema.Draft202012Validator(
-            schema, format_checker=jsonschema.FormatChecker()
+        # Get file stats to serve as cache key invalidation
+        # st_mtime_ns and st_size are robust enough for our needs
+        stat = schema_path.stat()
+        validator = _get_cached_validator(
+            str(schema_path.resolve()), stat.st_mtime_ns, stat.st_size
         )
         validator.validate(payload)
     except json.JSONDecodeError as e:
