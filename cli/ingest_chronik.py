@@ -117,6 +117,8 @@ def shrink_to_size(payload: dict, max_bytes: int) -> dict:
     base_len = len(_encode(payload))
 
     if base_len > max_bytes:
+        # Restore items before raising
+        payload["items"] = items
         raise ValueError(
             "Unable to satisfy max-bytes constraint even after dropping all items"
         )

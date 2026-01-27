@@ -159,3 +159,24 @@ def test_shrink_to_size_maximality():
     # This should return [3, 4] (fails to fit 2)
     res3 = ingest_chronik.shrink_to_size(payload.copy(), size_234 - 1)
     assert res3["items"] == items[2:]
+
+
+def test_shrink_to_size_restores_on_exception():
+    items = [{"title": "t", "summary": "s", "url": "u"}]
+    payload = {
+        "generated_at": "2023-01-01T00:00:00+00:00",
+        "source": "chronik",
+        "items": items,
+    }
+
+    # Force base size violation
+    # Calculate base size
+    payload_empty = payload.copy()
+    payload_empty["items"] = []
+    base_size = len(ingest_chronik._encode(payload_empty))
+
+    with pytest.raises(ValueError, match="Unable to satisfy max-bytes constraint"):
+        ingest_chronik.shrink_to_size(payload, base_size - 1)
+
+    # Verify items are restored
+    assert payload["items"] == items
