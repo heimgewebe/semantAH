@@ -129,7 +129,6 @@ def test_read_last_records_utf8_split_at_chunk_boundary(tmp_path: Path):
     )  # ensure_ascii=True by default in json.dumps? No, implementation might use default which is True.
     # Wait, json.dumps defaults to ensure_ascii=True, which escapes emojis to \uXXXX.
     # We need ensure_ascii=False to get raw UTF-8 bytes to test the splitter.
-    line_utf8 = json.dumps(record, ensure_ascii=False).encode("utf-8")
 
     # Pad so that the file size is, say, 16KB + 2 bytes.
     # Then the last 16KB read will cut off the first 2 bytes of the file.
