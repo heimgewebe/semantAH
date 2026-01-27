@@ -101,8 +101,8 @@ def test_read_last_records_large_utf8_record_across_chunks(tmp_path: Path):
     """Verify large UTF-8 records are read correctly when they may span multiple chunks."""
     source = tmp_path / "chronik.jsonl"
 
-    # Guarantee: The function correctly reassembles multi-byte UTF-8 characters split across read chunks.
-    # Relevance: Ensures data integrity when records exceed the internal buffer size or align unluckily with chunk boundaries.
+    # Guarantee: Large UTF-8 JSON lines are parsed correctly even if they span multiple read chunks.
+    # Relevance: Guards against regressions in the backwards chunk reader for non-ASCII payloads.
     data = "🚀" * 5000  # 20000 bytes
     record = {"id": 1, "data": data}
     source.write_text(json.dumps(record, ensure_ascii=False) + "\n", encoding="utf-8")
