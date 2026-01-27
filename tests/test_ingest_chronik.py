@@ -23,6 +23,76 @@ def test_read_last_records_zero_limit_returns_empty(tmp_path: Path):
     assert ingest_chronik.read_last_records(source, 0) == []
 
 
+def test_read_last_records_standard(tmp_path: Path):
+    """Verify it returns the last N valid JSON objects in chronological order."""
+    source = tmp_path / "chronik.jsonl"
+    # Create 10 records
+    records = [{"id": i} for i in range(10)]
+    source.write_text("\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
+
+    # Read last 3
+    result = ingest_chronik.read_last_records(source, 3)
+    assert len(result) == 3
+    assert result == records[-3:]
+    assert result[0]["id"] == 7
+    assert result[2]["id"] == 9
+
+
+def test_read_last_records_trailing_newlines(tmp_path: Path):
+    """Verify trailing blank lines at the end of the file are ignored."""
+    source = tmp_path / "chronik.jsonl"
+    records = [{"id": i} for i in range(5)]
+    content = "\n".join(json.dumps(r) for r in records)
+    # Add multiple newlines at end
+    content += "\n\n\n"
+    source.write_text(content, encoding="utf-8")
+
+    result = ingest_chronik.read_last_records(source, 2)
+    assert len(result) == 2
+    assert result == records[-2:]
+
+
+def test_read_last_records_interleaved_newlines(tmp_path: Path):
+    """Verify empty lines between records are ignored."""
+    source = tmp_path / "chronik.jsonl"
+    records = [{"id": i} for i in range(5)]
+    # Interleave with empty lines
+    lines = []
+    for r in records:
+        lines.append(json.dumps(r))
+        lines.append("")  # Empty line
+    content = "\n".join(lines)
+    source.write_text(content, encoding="utf-8")
+
+    result = ingest_chronik.read_last_records(source, 5)
+    assert len(result) == 5
+    assert result == records
+
+
+def test_read_last_records_large_record_chunk_boundary(tmp_path: Path):
+    """Verify correct behavior when a record exceeds or crosses chunk size."""
+    source = tmp_path / "chronik.jsonl"
+
+    # 16KB chunk size is used in implementation.
+    # Create a large record ~20KB
+    large_data = "a" * 20000
+    large_record = {"id": 99, "data": large_data}
+
+    records = [{"id": i} for i in range(5)]
+    records.append(large_record)
+    records.append({"id": 100})
+
+    source.write_text("\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
+
+    # Read last 2 records (should include large_record and id=100)
+    result = ingest_chronik.read_last_records(source, 2)
+
+    assert len(result) == 2
+    assert result[0]["id"] == 99
+    assert result[1]["id"] == 100
+    assert result[0]["data"] == large_data
+
+
 def test_shrink_to_size_no_change_needed():
     items = [{"title": "test", "summary": "short", "url": "http://example.com"}]
     payload = {
