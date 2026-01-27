@@ -57,7 +57,8 @@ def test_caching_behavior(tmp_path):
     new_stat = schema_path.stat()
     if new_stat.st_mtime_ns == old_stat.st_mtime_ns and new_stat.st_size == old_stat.st_size:
         # Force update mtime if it didn't change automatically (unlikely with different content size/time)
-        os.utime(str(schema_path), ns=(new_stat.st_atime_ns, new_stat.st_mtime_ns + 1000))
+        # Use +1s (1_000_000_000 ns) to be safe against coarse resolution
+        os.utime(str(schema_path), ns=(new_stat.st_atime_ns, new_stat.st_mtime_ns + 1_000_000_000))
 
     # 4. Third call - should be a cache MISS (invalidation)
     new_payload = {"bar": 123}
