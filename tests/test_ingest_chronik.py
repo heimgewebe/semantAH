@@ -23,6 +23,168 @@ def test_read_last_records_zero_limit_returns_empty(tmp_path: Path):
     assert ingest_chronik.read_last_records(source, 0) == []
 
 
+def test_read_last_records_standard(tmp_path: Path):
+    """Verify it returns the last N valid JSON objects in chronological order."""
+    source = tmp_path / "chronik.jsonl"
+    # Create 10 records
+    records = [{"id": i} for i in range(10)]
+    source.write_text(
+        "\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8"
+    )
+
+    # Read last 3
+    result = ingest_chronik.read_last_records(source, 3)
+    assert len(result) == 3
+    assert result == records[-3:]
+    assert result[0]["id"] == 7
+    assert result[2]["id"] == 9
+
+
+def test_read_last_records_trailing_newlines(tmp_path: Path):
+    """Verify trailing blank lines at the end of the file are ignored."""
+    source = tmp_path / "chronik.jsonl"
+    records = [{"id": i} for i in range(5)]
+    content = "\n".join(json.dumps(r) for r in records)
+    # Add multiple newlines at end
+    content += "\n\n\n"
+    source.write_text(content, encoding="utf-8")
+
+    result = ingest_chronik.read_last_records(source, 2)
+    assert len(result) == 2
+    assert result == records[-2:]
+
+
+def test_read_last_records_interleaved_newlines(tmp_path: Path):
+    """Verify empty lines between records are ignored."""
+    source = tmp_path / "chronik.jsonl"
+    records = [{"id": i} for i in range(5)]
+    # Interleave with empty lines
+    lines = []
+    for r in records:
+        lines.append(json.dumps(r))
+        lines.append("")  # Empty line
+    content = "\n".join(lines)
+    source.write_text(content, encoding="utf-8")
+
+    result = ingest_chronik.read_last_records(source, 5)
+    assert len(result) == 5
+    assert result == records
+
+
+def test_read_last_records_large_record_chunk_boundary(tmp_path: Path):
+    """Verify correct behavior when a record exceeds or crosses chunk size."""
+    source = tmp_path / "chronik.jsonl"
+
+    # 16KB chunk size is used in implementation.
+    # Create a large record ~20KB
+    large_data = "a" * 20000
+    large_record = {"id": 99, "data": large_data}
+
+    records = [{"id": i} for i in range(5)]
+    records.append(large_record)
+    records.append({"id": 100})
+
+    source.write_text(
+        "\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8"
+    )
+
+    # Read last 2 records (should include large_record and id=100)
+    result = ingest_chronik.read_last_records(source, 2)
+
+    assert len(result) == 2
+    assert result[0]["id"] == 99
+    assert result[1]["id"] == 100
+    assert result[0]["data"] == large_data
+
+
+def test_read_last_records_utf8_split_at_chunk_boundary(tmp_path: Path):
+    """Verify multi-byte UTF-8 characters split across chunks are handled correctly."""
+    source = tmp_path / "chronik.jsonl"
+
+    # We want to place a multi-byte character exactly at the chunk boundary.
+    # The chunk boundary is relative to the *end* of the file because we read backwards.
+    # Reading backwards:
+    # 1. Read last 16KB.
+    # 2. Read previous 16KB.
+    # The boundary is at file_size - 16KB.
+
+    # Let's create a file slightly larger than 16KB.
+    # And place a 4-byte emoji such that it is split between the two reads.
+    # Emoji: 🚀 (4 bytes: \xf0\x9f\x9a\x80)
+
+    # We want the split to happen inside the emoji.
+    # So we need (data + newline) to align such that chunk boundary hits inside emoji.
+
+    # Construct the file content carefully?
+    # Actually, it's easier to verify simply that emojis work even in large files.
+    # To force a split, we can just fill data such that a specific line lands on the boundary.
+
+    # Construct a line with emojis
+    # Wait, json.dumps defaults to ensure_ascii=True, which escapes emojis to \uXXXX.
+    # We need ensure_ascii=False to get raw UTF-8 bytes to test the splitter.
+
+    # Pad so that the file size is, say, 16KB + 2 bytes.
+    # Then the last 16KB read will cut off the first 2 bytes of the file.
+    # But we want the cut to happen *inside* a character.
+    # If the file is just one line, the first read (last 16KB) gets the tail.
+    # The remainder is the head.
+    # Then the next read gets the head.
+    # The concatenation `chunk + remainder` should restore the bytes.
+
+    # Example:
+    # File content: [ ... padding ... ] [ byte1 byte2 byte3 byte4 ] [ ... suffix ... ]
+    # Read 1 (suffix): starts at byte3.
+    # Read 2 (prefix): ends at byte2.
+    # Concatenation: ... byte1 byte2 + byte3 byte4 ... -> valid.
+
+    # As long as we simply concat `chunk + remainder`, it works, *provided* we don't try to decode
+    # the chunks individually before concatenating.
+    # The implementation decodes `line_bytes` which comes from `chunk_lines`.
+    # `chunk_lines` comes from `chunk.split(b'\n')`.
+    # The split happens on bytes.
+    # If a multibyte character does NOT contain b'\n' (which UTF-8 guarantees), it won't be split by split().
+    # However, if the chunk boundary falls inside the character, `chunk` will contain the second half,
+    # and `remainder` (from the previous iteration, i.e., later in file) will be appended to it?
+    # Wait.
+    #
+    # Code review of implementation:
+    # chunk = handle.read(to_read)
+    # chunk += remainder
+    # chunk_lines = chunk.split(b"\n")
+    # if pos > 0: remainder = chunk_lines[0]; chunk_lines = chunk_lines[1:]
+    #
+    # Scenario:
+    # File: ... [A1 A2] [B1 B2] ...
+    # Boundary between A2 and B1.
+    # Read 1 (Right side): gets [B1 B2] ...
+    # remainder = b""
+    # chunk = [B1 B2] ...
+    # split(b'\n').
+    # If no newline in [B1 B2]..., then chunk_lines = [[B1 B2]...].
+    # remainder becomes [B1 B2]... (the partial line at start of this chunk).
+    #
+    # Read 2 (Left side): gets ... [A1 A2]
+    # chunk = ... [A1 A2]
+    # chunk += remainder  --> ... [A1 A2] [B1 B2] ...
+    # This correctly reassembles the byte sequence.
+    #
+    # So the logic holds.
+    # This test just confirms it.
+
+    # We want a valid JSON record that spans the boundary.
+    # 16KB = 16384 bytes.
+    # Let's write a record of 20KB.
+    # And verify we get it back.
+    data = "🚀" * 5000  # 20000 bytes
+    record = {"id": 1, "data": data}
+    source.write_text(json.dumps(record, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    result = ingest_chronik.read_last_records(source, 1)
+    assert len(result) == 1
+    assert result[0]["id"] == 1
+    assert result[0]["data"] == data
+
+
 def test_shrink_to_size_no_change_needed():
     items = [{"title": "test", "summary": "short", "url": "http://example.com"}]
     payload = {

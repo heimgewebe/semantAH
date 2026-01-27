@@ -7,7 +7,6 @@ import argparse
 import json
 import sys
 import traceback
-from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -80,13 +79,44 @@ def read_last_records(path: Path, limit: int) -> list[dict]:
     if limit == 0:
         return []
 
-    lines = deque(maxlen=limit)
-    with path.open("r", encoding="utf-8") as handle:
-        for raw_line in handle:
-            line = raw_line.strip()
-            if not line:
-                continue
-            lines.append(line)
+    chunk_size = 16 * 1024
+    lines: list[str] = []
+
+    with path.open("rb") as handle:
+        handle.seek(0, 2)
+        pos = handle.tell()
+        remainder = b""
+
+        while len(lines) < limit and pos > 0:
+            to_read = min(chunk_size, pos)
+            pos -= to_read
+            handle.seek(pos)
+            chunk = handle.read(to_read)
+
+            chunk += remainder
+            chunk_lines = chunk.split(b"\n")
+
+            if pos > 0:
+                remainder = chunk_lines[0]
+                chunk_lines = chunk_lines[1:]
+            else:
+                remainder = b""
+                # At start of file, all lines are valid
+
+            # Process in reverse
+            for i in range(len(chunk_lines) - 1, -1, -1):
+                line_bytes = chunk_lines[i]
+                line_str = line_bytes.decode("utf-8").strip()
+
+                if not line_str:
+                    continue
+
+                lines.append(line_str)
+                if len(lines) >= limit:
+                    break
+
+    lines.reverse()
+
     records: list[dict] = []
     for line in lines:
         try:
