@@ -117,7 +117,9 @@ def shrink_to_size(payload: dict, max_bytes: int) -> dict:
 
     # Iterate backwards from the end
     for i in range(len(items) - 1, -1, -1):
-        item_encoded = json.dumps(items[i], ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        item_encoded = json.dumps(
+            items[i], ensure_ascii=False, separators=(",", ":")
+        ).encode("utf-8")
         cost = len(item_encoded)
         if current_size > base_len:
             cost += 1  # comma
