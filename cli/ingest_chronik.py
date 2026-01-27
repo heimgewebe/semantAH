@@ -16,6 +16,12 @@ from typing import Iterable, List
 MAX_BYTES_DEFAULT = 10 * 1024
 DEFAULT_LIMIT = 32
 
+# Ensure parity between _encode and shrink_to_size calculation
+JSON_DUMPS_OPTIONS = {
+    "ensure_ascii": False,
+    "separators": (",", ":"),
+}
+
 
 @dataclass
 class Insight:
@@ -94,28 +100,51 @@ def read_last_records(path: Path, limit: int) -> list[dict]:
 
 
 def shrink_to_size(payload: dict, max_bytes: int) -> dict:
-    """Drop oldest items until serialized payload fits into max_bytes."""
+    """Drop oldest items until serialized payload fits into max_bytes.
+
+    Mutates payload in-place.
+    """
     items = payload.get("items", [])
     if not isinstance(items, list):
         return payload
 
     encoded = _encode(payload)
-    start_idx = 0
-    while len(encoded) > max_bytes and start_idx < len(items):
-        start_idx += 1
-        payload["items"] = items[start_idx:]
-        encoded = _encode(payload)
-    if len(encoded) > max_bytes:
+    if len(encoded) <= max_bytes:
+        return payload
+
+    # Calculate base size (empty items)
+    payload["items"] = []
+    base_len = len(_encode(payload))
+
+    if base_len > max_bytes:
+        # Restore items before raising
+        payload["items"] = items
         raise ValueError(
             "Unable to satisfy max-bytes constraint even after dropping all items"
         )
+
+    current_size = base_len
+    start_idx = len(items)
+
+    # Iterate backwards from the end
+    for i in range(len(items) - 1, -1, -1):
+        item_encoded = json.dumps(items[i], **JSON_DUMPS_OPTIONS).encode("utf-8")
+        cost = len(item_encoded)
+        if current_size > base_len:
+            cost += 1  # comma
+
+        if current_size + cost <= max_bytes:
+            current_size += cost
+            start_idx = i
+        else:
+            break
+
+    payload["items"] = items[start_idx:]
     return payload
 
 
 def _encode(payload: dict) -> bytes:
-    return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode(
-        "utf-8"
-    )
+    return json.dumps(payload, **JSON_DUMPS_OPTIONS).encode("utf-8")
 
 
 def build_payload(insights: list[Insight]) -> dict:
