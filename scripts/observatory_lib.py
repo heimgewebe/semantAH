@@ -25,6 +25,9 @@ def _load_jsonschema():
     return jsonschema
 
 
+_SCHEMA_CACHE = {}
+
+
 def validate_payload_if_available(
     payload: dict, schema_path: Path, label: str = "Payload"
 ):
@@ -44,15 +47,22 @@ def validate_payload_if_available(
         )
         return
 
+    path_key = str(schema_path.resolve())
+    validator = _SCHEMA_CACHE.get(path_key)
+
+    if validator is None:
+        try:
+            schema = json.loads(schema_path.read_text(encoding="utf-8"))
+            validator = jsonschema.Draft202012Validator(
+                schema, format_checker=jsonschema.FormatChecker()
+            )
+            _SCHEMA_CACHE[path_key] = validator
+        except json.JSONDecodeError as e:
+            print(f"Error: Failed to parse schema JSON: {e}", file=sys.stderr)
+            sys.exit(1)
+
     try:
-        schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        validator = jsonschema.Draft202012Validator(
-            schema, format_checker=jsonschema.FormatChecker()
-        )
         validator.validate(payload)
-    except json.JSONDecodeError as e:
-        print(f"Error: Failed to parse schema JSON: {e}", file=sys.stderr)
-        sys.exit(1)
     except jsonschema.ValidationError as e:
         print(f"Error: {label} failed schema validation: {e.message}", file=sys.stderr)
         sys.exit(1)
