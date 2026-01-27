@@ -1,4 +1,3 @@
-
 import json
 import os
 import time
@@ -7,6 +6,7 @@ from scripts import observatory_lib
 
 # Skip tests if jsonschema is not installed
 pytest.importorskip("jsonschema")
+
 
 def test_caching_behavior(tmp_path):
     """
@@ -51,18 +51,27 @@ def test_caching_behavior(tmp_path):
     # In case the filesystem has coarse mtime resolution (e.g. 1s), force an update if needed.
     # But usually write_text is enough. Let's check.
     new_stat = schema_path.stat()
-    if new_stat.st_mtime_ns == old_stat.st_mtime_ns and new_stat.st_size == old_stat.st_size:
+    if (
+        new_stat.st_mtime_ns == old_stat.st_mtime_ns
+        and new_stat.st_size == old_stat.st_size
+    ):
         # Force update mtime if it didn't change automatically (unlikely with different content size/time)
         # Use +1s (1_000_000_000 ns) to be safe against coarse resolution
-        os.utime(str(schema_path), ns=(new_stat.st_atime_ns, new_stat.st_mtime_ns + 1_000_000_000))
+        os.utime(
+            str(schema_path),
+            ns=(new_stat.st_atime_ns, new_stat.st_mtime_ns + 1_000_000_000),
+        )
 
     # 4. Third call - should be a cache MISS (invalidation)
     new_payload = {"bar": 123}
-    observatory_lib.validate_payload_if_available(new_payload, schema_path, label="Test3")
+    observatory_lib.validate_payload_if_available(
+        new_payload, schema_path, label="Test3"
+    )
 
     info3 = observatory_lib._get_cached_validator.cache_info()
     assert info3.misses == 2
     assert info3.hits == 1
+
 
 def test_json_error_handling_no_cache_poisoning(tmp_path, capsys):
     """
@@ -99,5 +108,5 @@ def test_json_error_handling_no_cache_poisoning(tmp_path, capsys):
     observatory_lib.validate_payload_if_available(payload, schema_path)
 
     info2 = observatory_lib._get_cached_validator.cache_info()
-    assert info2.misses == 2 # 1 failed attempt (counted as miss call), 1 success
+    assert info2.misses == 2  # 1 failed attempt (counted as miss call), 1 success
     assert info2.currsize == 1
