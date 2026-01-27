@@ -28,7 +28,9 @@ def test_read_last_records_standard(tmp_path: Path):
     source = tmp_path / "chronik.jsonl"
     # Create 10 records
     records = [{"id": i} for i in range(10)]
-    source.write_text("\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
+    source.write_text(
+        "\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8"
+    )
 
     # Read last 3
     result = ingest_chronik.read_last_records(source, 3)
@@ -82,7 +84,9 @@ def test_read_last_records_large_record_chunk_boundary(tmp_path: Path):
     records.append(large_record)
     records.append({"id": 100})
 
-    source.write_text("\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
+    source.write_text(
+        "\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8"
+    )
 
     # Read last 2 records (should include large_record and id=100)
     result = ingest_chronik.read_last_records(source, 2)
