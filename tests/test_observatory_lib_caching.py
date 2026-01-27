@@ -3,14 +3,10 @@ import json
 import os
 import time
 import pytest
-from pathlib import Path
 from scripts import observatory_lib
 
 # Skip tests if jsonschema is not installed
-try:
-    import jsonschema
-except ImportError:
-    pytest.skip("jsonschema not installed", allow_module_level=True)
+pytest.importorskip("jsonschema")
 
 def test_caching_behavior(tmp_path):
     """
