@@ -4,6 +4,7 @@ observatory_lib.py
 Shared utilities for observatory scripts.
 """
 
+import functools
 import json
 import os
 import sys
@@ -25,7 +26,19 @@ def _load_jsonschema():
     return jsonschema
 
 
-_SCHEMA_CACHE = {}
+@functools.lru_cache(maxsize=32)
+def _get_cached_validator(path_str: str, mtime: int, size: int):
+    """
+    Load and parse a JSON schema, returning a validator.
+    Cached based on path and file metadata (mtime, size) to ensure freshness.
+    """
+    jsonschema = _load_jsonschema()
+    # Note: caller ensures jsonschema is available before calling this.
+
+    schema = json.loads(Path(path_str).read_text(encoding="utf-8"))
+    return jsonschema.Draft202012Validator(
+        schema, format_checker=jsonschema.FormatChecker()
+    )
 
 
 def validate_payload_if_available(
@@ -47,22 +60,17 @@ def validate_payload_if_available(
         )
         return
 
-    path_key = str(schema_path.resolve())
-    validator = _SCHEMA_CACHE.get(path_key)
-
-    if validator is None:
-        try:
-            schema = json.loads(schema_path.read_text(encoding="utf-8"))
-            validator = jsonschema.Draft202012Validator(
-                schema, format_checker=jsonschema.FormatChecker()
-            )
-            _SCHEMA_CACHE[path_key] = validator
-        except json.JSONDecodeError as e:
-            print(f"Error: Failed to parse schema JSON: {e}", file=sys.stderr)
-            sys.exit(1)
-
     try:
+        # Get file stats to serve as cache key invalidation
+        # st_mtime_ns and st_size are robust enough for our needs
+        stat = schema_path.stat()
+        validator = _get_cached_validator(
+            str(schema_path.resolve()), stat.st_mtime_ns, stat.st_size
+        )
         validator.validate(payload)
+    except json.JSONDecodeError as e:
+        print(f"Error: Failed to parse schema JSON: {e}", file=sys.stderr)
+        sys.exit(1)
     except jsonschema.ValidationError as e:
         print(f"Error: {label} failed schema validation: {e.message}", file=sys.stderr)
         sys.exit(1)
