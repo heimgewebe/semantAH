@@ -111,3 +111,51 @@ def test_shrink_to_size_unicode():
     # If we reduce limit by 1 byte, it should drop the item
     result = ingest_chronik.shrink_to_size(payload, full_size - 1)
     assert result["items"] == []
+
+
+def test_shrink_to_size_maximality():
+    # Construct items of varying sizes
+    items = [
+        {"id": 1, "data": "a" * 10},
+        {"id": 2, "data": "b" * 20},
+        {"id": 3, "data": "c" * 30},
+        {"id": 4, "data": "d" * 40},
+    ]
+    payload = {
+        "generated_at": "2023-01-01T00:00:00+00:00",
+        "source": "chronik",
+        "items": items,
+    }
+
+    # Calculate sizes for suffixes
+    # items[3:] -> id 4
+    # items[2:] -> id 3, 4
+    # items[1:] -> id 2, 3, 4
+
+    # Let's target a size that fits item 4 and 3, but not 2.
+    # We will verify that we get [3, 4] and not just [4].
+
+    # Construct target payload with [3, 4]
+    p_34 = payload.copy()
+    p_34["items"] = items[2:]
+    size_34 = len(ingest_chronik._encode(p_34))
+
+    # Construct target payload with [2, 3, 4]
+    p_234 = payload.copy()
+    p_234["items"] = items[1:]
+    size_234 = len(ingest_chronik._encode(p_234))
+
+    # Set limit to exact size of [3, 4]
+    # This should return [3, 4]
+    res1 = ingest_chronik.shrink_to_size(payload.copy(), size_34)
+    assert res1["items"] == items[2:]
+
+    # Set limit to size of [3, 4] + 1 byte
+    # This should still return [3, 4] because [2, 3, 4] is much larger
+    res2 = ingest_chronik.shrink_to_size(payload.copy(), size_34 + 1)
+    assert res2["items"] == items[2:]
+
+    # Set limit to size of [2, 3, 4] - 1 byte
+    # This should return [3, 4] (fails to fit 2)
+    res3 = ingest_chronik.shrink_to_size(payload.copy(), size_234 - 1)
+    assert res3["items"] == items[2:]

@@ -16,6 +16,12 @@ from typing import Iterable, List
 MAX_BYTES_DEFAULT = 10 * 1024
 DEFAULT_LIMIT = 32
 
+# Ensure parity between _encode and shrink_to_size calculation
+JSON_DUMPS_OPTIONS = {
+    "ensure_ascii": False,
+    "separators": (",", ":"),
+}
+
 
 @dataclass
 class Insight:
@@ -94,7 +100,10 @@ def read_last_records(path: Path, limit: int) -> list[dict]:
 
 
 def shrink_to_size(payload: dict, max_bytes: int) -> dict:
-    """Drop oldest items until serialized payload fits into max_bytes."""
+    """Drop oldest items until serialized payload fits into max_bytes.
+
+    Mutates payload in-place.
+    """
     items = payload.get("items", [])
     if not isinstance(items, list):
         return payload
@@ -117,9 +126,7 @@ def shrink_to_size(payload: dict, max_bytes: int) -> dict:
 
     # Iterate backwards from the end
     for i in range(len(items) - 1, -1, -1):
-        item_encoded = json.dumps(
-            items[i], ensure_ascii=False, separators=(",", ":")
-        ).encode("utf-8")
+        item_encoded = json.dumps(items[i], **JSON_DUMPS_OPTIONS).encode("utf-8")
         cost = len(item_encoded)
         if current_size > base_len:
             cost += 1  # comma
@@ -135,9 +142,7 @@ def shrink_to_size(payload: dict, max_bytes: int) -> dict:
 
 
 def _encode(payload: dict) -> bytes:
-    return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode(
-        "utf-8"
-    )
+    return json.dumps(payload, **JSON_DUMPS_OPTIONS).encode("utf-8")
 
 
 def build_payload(insights: list[Insight]) -> dict:
