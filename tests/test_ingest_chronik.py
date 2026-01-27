@@ -41,7 +41,7 @@ def test_shrink_to_size_no_change_needed():
 def test_shrink_to_size_drops_items():
     # item size approx 60-70 bytes
     item = {"title": "t", "summary": "s", "url": "u"}
-    items = [item for _ in range(5)]
+    items = [dict(item) for _ in range(5)]
     payload = {
         "generated_at": "2023-01-01T00:00:00+00:00",
         "source": "chronik",
