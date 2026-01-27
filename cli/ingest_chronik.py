@@ -100,15 +100,35 @@ def shrink_to_size(payload: dict, max_bytes: int) -> dict:
         return payload
 
     encoded = _encode(payload)
-    start_idx = 0
-    while len(encoded) > max_bytes and start_idx < len(items):
-        start_idx += 1
-        payload["items"] = items[start_idx:]
-        encoded = _encode(payload)
-    if len(encoded) > max_bytes:
+    if len(encoded) <= max_bytes:
+        return payload
+
+    # Calculate base size (empty items)
+    payload["items"] = []
+    base_len = len(_encode(payload))
+
+    if base_len > max_bytes:
         raise ValueError(
             "Unable to satisfy max-bytes constraint even after dropping all items"
         )
+
+    current_size = base_len
+    start_idx = len(items)
+
+    # Iterate backwards from the end
+    for i in range(len(items) - 1, -1, -1):
+        item_encoded = json.dumps(items[i], ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        cost = len(item_encoded)
+        if current_size > base_len:
+            cost += 1  # comma
+
+        if current_size + cost <= max_bytes:
+            current_size += cost
+            start_idx = i
+        else:
+            break
+
+    payload["items"] = items[start_idx:]
     return payload
 
 
