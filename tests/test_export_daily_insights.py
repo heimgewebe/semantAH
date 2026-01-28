@@ -16,7 +16,10 @@ def _script_path() -> Path:
 
 def _parse_topics(data: dict) -> dict:
     """Helper to robustly parse topics from the JSON output."""
-    topics_raw = data.get("topics", [])
+    if "topics" not in data:
+        pytest.fail("Missing 'topics' in output JSON")
+
+    topics_raw = data["topics"]
     if isinstance(topics_raw, dict):
         return topics_raw
     try:
