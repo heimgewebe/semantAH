@@ -1,6 +1,6 @@
 use std::env;
 use std::fs::{self, File};
-use std::io::{BufRead, BufReader, BufWriter, Seek, SeekFrom, Write};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -109,27 +109,14 @@ pub async fn maybe_save_from_env(state: &Arc<AppState>) -> anyhow::Result<()> {
 }
 
 fn read_jsonl(path: &Path) -> anyhow::Result<Vec<RowOwned>> {
-    let mut file = match File::open(path) {
+    let file = match File::open(path) {
         Ok(file) => file,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(e) => return Err(e.into()),
     };
 
-    let mut count = 0;
-    {
-        let reader = BufReader::new(&file);
-        for line in reader.lines() {
-            let line = line?;
-            if !line.trim().is_empty() {
-                count += 1;
-            }
-        }
-    }
-
-    file.seek(SeekFrom::Start(0))?;
-
     let reader = BufReader::new(file);
-    let mut rows = Vec::with_capacity(count);
+    let mut rows = Vec::new();
 
     for line in reader.lines() {
         let line = line?;
