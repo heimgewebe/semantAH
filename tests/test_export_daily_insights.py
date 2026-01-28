@@ -129,3 +129,66 @@ def test_export_daily_insights_with_observatory(tmp_path):
     # Check uncertainty (1 - avg(0.9, 0.8, 0.1) = 1 - 0.6 = 0.4)
     assert "uncertainty" in meta
     assert meta["uncertainty"] == 0.4
+
+
+def test_export_daily_insights_ignores_hidden_content(tmp_path):
+    """
+    Ensures that hidden directories and files (starting with .) are excluded
+    from the vault scan.
+    """
+    vault_root = tmp_path / "vault_hidden_test"
+    vault_root.mkdir()
+
+    # 1. Visible content
+    # Structure: vault_root/visible_topic/note.md
+    visible_topic_dir = vault_root / "visible_topic"
+    visible_topic_dir.mkdir()
+    (visible_topic_dir / "note.md").write_text("# Visible")
+
+    # 2. Hidden Directory
+    # Structure: vault_root/.hidden_topic/note.md
+    hidden_topic_dir = vault_root / ".hidden_topic"
+    hidden_topic_dir.mkdir()
+    (hidden_topic_dir / "note.md").write_text("# Hidden")
+
+    # 3. Hidden File in Visible Directory
+    # Structure: vault_root/visible_topic/.hidden_note.md
+    # This maps to 'visible_topic' if scanned, but should be ignored by file filter.
+    # To test file filtering effectively, we might want a distinct dir where ONLY hidden files exist?
+    # If a dir has ONLY hidden files, and they are ignored, the dir itself yields no files, so no topic.
+
+    hidden_file_dir = vault_root / "hidden_file_dir"
+    hidden_file_dir.mkdir()
+    (hidden_file_dir / ".hidden_note.md").write_text("# Hidden Note")
+
+    output_path = tmp_path / "out_hidden.json"
+    script = _script_path()
+
+    subprocess.run(
+        [
+            sys.executable,
+            str(script),
+            "--output",
+            str(output_path),
+            "--vault-root",
+            str(vault_root),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        cwd=str(script.parents[1]),
+    )
+
+    data = json.loads(output_path.read_text(encoding="utf-8"))
+    topics = dict(data["topics"])
+
+    # Assertions
+    # 1. Visible topic must be present
+    assert "visible_topic" in topics, "Visible topic should be detected"
+
+    # 2. Hidden directory topic must NOT be present
+    assert ".hidden_topic" not in topics, "Hidden directory should be skipped"
+
+    # 3. Directory with only hidden file must NOT be present
+    # (If the file was skipped, the dir yielded no files, so _derive_topics_from_vault wouldn't see it)
+    assert "hidden_file_dir" not in topics, "Hidden files should be ignored"
