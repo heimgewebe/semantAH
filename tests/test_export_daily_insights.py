@@ -167,8 +167,8 @@ def test_export_daily_insights_ignores_hidden_content(tmp_path):
     hidden_topic_dir.mkdir()
     (hidden_topic_dir / "note.md").write_text("# Hidden", encoding="utf-8")
 
-    # 3. Hidden File in Visible Directory
-    # Structure: vault_root/visible_topic/.hidden_note.md
+    # 3. Hidden File in Dedicated Directory
+    # Structure: vault_root/hidden_file_dir/.hidden_note.md
     hidden_file_dir = vault_root / "hidden_file_dir"
     hidden_file_dir.mkdir()
     (hidden_file_dir / ".hidden_note.md").write_text("# Hidden Note", encoding="utf-8")
