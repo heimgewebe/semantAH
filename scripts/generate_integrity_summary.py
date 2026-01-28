@@ -51,13 +51,16 @@ def main():
     else:
         artifacts_list = []
 
+    # Robustness: Normalize to filenames in case artifacts_list contains paths
+    existing_artifacts = {Path(x).name for x in artifacts_list}
+
     # 3. Gaps (Claims without Artifacts)
     loop_gaps_list = []
     for schema in schemas:
         schema_name = schema.name
         base_name = schema_name[: -len(".schema.json")]
-        expected_artifact = artifacts_dir / f"{base_name}.json"
-        if not expected_artifact.exists():
+        expected_filename = f"{base_name}.json"
+        if expected_filename not in existing_artifacts:
             loop_gaps_list.append(base_name)
 
     loop_gaps_list.sort()
