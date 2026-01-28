@@ -1,6 +1,6 @@
 use std::env;
 use std::fs::{self, File};
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::{BufRead, BufReader, BufWriter, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -27,10 +27,6 @@ pub async fn maybe_load_from_env(state: &Arc<AppState>) -> anyhow::Result<()> {
     let Some(path) = env::var_os(ENV_DB_PATH).map(PathBuf::from) else {
         return Ok(());
     };
-
-    if !path.exists() {
-        return Ok(());
-    }
 
     let path_clone = path.clone();
     let items = task::spawn_blocking(move || read_jsonl(&path_clone))
@@ -113,9 +109,27 @@ pub async fn maybe_save_from_env(state: &Arc<AppState>) -> anyhow::Result<()> {
 }
 
 fn read_jsonl(path: &Path) -> anyhow::Result<Vec<RowOwned>> {
-    let file = File::open(path)?;
+    let mut file = match File::open(path) {
+        Ok(file) => file,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(e.into()),
+    };
+
+    let mut count = 0;
+    {
+        let reader = BufReader::new(&file);
+        for line in reader.lines() {
+            let line = line?;
+            if !line.trim().is_empty() {
+                count += 1;
+            }
+        }
+    }
+
+    file.seek(SeekFrom::Start(0))?;
+
     let reader = BufReader::new(file);
-    let mut rows = Vec::new();
+    let mut rows = Vec::with_capacity(count);
 
     for line in reader.lines() {
         let line = line?;
@@ -191,5 +205,15 @@ mod tests {
         assert_eq!(rows.len(), back.len());
         assert_eq!(rows[0].doc_id, back[0].doc_id);
         assert_eq!(rows[0].embedding, back[0].embedding);
+    }
+
+    #[test]
+    fn read_jsonl_not_found() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("non_existent.jsonl");
+        // Should return empty vector, not error
+        let result = read_jsonl(&path);
+        assert!(result.is_ok(), "Expected Ok for non-existent file, got {:?}", result.err());
+        assert!(result.unwrap().is_empty());
     }
 }
