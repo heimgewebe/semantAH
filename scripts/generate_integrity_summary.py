@@ -51,7 +51,8 @@ def main():
     else:
         artifacts_list = []
 
-    existing_artifacts = set(artifacts_list)
+    # Robustness: Normalize to filenames in case artifacts_list contains paths
+    existing_artifacts = {Path(x).name for x in artifacts_list}
 
     # 3. Gaps (Claims without Artifacts)
     loop_gaps_list = []
