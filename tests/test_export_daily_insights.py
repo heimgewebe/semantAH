@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import pytest
 import subprocess
 import sys
 from datetime import date
@@ -11,6 +12,17 @@ def _script_path() -> Path:
     # tests/  -> Repo-Root ist ein Verzeichnis darüber
     here = Path(__file__).resolve()
     return here.parents[1] / "scripts" / "export_daily_insights.py"
+
+
+def _parse_topics(data: dict) -> dict:
+    """Helper to robustly parse topics from the JSON output."""
+    topics_raw = data.get("topics", [])
+    if isinstance(topics_raw, dict):
+        return topics_raw
+    try:
+        return dict(topics_raw)
+    except Exception as e:
+        pytest.fail(f"Unexpected topics format: {type(topics_raw)}; error: {e}")
 
 
 def test_export_daily_insights_creates_valid_artifact(tmp_path):
@@ -71,9 +83,7 @@ def test_export_daily_insights_with_vault(tmp_path):
     data = json.loads(output_path.read_text(encoding="utf-8"))
 
     # Check topic extraction
-    topics_raw = data["topics"]
-    topics = topics_raw if isinstance(topics_raw, dict) else dict(topics_raw)
-
+    topics = _parse_topics(data)
     assert "test_topic" in topics
     assert topics["test_topic"] == 1.0
 
@@ -117,8 +127,7 @@ def test_export_daily_insights_with_observatory(tmp_path):
     data = json.loads(output_path.read_text(encoding="utf-8"))
 
     # Verify observatory data usage
-    topics_raw = data["topics"]
-    topics = topics_raw if isinstance(topics_raw, dict) else dict(topics_raw)
+    topics = _parse_topics(data)
 
     assert "Alpha" in topics
     assert topics["Alpha"] == 0.9
@@ -180,8 +189,7 @@ def test_export_daily_insights_ignores_hidden_content(tmp_path):
     )
 
     data = json.loads(output_path.read_text(encoding="utf-8"))
-    topics_raw = data["topics"]
-    topics = topics_raw if isinstance(topics_raw, dict) else dict(topics_raw)
+    topics = _parse_topics(data)
 
     # Assertions
     # 1. Visible topic must be present
