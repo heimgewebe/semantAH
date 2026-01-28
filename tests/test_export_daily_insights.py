@@ -47,7 +47,7 @@ def test_export_daily_insights_with_vault(tmp_path):
     vault_root = tmp_path / "vault"
     topic_dir = vault_root / "test_topic"
     topic_dir.mkdir(parents=True)
-    (topic_dir / "note.md").write_text("# Test")
+    (topic_dir / "note.md").write_text("# Test", encoding="utf-8")
 
     output_path = tmp_path / "out.json"
 
@@ -71,7 +71,9 @@ def test_export_daily_insights_with_vault(tmp_path):
     data = json.loads(output_path.read_text(encoding="utf-8"))
 
     # Check topic extraction
-    topics = dict(data["topics"])
+    topics_raw = data["topics"]
+    topics = topics_raw if isinstance(topics_raw, dict) else dict(topics_raw)
+
     assert "test_topic" in topics
     assert topics["test_topic"] == 1.0
 
@@ -92,7 +94,7 @@ def test_export_daily_insights_with_observatory(tmp_path):
         "blind_spots": [],
         "considered_but_rejected": [],
     }
-    obs_path.write_text(json.dumps(obs_data))
+    obs_path.write_text(json.dumps(obs_data), encoding="utf-8")
 
     output_path = tmp_path / "out_obs.json"
     script = _script_path()
@@ -115,7 +117,9 @@ def test_export_daily_insights_with_observatory(tmp_path):
     data = json.loads(output_path.read_text(encoding="utf-8"))
 
     # Verify observatory data usage
-    topics = dict(data["topics"])
+    topics_raw = data["topics"]
+    topics = topics_raw if isinstance(topics_raw, dict) else dict(topics_raw)
+
     assert "Alpha" in topics
     assert topics["Alpha"] == 0.9
     assert "Beta" in topics
@@ -143,23 +147,19 @@ def test_export_daily_insights_ignores_hidden_content(tmp_path):
     # Structure: vault_root/visible_topic/note.md
     visible_topic_dir = vault_root / "visible_topic"
     visible_topic_dir.mkdir()
-    (visible_topic_dir / "note.md").write_text("# Visible")
+    (visible_topic_dir / "note.md").write_text("# Visible", encoding="utf-8")
 
     # 2. Hidden Directory
     # Structure: vault_root/.hidden_topic/note.md
     hidden_topic_dir = vault_root / ".hidden_topic"
     hidden_topic_dir.mkdir()
-    (hidden_topic_dir / "note.md").write_text("# Hidden")
+    (hidden_topic_dir / "note.md").write_text("# Hidden", encoding="utf-8")
 
     # 3. Hidden File in Visible Directory
     # Structure: vault_root/visible_topic/.hidden_note.md
-    # This maps to 'visible_topic' if scanned, but should be ignored by file filter.
-    # To test file filtering effectively, we might want a distinct dir where ONLY hidden files exist?
-    # If a dir has ONLY hidden files, and they are ignored, the dir itself yields no files, so no topic.
-
     hidden_file_dir = vault_root / "hidden_file_dir"
     hidden_file_dir.mkdir()
-    (hidden_file_dir / ".hidden_note.md").write_text("# Hidden Note")
+    (hidden_file_dir / ".hidden_note.md").write_text("# Hidden Note", encoding="utf-8")
 
     output_path = tmp_path / "out_hidden.json"
     script = _script_path()
@@ -180,7 +180,8 @@ def test_export_daily_insights_ignores_hidden_content(tmp_path):
     )
 
     data = json.loads(output_path.read_text(encoding="utf-8"))
-    topics = dict(data["topics"])
+    topics_raw = data["topics"]
+    topics = topics_raw if isinstance(topics_raw, dict) else dict(topics_raw)
 
     # Assertions
     # 1. Visible topic must be present
@@ -190,5 +191,4 @@ def test_export_daily_insights_ignores_hidden_content(tmp_path):
     assert ".hidden_topic" not in topics, "Hidden directory should be skipped"
 
     # 3. Directory with only hidden file must NOT be present
-    # (If the file was skipped, the dir yielded no files, so _derive_topics_from_vault wouldn't see it)
     assert "hidden_file_dir" not in topics, "Hidden files should be ignored"
