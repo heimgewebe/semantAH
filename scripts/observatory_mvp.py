@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import uuid
 from datetime import datetime, timezone
@@ -35,13 +36,21 @@ def collect_embedding_stats():
     """
     Collect embedding statistics from available sources.
     Returns dict with namespace counts and model info.
+
+    NOTE: This statistics collection is heuristic/approximate.
+    It is optimized for performance and trend observation (MVP),
+    not for strict data validation or forensic integrity.
     """
     stats = {
         "namespaces": {},
-        "model_revision": None,
-        "total_count": 0,
-        "invalid_count": 0,
+        "model_revision": None,  # Hook for future use; currently not persisted
+        "total_count": 0,  # Heuristically counted records (fast path)
+        "invalid_count": 0,  # Obviously unusable lines (not JSON-like)
     }
+
+    # Pre-compile regexes for fast extraction
+    ns_pattern = re.compile(r'"namespace"\s*:\s*"((?:[^"\\]|\\.)*)"')
+    mr_pattern = re.compile(r'"model_revision"\s*:\s*"((?:[^"\\]|\\.)*)"')
 
     # Check if indexd store exists
     indexd_store = Path(".gewebe/indexd/store.jsonl")
@@ -53,24 +62,42 @@ def collect_embedding_stats():
                     if not line:
                         continue
 
-                    try:
-                        record = json.loads(line)
-                        stats["total_count"] += (
-                            1  # Only count valid JSON records as valid embeddings
-                        )
-
-                        if "namespace" in record:
-                            ns = record["namespace"]
-                            stats["namespaces"][ns] = stats["namespaces"].get(ns, 0) + 1
-                        # Opportunistically grab model revision from the first record if available
-                        if (
-                            stats["model_revision"] is None
-                            and "model_revision" in record
-                        ):
-                            stats["model_revision"] = record["model_revision"]
-                    except json.JSONDecodeError:
+                    # Heuristic fast path:
+                    # Count lines that *look like* JSON objects.
+                    # Trade-off: may include malformed JSON, but avoids parsing large vectors.
+                    if not (line.startswith("{") and line.endswith("}")):
                         stats["invalid_count"] += 1
                         continue
+
+                    stats["total_count"] += 1
+
+                    # Extract namespace
+                    m_ns = ns_pattern.search(line)
+                    if m_ns:
+                        raw_ns = m_ns.group(1)
+                        try:
+                            # Safely unescape JSON string
+                            ns = json.loads(f'"{raw_ns}"')
+                        except (json.JSONDecodeError, UnicodeError):
+                            ns = raw_ns
+                        stats["namespaces"][ns] = stats["namespaces"].get(ns, 0) + 1
+                    else:
+                        # Fallback for records without a detectable namespace
+                        stats["namespaces"]["<unknown>"] = (
+                            stats["namespaces"].get("<unknown>", 0) + 1
+                        )
+
+                    # Opportunistically grab model revision from the first record if available
+                    # NOTE: model_revision is currently not persisted in indexd store.
+                    # This hook is forward-compatible and may remain None.
+                    if stats["model_revision"] is None:
+                        m_mr = mr_pattern.search(line)
+                        if m_mr:
+                            raw_mr = m_mr.group(1)
+                            try:
+                                stats["model_revision"] = json.loads(f'"{raw_mr}"')
+                            except (json.JSONDecodeError, UnicodeError):
+                                stats["model_revision"] = raw_mr
 
         except (FileNotFoundError, IOError):
             # Store file disappeared or is unreadable - not critical for MVP
