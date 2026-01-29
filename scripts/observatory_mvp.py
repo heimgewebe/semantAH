@@ -36,12 +36,16 @@ def collect_embedding_stats():
     """
     Collect embedding statistics from available sources.
     Returns dict with namespace counts and model info.
+
+    NOTE: This statistics collection is heuristic/approximate.
+    It is optimized for performance and trend observation (MVP),
+    not for strict data validation or forensic integrity.
     """
     stats = {
         "namespaces": {},
-        "model_revision": None,
-        "total_count": 0,
-        "invalid_count": 0,
+        "model_revision": None,  # Hook for future use; currently not persisted
+        "total_count": 0,  # Heuristically counted records (fast path)
+        "invalid_count": 0,  # Obviously unusable lines (not JSON-like)
     }
 
     # Pre-compile regexes for fast extraction
@@ -58,15 +62,14 @@ def collect_embedding_stats():
                     if not line:
                         continue
 
-                    # Fast path validation: check if it looks like a JSON object
-                    # This avoids full parsing of large embedding vectors
+                    # Heuristic fast path:
+                    # Count lines that *look like* JSON objects.
+                    # Trade-off: may include malformed JSON, but avoids parsing large vectors.
                     if not (line.startswith("{") and line.endswith("}")):
                         stats["invalid_count"] += 1
                         continue
 
-                    stats["total_count"] += (
-                        1  # Only count valid-looking records as valid embeddings
-                    )
+                    stats["total_count"] += 1
 
                     # Extract namespace
                     m_ns = ns_pattern.search(line)
@@ -80,6 +83,8 @@ def collect_embedding_stats():
                         stats["namespaces"][ns] = stats["namespaces"].get(ns, 0) + 1
 
                     # Opportunistically grab model revision from the first record if available
+                    # NOTE: model_revision is currently not persisted in indexd store.
+                    # This hook is forward-compatible and may remain None.
                     if stats["model_revision"] is None:
                         m_mr = mr_pattern.search(line)
                         if m_mr:
