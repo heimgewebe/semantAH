@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import pytest
 import subprocess
 import sys
 from datetime import date
@@ -11,6 +12,20 @@ def _script_path() -> Path:
     # tests/  -> Repo-Root ist ein Verzeichnis darüber
     here = Path(__file__).resolve()
     return here.parents[1] / "scripts" / "export_daily_insights.py"
+
+
+def _parse_topics(data: dict) -> dict:
+    """Helper to robustly parse topics from the JSON output."""
+    if "topics" not in data:
+        pytest.fail("Missing 'topics' in output JSON")
+
+    topics_raw = data["topics"]
+    if isinstance(topics_raw, dict):
+        return topics_raw
+    try:
+        return dict(topics_raw)
+    except Exception as e:
+        pytest.fail(f"Unexpected topics format: {type(topics_raw)}; error: {e}")
 
 
 def test_export_daily_insights_creates_valid_artifact(tmp_path):
@@ -47,7 +62,7 @@ def test_export_daily_insights_with_vault(tmp_path):
     vault_root = tmp_path / "vault"
     topic_dir = vault_root / "test_topic"
     topic_dir.mkdir(parents=True)
-    (topic_dir / "note.md").write_text("# Test")
+    (topic_dir / "note.md").write_text("# Test", encoding="utf-8")
 
     output_path = tmp_path / "out.json"
 
@@ -71,7 +86,7 @@ def test_export_daily_insights_with_vault(tmp_path):
     data = json.loads(output_path.read_text(encoding="utf-8"))
 
     # Check topic extraction
-    topics = dict(data["topics"])
+    topics = _parse_topics(data)
     assert "test_topic" in topics
     assert topics["test_topic"] == 1.0
 
@@ -92,7 +107,7 @@ def test_export_daily_insights_with_observatory(tmp_path):
         "blind_spots": [],
         "considered_but_rejected": [],
     }
-    obs_path.write_text(json.dumps(obs_data))
+    obs_path.write_text(json.dumps(obs_data), encoding="utf-8")
 
     output_path = tmp_path / "out_obs.json"
     script = _script_path()
@@ -115,7 +130,8 @@ def test_export_daily_insights_with_observatory(tmp_path):
     data = json.loads(output_path.read_text(encoding="utf-8"))
 
     # Verify observatory data usage
-    topics = dict(data["topics"])
+    topics = _parse_topics(data)
+
     assert "Alpha" in topics
     assert topics["Alpha"] == 0.9
     assert "Beta" in topics
@@ -129,3 +145,61 @@ def test_export_daily_insights_with_observatory(tmp_path):
     # Check uncertainty (1 - avg(0.9, 0.8, 0.1) = 1 - 0.6 = 0.4)
     assert "uncertainty" in meta
     assert meta["uncertainty"] == 0.4
+
+
+def test_export_daily_insights_ignores_hidden_content(tmp_path):
+    """
+    Ensures that hidden directories and files (starting with .) are excluded
+    from the vault scan.
+    """
+    vault_root = tmp_path / "vault_hidden_test"
+    vault_root.mkdir()
+
+    # 1. Visible content
+    # Structure: vault_root/visible_topic/note.md
+    visible_topic_dir = vault_root / "visible_topic"
+    visible_topic_dir.mkdir()
+    (visible_topic_dir / "note.md").write_text("# Visible", encoding="utf-8")
+
+    # 2. Hidden Directory
+    # Structure: vault_root/.hidden_topic/note.md
+    hidden_topic_dir = vault_root / ".hidden_topic"
+    hidden_topic_dir.mkdir()
+    (hidden_topic_dir / "note.md").write_text("# Hidden", encoding="utf-8")
+
+    # 3. Hidden File in Dedicated Directory
+    # Structure: vault_root/hidden_file_dir/.hidden_note.md
+    hidden_file_dir = vault_root / "hidden_file_dir"
+    hidden_file_dir.mkdir()
+    (hidden_file_dir / ".hidden_note.md").write_text("# Hidden Note", encoding="utf-8")
+
+    output_path = tmp_path / "out_hidden.json"
+    script = _script_path()
+
+    subprocess.run(
+        [
+            sys.executable,
+            str(script),
+            "--output",
+            str(output_path),
+            "--vault-root",
+            str(vault_root),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        cwd=str(script.parents[1]),
+    )
+
+    data = json.loads(output_path.read_text(encoding="utf-8"))
+    topics = _parse_topics(data)
+
+    # Assertions
+    # 1. Visible topic must be present
+    assert "visible_topic" in topics, "Visible topic should be detected"
+
+    # 2. Hidden directory topic must NOT be present
+    assert ".hidden_topic" not in topics, "Hidden directory should be skipped"
+
+    # 3. Directory with only hidden file must NOT be present
+    assert "hidden_file_dir" not in topics, "Hidden files should be ignored"

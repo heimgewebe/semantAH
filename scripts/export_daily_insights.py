@@ -82,11 +82,13 @@ def _iter_markdown_files(root: Path) -> Iterable[Path]:
     """
     Liefert alle Markdown-Dateien unterhalb von root.
     """
-    for path in root.rglob("*.md"):
-        rel = path.relative_to(root)
-        if any(part.startswith(".") for part in rel.parts):
-            continue
-        yield path
+    for dirpath, dirnames, filenames in os.walk(root):
+        # Prune hidden directories in-place
+        dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+
+        for filename in filenames:
+            if filename.endswith(".md") and not filename.startswith("."):
+                yield Path(dirpath) / filename
 
 
 def _derive_topics_from_vault(
