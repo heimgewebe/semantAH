@@ -81,6 +81,11 @@ def collect_embedding_stats():
                         except (json.JSONDecodeError, UnicodeError):
                             ns = raw_ns
                         stats["namespaces"][ns] = stats["namespaces"].get(ns, 0) + 1
+                    else:
+                        # Fallback for records without a detectable namespace
+                        stats["namespaces"]["<unknown>"] = (
+                            stats["namespaces"].get("<unknown>", 0) + 1
+                        )
 
                     # Opportunistically grab model revision from the first record if available
                     # NOTE: model_revision is currently not persisted in indexd store.
