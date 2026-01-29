@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import uuid
 from datetime import datetime, timezone
@@ -43,6 +44,10 @@ def collect_embedding_stats():
         "invalid_count": 0,
     }
 
+    # Pre-compile regexes for fast extraction
+    ns_pattern = re.compile(r'"namespace"\s*:\s*"((?:[^"\\]|\\.)*)"')
+    mr_pattern = re.compile(r'"model_revision"\s*:\s*"((?:[^"\\]|\\.)*)"')
+
     # Check if indexd store exists
     indexd_store = Path(".gewebe/indexd/store.jsonl")
     if indexd_store.exists():
@@ -53,24 +58,36 @@ def collect_embedding_stats():
                     if not line:
                         continue
 
-                    try:
-                        record = json.loads(line)
-                        stats["total_count"] += (
-                            1  # Only count valid JSON records as valid embeddings
-                        )
-
-                        if "namespace" in record:
-                            ns = record["namespace"]
-                            stats["namespaces"][ns] = stats["namespaces"].get(ns, 0) + 1
-                        # Opportunistically grab model revision from the first record if available
-                        if (
-                            stats["model_revision"] is None
-                            and "model_revision" in record
-                        ):
-                            stats["model_revision"] = record["model_revision"]
-                    except json.JSONDecodeError:
+                    # Fast path validation: check if it looks like a JSON object
+                    # This avoids full parsing of large embedding vectors
+                    if not (line.startswith("{") and line.endswith("}")):
                         stats["invalid_count"] += 1
                         continue
+
+                    stats["total_count"] += (
+                        1  # Only count valid-looking records as valid embeddings
+                    )
+
+                    # Extract namespace
+                    m_ns = ns_pattern.search(line)
+                    if m_ns:
+                        raw_ns = m_ns.group(1)
+                        try:
+                            # Safely unescape JSON string
+                            ns = json.loads(f'"{raw_ns}"')
+                        except (json.JSONDecodeError, UnicodeError):
+                            ns = raw_ns
+                        stats["namespaces"][ns] = stats["namespaces"].get(ns, 0) + 1
+
+                    # Opportunistically grab model revision from the first record if available
+                    if stats["model_revision"] is None:
+                        m_mr = mr_pattern.search(line)
+                        if m_mr:
+                            raw_mr = m_mr.group(1)
+                            try:
+                                stats["model_revision"] = json.loads(f'"{raw_mr}"')
+                            except (json.JSONDecodeError, UnicodeError):
+                                stats["model_revision"] = raw_mr
 
         except (FileNotFoundError, IOError):
             # Store file disappeared or is unreadable - not critical for MVP
