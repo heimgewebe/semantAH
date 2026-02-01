@@ -59,6 +59,39 @@ async fn test_version_via_tags_fallback() {
 }
 
 #[tokio::test]
+async fn test_version_via_tags_fallback_latest() {
+    let mock_server = MockServer::start().await;
+
+    // Test B.2: /api/show fails, fallback to /api/tags with ":latest" suffix
+    Mock::given(method("POST"))
+        .and(path("/api/show"))
+        .respond_with(ResponseTemplate::new(500))
+        .mount(&mock_server)
+        .await;
+
+    Mock::given(method("GET"))
+        .and(path("/api/tags"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "models": [
+                { "name": "other-model", "digest": "sha256:ignore" },
+                // Only the :latest version is present, no exact match
+                { "name": "nomic-embed-text:latest", "digest": "sha256:latest" }
+            ]
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let embedder = OllamaEmbedder::new(OllamaConfig {
+        base_url: mock_server.uri(),
+        model: "nomic-embed-text".to_string(),
+        dim: 768,
+    });
+
+    let version = embedder.version().await.expect("version() failed");
+    assert_eq!(version, "sha256:latest");
+}
+
+#[tokio::test]
 async fn test_version_unknown_fallback() {
     let mock_server = MockServer::start().await;
 
