@@ -84,6 +84,10 @@ def ingest_intents(source_path: Path, nodes_path: Path, edges_path: Path):
         nodes_path.open("a", encoding="utf-8") as nodes_file,
         edges_path.open("a", encoding="utf-8") as edges_file,
     ):
+        nodes_buffer = []
+        edges_buffer = []
+        buffer_limit = 5000
+
         for line in handle:
             line = line.strip()
             if not line:
@@ -93,15 +97,29 @@ def ingest_intents(source_path: Path, nodes_path: Path, edges_path: Path):
                 elements = process_intent_record(record)
                 for element in elements:
                     if "rel" in element:  # It's an edge
-                        edges_file.write(json.dumps(element) + "\n")
+                        edges_buffer.append(json.dumps(element) + "\n")
                     else:  # It's a node
-                        nodes_file.write(json.dumps(element) + "\n")
+                        nodes_buffer.append(json.dumps(element) + "\n")
+
+                if len(nodes_buffer) >= buffer_limit:
+                    nodes_file.write("".join(nodes_buffer))
+                    nodes_buffer.clear()
+                if len(edges_buffer) >= buffer_limit:
+                    edges_file.write("".join(edges_buffer))
+                    edges_buffer.clear()
+
             except json.JSONDecodeError:
                 print(f"Warning: Could not decode JSON: {line}", file=sys.stderr)
             except Exception as e:
                 print(f"Warning: Failed to process record: {e}", file=sys.stderr)
                 # We do not print full traceback here to avoid log spam on bulk ingest,
                 # but we continue to the next record.
+
+        # Flush remaining buffers
+        if nodes_buffer:
+            nodes_file.write("".join(nodes_buffer))
+        if edges_buffer:
+            edges_file.write("".join(edges_buffer))
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
