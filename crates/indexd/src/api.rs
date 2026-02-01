@@ -427,6 +427,9 @@ async fn handle_search(
     let (embedding, embedding_generated): (Vec<f32>, bool) = if let Some(value) = query_embedding_value {
         (parse_embedding(value).map_err(bad_request)?, false)
     } else if let Some(value) = embedding {
+        if value.is_empty() {
+            return Err(bad_request("embedding array cannot be empty"));
+        }
         (value, false)
     } else if let Some(meta) = meta {
         let mut legacy_meta = match meta {
@@ -709,6 +712,27 @@ mod tests {
 
         let result = handle_search(State(state), ApiJson(payload)).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn search_rejects_empty_top_level_embedding() {
+        let state = Arc::new(AppState::new());
+        let payload = SearchRequest {
+            query: QueryPayload::Text("hello".into()),
+            k: 1,
+            namespace: "ns".into(),
+            filters: None,
+            embedding: Some(vec![]),
+            meta: None,
+        };
+
+        let result = handle_search(State(state), ApiJson(payload)).await;
+        let (status, body) = result.expect_err("search should reject empty embedding");
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            body.0.get("error").and_then(|v| v.as_str()).unwrap_or(""),
+            "embedding array cannot be empty"
+        );
     }
 
     #[tokio::test]
