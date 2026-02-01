@@ -1,7 +1,5 @@
 //! Embedder abstractions and implementations for semantAH.
 
-use std::sync::Arc;
-
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use reqwest::Client;
@@ -39,7 +37,7 @@ pub struct OllamaEmbedder {
     url: String,
     model: String,
     dim: usize,
-    version_cache: Arc<OnceCell<String>>,
+    version_cache: OnceCell<String>,
 }
 
 impl OllamaEmbedder {
@@ -55,7 +53,7 @@ impl OllamaEmbedder {
             url: base_url,
             model,
             dim,
-            version_cache: Arc::new(OnceCell::new()),
+            version_cache: OnceCell::new(),
         }
     }
 }
