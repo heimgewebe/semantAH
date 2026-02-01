@@ -215,7 +215,9 @@ impl Embedder for OllamaEmbedder {
                 }
 
                 // If we can't find the hash, return a fallback that indicates checked but unknown
-                // This maintains the previous behavior effectively but allows upgrade
+                // This maintains the previous behavior effectively but allows upgrade.
+                // Note: We cache this "unknown" result to avoid flapping on transient errors;
+                // a service restart is required to refresh the cache.
                 format!("{}:unknown", self.model)
             })
             .await;
