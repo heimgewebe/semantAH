@@ -564,10 +564,13 @@ async fn handle_embed_text(
     let embedding_dim = expected_dim;
 
     // Model revision: Use actual model version/hash from the provider
-    let model_revision = embedder
+    // Always include dimension to ensure unique identification (version + shape)
+    let version_str = embedder
         .version()
         .await
-        .unwrap_or_else(|_| format!("{}-{}", embedding_model, embedding_dim));
+        .unwrap_or_else(|_| embedding_model.clone());
+
+    let model_revision = format!("{}-{}", version_str, embedding_dim);
 
     let response = EmbedTextResponse {
         embedding_id,

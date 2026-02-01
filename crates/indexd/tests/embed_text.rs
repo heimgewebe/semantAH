@@ -172,7 +172,7 @@ async fn embed_text_returns_schema_compliant_response() {
         }
 
         async fn version(&self) -> anyhow::Result<String> {
-            Ok("test-model-3".to_string())
+            Ok("test-model-v3".to_string())
         }
     }
 
@@ -202,7 +202,7 @@ async fn embed_text_returns_schema_compliant_response() {
     assert_eq!(body["embedding"].as_array().unwrap().len(), 3);
     assert_eq!(body["embedding_model"], "test-model");
     assert_eq!(body["embedding_dim"], 3);
-    assert_eq!(body["model_revision"], "test-model-3");
+    assert_eq!(body["model_revision"], "test-model-v3-3");
     assert!(body["generated_at"].is_string());
     assert_eq!(body["namespace"], "osctx");
     assert_eq!(body["source_ref"], "test-event-123");
