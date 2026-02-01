@@ -16,6 +16,9 @@ pub trait Embedder: Send + Sync {
 
     /// Short identifier (e.g. `"ollama"`).
     fn id(&self) -> &'static str;
+
+    /// Return the version or hash of the model.
+    async fn version(&self) -> Result<String>;
 }
 
 /// Configuration for the Ollama embedder backend.
@@ -50,6 +53,11 @@ impl OllamaEmbedder {
             dim,
         }
     }
+}
+
+#[derive(Debug, Serialize)]
+struct OllamaShowRequest<'a> {
+    name: &'a str,
 }
 
 #[derive(Debug, Serialize)]
@@ -145,6 +153,62 @@ impl Embedder for OllamaEmbedder {
 
     fn id(&self) -> &'static str {
         "ollama"
+    }
+
+    async fn version(&self) -> Result<String> {
+        // Try /api/show first to get model details
+        let response = self
+            .client
+            .post(format!("{}/api/show", self.url))
+            .json(&OllamaShowRequest { name: &self.model })
+            .send()
+            .await;
+
+        if let Ok(resp) = response {
+            if resp.status().is_success() {
+                if let Ok(body) = resp.json::<serde_json::Value>().await {
+                    // Check for details.parent_model (often contains the hash/digest concept in some form)
+                    // but standard API returns `details` object.
+                    // However, `digest` is usually in /api/tags.
+                    // Some versions of Ollama return `digest` in /api/show response.
+                    if let Some(digest) = body.get("digest").and_then(|s| s.as_str()) {
+                        return Ok(digest.to_string());
+                    }
+                }
+            }
+        }
+
+        // Fallback: list all tags and find our model
+        let response = self
+            .client
+            .get(format!("{}/api/tags", self.url))
+            .send()
+            .await;
+
+        if let Ok(resp) = response {
+            if resp.status().is_success() {
+                if let Ok(body) = resp.json::<serde_json::Value>().await {
+                    if let Some(models) = body.get("models").and_then(|v| v.as_array()) {
+                        for model in models {
+                            if let Some(name) = model.get("name").and_then(|s| s.as_str()) {
+                                // Match exact name or name:latest
+                                if name == self.model || name == format!("{}:latest", self.model) {
+                                    if let Some(digest) =
+                                        model.get("digest").and_then(|s| s.as_str())
+                                    {
+                                        return Ok(digest.to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // If we can't find the hash, return a fallback that indicates checked but unknown
+        // This maintains the previous behavior effectively but allows upgrade
+        Ok(format!("{}:unknown", self.model))
     }
 }
 

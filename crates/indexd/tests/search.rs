@@ -25,6 +25,10 @@ impl Embedder for StaticEmbedder {
     fn id(&self) -> &'static str {
         "static"
     }
+
+    async fn version(&self) -> AnyResult<String> {
+        Ok("static-version".to_string())
+    }
 }
 
 #[tokio::test]

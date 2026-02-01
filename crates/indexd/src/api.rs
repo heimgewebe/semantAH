@@ -563,10 +563,11 @@ async fn handle_embed_text(
 
     let embedding_dim = expected_dim;
 
-    // Model revision: For now, use model name + dim as revision
-    // TODO: In production, track actual model version/hash from the provider
-    // See: https://github.com/heimgewebe/semantAH/issues/... (add issue link when available)
-    let model_revision = format!("{}-{}", embedding_model, embedding_dim);
+    // Model revision: Use actual model version/hash from the provider
+    let model_revision = embedder
+        .version()
+        .await
+        .unwrap_or_else(|_| format!("{}-{}", embedding_model, embedding_dim));
 
     let response = EmbedTextResponse {
         embedding_id,
@@ -653,6 +654,10 @@ mod tests {
 
         fn id(&self) -> &'static str {
             "test"
+        }
+
+        async fn version(&self) -> anyhow::Result<String> {
+            Ok("test-version".to_string())
         }
     }
 
@@ -846,6 +851,10 @@ mod tests {
         fn id(&self) -> &'static str {
             "failing"
         }
+
+        async fn version(&self) -> anyhow::Result<String> {
+            Ok("failing-version".to_string())
+        }
     }
 
     #[tokio::test]
@@ -938,6 +947,10 @@ mod tests {
         fn id(&self) -> &'static str {
             "mismatch"
         }
+
+        async fn version(&self) -> anyhow::Result<String> {
+            Ok("mismatch-version".to_string())
+        }
     }
 
     #[tokio::test]
@@ -957,6 +970,10 @@ mod tests {
 
             fn id(&self) -> &'static str {
                 "wrong-vector"
+            }
+
+            async fn version(&self) -> anyhow::Result<String> {
+                Ok("wrong-vector-version".to_string())
             }
         }
 

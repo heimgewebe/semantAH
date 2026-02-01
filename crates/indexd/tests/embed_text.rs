@@ -67,6 +67,10 @@ async fn embed_text_validates_namespace() {
         fn id(&self) -> &'static str {
             "test"
         }
+
+        async fn version(&self) -> anyhow::Result<String> {
+            Ok("test-version".to_string())
+        }
     }
 
     let embedder: Arc<dyn Embedder> = Arc::new(TestEmbedder);
@@ -113,6 +117,10 @@ async fn embed_text_requires_source_ref() {
 
         fn id(&self) -> &'static str {
             "test"
+        }
+
+        async fn version(&self) -> anyhow::Result<String> {
+            Ok("test-version".to_string())
         }
     }
 
@@ -161,6 +169,10 @@ async fn embed_text_returns_schema_compliant_response() {
 
         fn id(&self) -> &'static str {
             "test-model"
+        }
+
+        async fn version(&self) -> anyhow::Result<String> {
+            Ok("test-model-3".to_string())
         }
     }
 
@@ -218,6 +230,10 @@ async fn embed_text_all_valid_namespaces() {
 
         fn id(&self) -> &'static str {
             "test"
+        }
+
+        async fn version(&self) -> anyhow::Result<String> {
+            Ok("test-version".to_string())
         }
     }
 
@@ -284,6 +300,10 @@ async fn embed_text_determinism() {
 
         fn id(&self) -> &'static str {
             "deterministic"
+        }
+
+        async fn version(&self) -> anyhow::Result<String> {
+            Ok("deterministic-version".to_string())
         }
     }
 
@@ -356,6 +376,10 @@ async fn embed_text_rejects_empty_text() {
 
         fn id(&self) -> &'static str {
             "test"
+        }
+
+        async fn version(&self) -> anyhow::Result<String> {
+            Ok("test-version".to_string())
         }
     }
 
