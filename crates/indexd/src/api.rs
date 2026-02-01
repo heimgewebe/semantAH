@@ -135,7 +135,7 @@ pub struct SearchRequest {
     pub filters: Option<Value>,
     /// Optional top-level embedding array.
     #[serde(default)]
-    pub embedding: Option<Value>,
+    pub embedding: Option<Vec<f32>>,
     /// Legacy location for embedding. Use `query.meta.embedding` or `embedding` instead.
     #[serde(default)]
     pub meta: Option<Value>,
@@ -427,7 +427,7 @@ async fn handle_search(
     let (embedding, embedding_generated): (Vec<f32>, bool) = if let Some(value) = query_embedding_value {
         (parse_embedding(value).map_err(bad_request)?, false)
     } else if let Some(value) = embedding {
-        (parse_embedding(value).map_err(bad_request)?, false)
+        (value, false)
     } else if let Some(meta) = meta {
         let mut legacy_meta = match meta {
             Value::Object(map) => map,
@@ -733,7 +733,7 @@ mod tests {
             k: 1,
             namespace: "ns".into(),
             filters: None,
-            embedding: Some(json!([0.1, 0.2])),
+            embedding: Some(vec![0.1, 0.2]),
             meta: None,
         };
 
@@ -893,7 +893,7 @@ mod tests {
             k: 0,
             namespace: "ns".into(),
             filters: None,
-            embedding: Some(json!([0.1, 0.2])),
+            embedding: Some(vec![0.1, 0.2]),
             meta: None,
         };
 
@@ -925,7 +925,7 @@ mod tests {
             k: 1,
             namespace: "ns".into(),
             filters: None,
-            embedding: Some(json!([0.1])),
+            embedding: Some(vec![0.1]),
             meta: None,
         };
 
