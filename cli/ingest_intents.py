@@ -109,9 +109,7 @@ def ingest_intents(
                     record = json.loads(line)
                     elements = process_intent_record(record)
                     for element in elements:
-                        line_out = (
-                            json.dumps(element, **JSON_DUMPS_OPTIONS) + "\n"
-                        )
+                        line_out = json.dumps(element, **JSON_DUMPS_OPTIONS) + "\n"
                         if "rel" in element:  # It's an edge
                             edges_buffer.append(line_out)
                         else:  # It's a node
@@ -193,9 +191,7 @@ def main(argv: list[str] | None = None) -> int:
     """Main function."""
     try:
         args = parse_args(argv)
-        ingest_intents(
-            args.source, args.nodes_file, args.edges_file, args.buffer_limit
-        )
+        ingest_intents(args.source, args.nodes_file, args.edges_file, args.buffer_limit)
         return 0
     except (OSError, ValueError) as e:
         print(f"Error: {e}", file=sys.stderr)
