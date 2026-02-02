@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use serde_json::Value;
 use thiserror::Error;
 
-use crate::key::{make_chunk_key, split_chunk_key, KEY_SEPARATOR};
+use crate::key::{make_chunk_key, split_chunk_key, split_chunk_key_ref, KEY_SEPARATOR};
 
 /// In-memory vector store for embeddings with cosine similarity search.
 ///
@@ -138,19 +138,18 @@ impl VectorStore {
         let mut query = query.to_vec();
         normalize(&mut query);
 
-        let mut scored: Vec<(String, String, f32)> = self
+        let mut scored: Vec<(&String, f32)> = self
             .all_in_namespace(namespace)
             .map(|(key, (embedding, _meta))| {
                 // Since both vectors are normalized, cosine similarity is just the dot product.
                 let score = dot(&query, embedding);
-                let (doc_id, chunk_id) = split_chunk_key(key);
-                (doc_id, chunk_id, score)
+                (key, score)
             })
             .collect();
 
         // Guard against NaN scores from cosine() to keep ordering deterministic.
         let original_len = scored.len();
-        scored.retain(|(_, _, score)| !score.is_nan());
+        scored.retain(|(_, score)| !score.is_nan());
         let dropped = original_len - scored.len();
         if dropped > 0 {
             tracing::warn!(
@@ -161,11 +160,15 @@ impl VectorStore {
 
         // Deterministic sorting: Score (desc) > DocID (asc) > ChunkID (asc).
         // Note: We filter NaNs above, so partial_cmp should not return None, but we use unwrap_or(Equal) just in case.
-        let compare_hits = |a: &(String, String, f32), b: &(String, String, f32)| {
-            b.2.partial_cmp(&a.2)
+        // We use split_chunk_key_ref to avoid allocations during comparison.
+        let compare_hits = |a: &(&String, f32), b: &(&String, f32)| {
+            b.1.partial_cmp(&a.1)
                 .unwrap_or(Ordering::Equal)
-                .then_with(|| a.0.cmp(&b.0))
-                .then_with(|| a.1.cmp(&b.1))
+                .then_with(|| {
+                    let (doc_a, chunk_a) = split_chunk_key_ref(a.0);
+                    let (doc_b, chunk_b) = split_chunk_key_ref(b.0);
+                    doc_a.cmp(doc_b).then_with(|| chunk_a.cmp(chunk_b))
+                })
         };
 
         if k < scored.len() {
@@ -180,6 +183,12 @@ impl VectorStore {
         scored.sort_by(compare_hits);
 
         scored
+            .into_iter()
+            .map(|(key, score)| {
+                let (doc_id, chunk_id) = split_chunk_key(key);
+                (doc_id, chunk_id, score)
+            })
+            .collect()
     }
 
     pub fn chunk_meta(&self, namespace: &str, doc_id: &str, chunk_id: &str) -> Option<&Value> {

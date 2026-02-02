@@ -5,8 +5,13 @@ pub(crate) fn make_chunk_key(doc_id: &str, chunk_id: &str) -> String {
 }
 
 pub(crate) fn split_chunk_key(key: &str) -> (String, String) {
+    let (doc_id, chunk_id) = split_chunk_key_ref(key);
+    (doc_id.to_string(), chunk_id.to_string())
+}
+
+pub(crate) fn split_chunk_key_ref(key: &str) -> (&str, &str) {
     match key.split_once(KEY_SEPARATOR) {
-        Some((doc_id, chunk_id)) => (doc_id.to_string(), chunk_id.to_string()),
-        None => (key.to_string(), String::new()),
+        Some((doc_id, chunk_id)) => (doc_id, chunk_id),
+        None => (key, ""),
     }
 }
