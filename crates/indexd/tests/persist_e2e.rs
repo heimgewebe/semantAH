@@ -64,9 +64,15 @@ async fn vector_store_persist_and_load_roundtrip() {
     let meta_c1 = store_b
         .chunk_meta("ns", "doc-1", "c1")
         .expect("meta for c1 must exist");
-    assert_eq!(meta_c1.get("snippet").and_then(|v| v.as_str()), Some("hello"));
+    assert_eq!(
+        meta_c1.get("snippet").and_then(|v| v.as_str()),
+        Some("hello")
+    );
     let meta_c2 = store_b
         .chunk_meta("ns", "doc-1", "c2")
         .expect("meta for c2 must exist");
-    assert_eq!(meta_c2.get("snippet").and_then(|v| v.as_str()), Some("world"));
+    assert_eq!(
+        meta_c2.get("snippet").and_then(|v| v.as_str()),
+        Some("world")
+    );
 }

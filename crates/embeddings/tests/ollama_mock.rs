@@ -68,7 +68,10 @@ async fn ollama_embedder_happy_path_against_mock() -> Result<()> {
 
     // --- Assertions
     assert_eq!(embeddings.len(), 2, "expected two embedding rows");
-    assert!(embeddings.iter().all(|v| v.len() == 2), "each vector must have dim=2");
+    assert!(
+        embeddings.iter().all(|v| v.len() == 2),
+        "each vector must have dim=2"
+    );
 
     // Inhalt grob prüfen (entspricht Mock)
     assert_eq!(embeddings[0], vec![1.0, 0.0]);
@@ -99,8 +102,14 @@ async fn ollama_embedder_propagates_http_status_error() -> Result<()> {
 
     let err = embedder.embed(&["x".to_string()]).await.unwrap_err();
     let msg = err.to_string();
-    assert!(msg.contains("status 500"), "error should mention status 500, got: {msg}");
-    assert!(msg.contains("boom"), "error should include server message body, got: {msg}");
+    assert!(
+        msg.contains("status 500"),
+        "error should mention status 500, got: {msg}"
+    );
+    assert!(
+        msg.contains("boom"),
+        "error should include server message body, got: {msg}"
+    );
 
     server.abort();
     Ok(())

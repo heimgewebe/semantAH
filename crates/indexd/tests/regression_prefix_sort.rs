@@ -14,8 +14,12 @@ fn test_prefix_sort_order() {
     // So "doc\u{241F}..." > "doc-extended..."
     // So "doc" will come AFTER "doc-extended".
 
-    store.upsert("ns", "doc", "c1", vec![1.0], meta.clone()).unwrap();
-    store.upsert("ns", "doc-extended", "c1", vec![1.0], meta.clone()).unwrap();
+    store
+        .upsert("ns", "doc", "c1", vec![1.0], meta.clone())
+        .unwrap();
+    store
+        .upsert("ns", "doc-extended", "c1", vec![1.0], meta.clone())
+        .unwrap();
 
     let results = store.search("ns", &[1.0], 10, &Value::Null);
 
@@ -23,6 +27,10 @@ fn test_prefix_sort_order() {
     // Scores are equal.
     // doc_id asc.
     // "doc" should be first.
-    assert_eq!(results[0].0, "doc", "Expected 'doc' first, but got '{}'", results[0].0);
+    assert_eq!(
+        results[0].0, "doc",
+        "Expected 'doc' first, but got '{}'",
+        results[0].0
+    );
     assert_eq!(results[1].0, "doc-extended");
 }

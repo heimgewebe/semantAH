@@ -274,9 +274,15 @@ mod tests {
 
         // Upsert items with vectors that will yield identical scores (same vector)
         // Insert order: B, A, C (to test that it's not just insertion order)
-        store.upsert("ns", "doc-b", "c1", vec![1.0], meta.clone()).unwrap();
-        store.upsert("ns", "doc-a", "c1", vec![1.0], meta.clone()).unwrap();
-        store.upsert("ns", "doc-b", "c2", vec![1.0], meta.clone()).unwrap();
+        store
+            .upsert("ns", "doc-b", "c1", vec![1.0], meta.clone())
+            .unwrap();
+        store
+            .upsert("ns", "doc-a", "c1", vec![1.0], meta.clone())
+            .unwrap();
+        store
+            .upsert("ns", "doc-b", "c2", vec![1.0], meta.clone())
+            .unwrap();
 
         // Search
         let results = store.search("ns", &[1.0], 10, &Value::Null);
