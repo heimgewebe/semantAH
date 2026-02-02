@@ -478,7 +478,8 @@ async fn handle_search(
     let store_arc = state.store.clone();
 
     let results = task::spawn_blocking(move || {
-        let store = store_arc.blocking_read();
+        let handle = tokio::runtime::Handle::current();
+        let store = handle.block_on(store_arc.read());
         let current_dims = store.dims;
         let expected_dim = store_dims.or(current_dims);
 

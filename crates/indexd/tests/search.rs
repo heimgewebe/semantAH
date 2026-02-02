@@ -331,7 +331,7 @@ async fn search_generates_embedding_from_query_text_when_embedder_configured() {
 
 /// Functional test exercising the `spawn_blocking` search path.
 /// Does not explicitly assert blocking thread execution (fragile/runtime-dependent),
-/// but ensures the `read_owned` + `spawn_blocking` flow returns correct results.
+/// but ensures the `spawn_blocking` flow returns correct results.
 #[tokio::test]
 async fn search_with_query_meta_embedding_returns_hit() {
     let state = Arc::new(AppState::new());
