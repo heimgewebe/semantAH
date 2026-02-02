@@ -475,12 +475,10 @@ async fn handle_search(
         ));
     };
 
-    let store_arc = state.store.clone();
-    let handle = tokio::runtime::Handle::current();
+    let store = state.store.clone().read_owned().await;
+    let current_dims = store.dims;
 
     let results = task::spawn_blocking(move || {
-        let store = handle.block_on(store_arc.read());
-        let current_dims = store.dims;
         let expected_dim = store_dims.or(current_dims);
 
         if let Some(expected_dim) = expected_dim {
