@@ -9,6 +9,14 @@ import traceback
 from pathlib import Path
 from typing import Any, Dict, List
 
+BUFFER_LIMIT_DEFAULT = 5000
+
+# Consistent JSON formatting
+JSON_DUMPS_OPTIONS = {
+    "ensure_ascii": False,
+    "separators": (",", ":"),
+}
+
 
 def sha256_hash(data: str) -> str:
     """Return the SHA256 hash of the given data."""
@@ -74,7 +82,12 @@ def process_intent_record(record: Dict[str, Any]) -> List[Dict[str, Any]]:
     return nodes + edges
 
 
-def ingest_intents(source_path: Path, nodes_path: Path, edges_path: Path):
+def ingest_intents(
+    source_path: Path,
+    nodes_path: Path,
+    edges_path: Path,
+    buffer_limit: int = BUFFER_LIMIT_DEFAULT,
+):
     """Ingest intents from the source file and append to nodes and edges files."""
     nodes_path.parent.mkdir(parents=True, exist_ok=True)
     edges_path.parent.mkdir(parents=True, exist_ok=True)
@@ -86,40 +99,52 @@ def ingest_intents(source_path: Path, nodes_path: Path, edges_path: Path):
     ):
         nodes_buffer = []
         edges_buffer = []
-        buffer_limit = 5000
 
-        for line in handle:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                record = json.loads(line)
-                elements = process_intent_record(record)
-                for element in elements:
-                    if "rel" in element:  # It's an edge
-                        edges_buffer.append(json.dumps(element) + "\n")
-                    else:  # It's a node
-                        nodes_buffer.append(json.dumps(element) + "\n")
+        try:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                    elements = process_intent_record(record)
+                    for element in elements:
+                        line_out = (
+                            json.dumps(element, **JSON_DUMPS_OPTIONS) + "\n"
+                        )
+                        if "rel" in element:  # It's an edge
+                            edges_buffer.append(line_out)
+                        else:  # It's a node
+                            nodes_buffer.append(line_out)
 
-                if len(nodes_buffer) >= buffer_limit:
-                    nodes_file.write("".join(nodes_buffer))
-                    nodes_buffer.clear()
-                if len(edges_buffer) >= buffer_limit:
-                    edges_file.write("".join(edges_buffer))
-                    edges_buffer.clear()
+                    if len(nodes_buffer) >= buffer_limit:
+                        nodes_file.write("".join(nodes_buffer))
+                        nodes_buffer.clear()
+                    if len(edges_buffer) >= buffer_limit:
+                        edges_file.write("".join(edges_buffer))
+                        edges_buffer.clear()
 
-            except json.JSONDecodeError:
-                print(f"Warning: Could not decode JSON: {line}", file=sys.stderr)
-            except Exception as e:
-                print(f"Warning: Failed to process record: {e}", file=sys.stderr)
-                # We do not print full traceback here to avoid log spam on bulk ingest,
-                # but we continue to the next record.
+                except json.JSONDecodeError:
+                    print(
+                        f"Warning: Could not decode JSON: {line}",
+                        file=sys.stderr,
+                    )
+                except Exception as e:
+                    print(
+                        f"Warning: Failed to process record: {e}",
+                        file=sys.stderr,
+                    )
+                    # We do not print full traceback here to avoid log spam on bulk ingest,
+                    # but we continue to the next record.
 
-        # Flush remaining buffers
-        if nodes_buffer:
-            nodes_file.write("".join(nodes_buffer))
-        if edges_buffer:
-            edges_file.write("".join(edges_buffer))
+        finally:
+            # Flush remaining buffers
+            if nodes_buffer:
+                nodes_file.write("".join(nodes_buffer))
+                nodes_buffer.clear()
+            if edges_buffer:
+                edges_file.write("".join(edges_buffer))
+                edges_buffer.clear()
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -144,14 +169,26 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=Path(".gewebe/edges.jsonl"),
         help="Path to the edges JSONL file",
     )
+    parser.add_argument(
+        "--buffer-limit",
+        type=int,
+        default=BUFFER_LIMIT_DEFAULT,
+        help=f"Number of records to buffer before writing (default: {BUFFER_LIMIT_DEFAULT})",
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     """Main function."""
-    args = parse_args(argv)
     try:
-        ingest_intents(args.source, args.nodes_file, args.edges_file)
+        args = parse_args(argv)
+        if args.buffer_limit < 1:
+            print("Error: buffer-limit must be at least 1", file=sys.stderr)
+            return 1
+
+        ingest_intents(
+            args.source, args.nodes_file, args.edges_file, args.buffer_limit
+        )
         return 0
     except (OSError, ValueError) as e:
         print(f"Error: {e}", file=sys.stderr)
