@@ -109,17 +109,19 @@ def ingest_intents(
                     record = json.loads(line)
                     elements = process_intent_record(record)
                     for element in elements:
-                        line_out = json.dumps(element, **JSON_DUMPS_OPTIONS) + "\n"
+                        line_out = (
+                            json.dumps(element, **JSON_DUMPS_OPTIONS) + "\n"
+                        )
                         if "rel" in element:  # It's an edge
                             edges_buffer.append(line_out)
                         else:  # It's a node
                             nodes_buffer.append(line_out)
 
                     if len(nodes_buffer) >= buffer_limit:
-                        nodes_file.write("".join(nodes_buffer))
+                        nodes_file.writelines(nodes_buffer)
                         nodes_buffer.clear()
                     if len(edges_buffer) >= buffer_limit:
-                        edges_file.write("".join(edges_buffer))
+                        edges_file.writelines(edges_buffer)
                         edges_buffer.clear()
 
                 except json.JSONDecodeError:
@@ -138,11 +140,22 @@ def ingest_intents(
         finally:
             # Flush remaining buffers
             if nodes_buffer:
-                nodes_file.write("".join(nodes_buffer))
+                nodes_file.writelines(nodes_buffer)
                 nodes_buffer.clear()
             if edges_buffer:
-                edges_file.write("".join(edges_buffer))
+                edges_file.writelines(edges_buffer)
                 edges_buffer.clear()
+
+
+def positive_int(value: str) -> int:
+    """Validate that the value is a positive integer."""
+    try:
+        ivalue = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{value} is not an integer")
+    if ivalue < 1:
+        raise argparse.ArgumentTypeError("buffer-limit must be at least 1")
+    return ivalue
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -169,7 +182,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--buffer-limit",
-        type=int,
+        type=positive_int,
         default=BUFFER_LIMIT_DEFAULT,
         help=f"Number of records to buffer before writing (default: {BUFFER_LIMIT_DEFAULT})",
     )
@@ -180,11 +193,9 @@ def main(argv: list[str] | None = None) -> int:
     """Main function."""
     try:
         args = parse_args(argv)
-        if args.buffer_limit < 1:
-            print("Error: buffer-limit must be at least 1", file=sys.stderr)
-            return 1
-
-        ingest_intents(args.source, args.nodes_file, args.edges_file, args.buffer_limit)
+        ingest_intents(
+            args.source, args.nodes_file, args.edges_file, args.buffer_limit
+        )
         return 0
     except (OSError, ValueError) as e:
         print(f"Error: {e}", file=sys.stderr)
