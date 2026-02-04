@@ -1,14 +1,11 @@
 use std::sync::Arc;
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    routing::post,
-    Json, Router,
-};
+use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tracing::{debug, info};
+
+use tokio::task;
 
 use crate::AppState;
 
@@ -26,10 +23,7 @@ where
 {
     type Rejection = (StatusCode, Json<Value>);
 
-    async fn from_request(
-        req: axum::extract::Request,
-        state: &S,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request(req: axum::extract::Request, state: &S) -> Result<Self, Self::Rejection> {
         match Json::<T>::from_request(req, state).await {
             Ok(Json(value)) => Ok(ApiJson(value)),
             Err(rejection) => {
@@ -37,7 +31,7 @@ where
                 // Use status code from rejection for robust classification
                 let status = rejection.status();
                 let error_message = rejection.body_text();
-                
+
                 // Map status codes to appropriate responses
                 let (final_status, message) = match status {
                     StatusCode::UNSUPPORTED_MEDIA_TYPE => {
@@ -65,11 +59,11 @@ where
                         (status, error_message)
                     }
                 };
-                
+
                 let body = json!({
                     "error": message,
                 });
-                
+
                 Err((final_status, Json(body)))
             }
         }
@@ -309,15 +303,20 @@ async fn handle_upsert(
 
         let mut meta = match meta {
             Value::Object(map) => map,
-            _ => return Err(bad_request(format!("chunk '{}' meta must be an object", id))),
+            _ => {
+                return Err(bad_request(format!(
+                    "chunk '{}' meta must be an object",
+                    id
+                )))
+            }
         };
 
-        let embedding_value = meta
-            .remove("embedding")
-            .ok_or_else(|| bad_request(format!(
+        let embedding_value = meta.remove("embedding").ok_or_else(|| {
+            bad_request(format!(
                 "chunk '{}' meta must contain an 'embedding' array",
                 id
-            )))?;
+            ))
+        })?;
 
         let vector = parse_embedding(embedding_value)
             .map_err(|err| bad_request(format!("chunk '{}': {}", id, err)))?;
@@ -326,7 +325,9 @@ async fn handle_upsert(
             if expected != vector.len() {
                 return Err(bad_request(format!(
                     "chunk '{}' embedding dimensionality mismatch: expected {}, got {}",
-                    id, expected, vector.len()
+                    id,
+                    expected,
+                    vector.len()
                 )));
             }
         } else {
@@ -424,7 +425,9 @@ async fn handle_search(
     let filter_value = filters.unwrap_or(Value::Null);
 
     // Priority: query.meta.embedding > top-level embedding > legacy meta.embedding
-    let (embedding, embedding_generated): (Vec<f32>, bool) = if let Some(value) = query_embedding_value {
+    let (embedding, embedding_generated): (Vec<f32>, bool) = if let Some(value) =
+        query_embedding_value
+    {
         (parse_embedding(value).map_err(bad_request)?, false)
     } else if let Some(value) = embedding {
         if value.is_empty() {
@@ -456,12 +459,14 @@ async fn handle_search(
                 )));
             }
         }
-        let vectors = embedder.embed(std::slice::from_ref(&query_text)).await
+        let vectors = embedder
+            .embed(std::slice::from_ref(&query_text))
+            .await
             .map_err(|err| server_unavailable(format!("failed to generate embedding: {err}")))?;
         (
             vectors.into_iter().next().ok_or_else(|| {
-            server_unavailable("failed to generate embedding: embedder returned no embeddings")
-        })?,
+                server_unavailable("failed to generate embedding: embedder returned no embeddings")
+            })?,
             true,
         )
     } else {
@@ -470,41 +475,52 @@ async fn handle_search(
         ));
     };
 
-    let store = state.store.read().await;
-    let expected_dim = store_dims.or(store.dims);
-    if let Some(expected_dim) = expected_dim {
-        if expected_dim != embedding.len() {
-            let message = format!(
-                "embedding dimensionality mismatch: expected {expected_dim}, got {}",
-                embedding.len()
-            );
-            return Err(if embedding_generated {
-                server_unavailable(message)
-            } else {
-                bad_request(message)
-            });
-        }
-    }
-    let scored = store.search(&namespace, &embedding, k, &filter_value);
+    let store = state.store.clone().read_owned().await;
+    let current_dims = store.dims;
 
-    let results = scored
-        .into_iter()
-        .map(|(doc_id, chunk_id, score)| {
-            let snippet = store
-                .chunk_meta(&namespace, &doc_id, &chunk_id)
-                .and_then(|meta| meta.get("snippet"))
-                .and_then(|value| value.as_str())
-                .unwrap_or_default()
-                .to_string();
-            SearchHit {
-                doc_id,
-                chunk_id,
-                score,
-                snippet,
-                rationale: Vec::new(),
+    let results = task::spawn_blocking(move || {
+        let expected_dim = store_dims.or(current_dims);
+
+        if let Some(expected_dim) = expected_dim {
+            if expected_dim != embedding.len() {
+                let message = format!(
+                    "embedding dimensionality mismatch: expected {expected_dim}, got {}",
+                    embedding.len()
+                );
+                return Err(message);
             }
-        })
-        .collect();
+        }
+        let scored = store.search(&namespace, &embedding, k, &filter_value);
+
+        let results: Vec<SearchHit> = scored
+            .into_iter()
+            .map(|(doc_id, chunk_id, score)| {
+                let snippet = store
+                    .chunk_meta(&namespace, &doc_id, &chunk_id)
+                    .and_then(|meta| meta.get("snippet"))
+                    .and_then(|value| value.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                SearchHit {
+                    doc_id,
+                    chunk_id,
+                    score,
+                    snippet,
+                    rationale: Vec::new(),
+                }
+            })
+            .collect();
+        Ok(results)
+    })
+    .await
+    .map_err(|e| server_unavailable(format!("search task failed: {e}")))?
+    .map_err(|msg| {
+        if embedding_generated {
+            server_unavailable(msg)
+        } else {
+            bad_request(msg)
+        }
+    })?;
 
     Ok(Json(SearchResponse { results }))
 }
@@ -530,9 +546,9 @@ async fn handle_embed_text(
     }
 
     // Get embedder or fail
-    let embedder = state
-        .embedder()
-        .ok_or_else(|| server_unavailable("embedder not configured. Set INDEXD_EMBEDDER_PROVIDER"))?;
+    let embedder = state.embedder().ok_or_else(|| {
+        server_unavailable("embedder not configured. Set INDEXD_EMBEDDER_PROVIDER")
+    })?;
 
     // Generate embedding
     let mut embeddings = embedder
@@ -547,7 +563,7 @@ async fn handle_embed_text(
     // Get model info from embedder
     let embedding_model = embedder.id().to_string();
     let expected_dim = embedder.dim();
-    
+
     // Validate embedding dimension matches embedder specification
     if embedding.len() != expected_dim {
         return Err(server_unavailable(format!(
@@ -606,13 +622,12 @@ fn parse_embedding(value: Value) -> Result<Vec<f32>, String> {
             if values.is_empty() {
                 return Err("embedding array cannot be empty".to_string());
             }
-            
+
             let mut result = Vec::with_capacity(values.len());
             for (i, v) in values.into_iter().enumerate() {
-                let num = v.as_f64()
-                    .ok_or_else(|| {
-                        format!("embedding[{}] must be a number, got {}", i, v)
-                    })?;
+                let num = v
+                    .as_f64()
+                    .ok_or_else(|| format!("embedding[{}] must be a number, got {}", i, v))?;
                 result.push(num as f32);
             }
             Ok(result)
@@ -902,9 +917,7 @@ mod tests {
         let (status, body) = result.expect_err("search should fail when embedder returns an error");
         assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
         assert_eq!(
-            body.0.get("error")
-                .and_then(|v| v.as_str())
-                .unwrap_or(""),
+            body.0.get("error").and_then(|v| v.as_str()).unwrap_or(""),
             "failed to generate embedding: provider unavailable"
         );
     }

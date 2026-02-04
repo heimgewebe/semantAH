@@ -14,7 +14,7 @@ async fn request_as_json(app: axum::Router, req: Request<Body>) -> (StatusCode, 
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    
+
     // With custom ApiJson extractor, all errors are now JSON format
     let json: Value = serde_json::from_slice(&body).unwrap();
     (status, json)
@@ -470,8 +470,5 @@ async fn embed_text_rejects_missing_content_type() {
 
     let (status, body) = request_as_json(app, req).await;
     assert_eq!(status, StatusCode::UNSUPPORTED_MEDIA_TYPE);
-    assert!(body["error"]
-        .as_str()
-        .unwrap()
-        .contains("Content-Type"));
+    assert!(body["error"].as_str().unwrap().contains("Content-Type"));
 }

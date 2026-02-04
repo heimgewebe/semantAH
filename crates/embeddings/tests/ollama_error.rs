@@ -1,7 +1,7 @@
-use axum::{routing::post, Router};
 use axum::http::StatusCode;
+use axum::{routing::post, Router};
+use embeddings::{Embedder, OllamaConfig, OllamaEmbedder};
 use tokio::net::TcpListener;
-use embeddings::{OllamaEmbedder, OllamaConfig, Embedder};
 
 #[tokio::test]
 async fn ollama_embedder_returns_error_on_http_500() {
@@ -27,5 +27,8 @@ async fn ollama_embedder_returns_error_on_http_500() {
     let res = embedder.embed(&[String::from("hello")]).await;
     assert!(res.is_err(), "expected error on HTTP 500");
     let msg = format!("{:?}", res.err().unwrap());
-    assert!(msg.contains("status 500"), "error should mention status 500, got: {msg}");
+    assert!(
+        msg.contains("status 500"),
+        "error should mention status 500, got: {msg}"
+    );
 }
