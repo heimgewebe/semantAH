@@ -24,7 +24,7 @@ async fn ollama_embedder_returns_error_on_http_500() {
         dim: 2,
     });
 
-    let res = embedder.embed(&[String::from("hello")]).await;
+    let res = embedder.embed(&["hello"]).await;
     assert!(res.is_err(), "expected error on HTTP 500");
     let msg = format!("{:?}", res.err().unwrap());
     assert!(

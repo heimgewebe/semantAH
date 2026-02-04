@@ -10,7 +10,7 @@ use tokio::sync::OnceCell;
 #[async_trait]
 pub trait Embedder: Send + Sync {
     /// Embed a batch of texts and return a vector of embedding vectors.
-    async fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>>;
+    async fn embed(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>>;
 
     /// The dimensionality of the returned embeddings.
     fn dim(&self) -> usize;
@@ -66,7 +66,7 @@ struct OllamaShowRequest<'a> {
 #[derive(Debug, Serialize)]
 struct OllamaRequest<'a> {
     model: &'a str,
-    input: &'a [String],
+    input: &'a [&'a str],
 }
 
 #[derive(Debug, Deserialize)]
@@ -116,7 +116,7 @@ fn validate_embeddings(
 
 #[async_trait]
 impl Embedder for OllamaEmbedder {
-    async fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
+    async fn embed(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
         if texts.is_empty() {
             return Ok(Vec::new());
         }
