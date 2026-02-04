@@ -137,7 +137,7 @@ fn save_store_atomic(path: &Path, store: &VectorStore) -> anyhow::Result<()> {
     }
 
     let tmp = path.with_extension("tmp");
-    {
+    let result: anyhow::Result<()> = (|| {
         let file = File::create(&tmp)?;
         let mut writer = BufWriter::new(file);
 
@@ -157,6 +157,12 @@ fn save_store_atomic(path: &Path, store: &VectorStore) -> anyhow::Result<()> {
         }
 
         writer.flush()?;
+        Ok(())
+    })();
+
+    if result.is_err() {
+        let _ = fs::remove_file(&tmp);
+        return result;
     }
 
     #[cfg(windows)]
