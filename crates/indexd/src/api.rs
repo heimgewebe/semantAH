@@ -491,17 +491,8 @@ async fn handle_search(
             }
         }
 
-        // LOCK STRATEGY: We hold the read lock during the entire search (O(N)) because
-        // VectorStore currently uses a simple HashMap<Vec<f32>> structure without internal
-        // shared ownership (Arc/CoW).
-        //
-        // Options considered but rejected:
-        // 1. Snapshotting: Would require deep cloning all vectors (O(N) alloc + copy), which is
-        //    likely slower than the search itself (O(N) float math) and spikes memory usage.
-        // 2. Incremental search: Dropping lock between chunks risks inconsistency if
-        //    concurrent updates occur.
-        //
-        // Thus, holding the lock is the most efficient approach for this in-memory store architecture.
+        // NOTE: Search runs under a read lock of the current VectorStore state.
+        // This keeps results consistent with respect to concurrent updates.
         let scored = store.search(&namespace, &embedding, k, &filter_value);
 
         let results: Vec<SearchHit> = scored
