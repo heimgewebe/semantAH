@@ -63,7 +63,7 @@ async fn ollama_embedder_happy_path_against_mock() -> Result<()> {
     });
 
     // --- Zwei Texte => zwei Vektoren
-    let inputs = vec!["eins".to_string(), "zwei".to_string()];
+    let inputs = vec!["eins", "zwei"];
     let embeddings = embedder.embed(&inputs).await?;
 
     // --- Assertions
@@ -100,7 +100,7 @@ async fn ollama_embedder_propagates_http_status_error() -> Result<()> {
         dim: 2,
     });
 
-    let err = embedder.embed(&["x".to_string()]).await.unwrap_err();
+    let err = embedder.embed(&["x"]).await.unwrap_err();
     let msg = err.to_string();
     assert!(
         msg.contains("status 500"),
@@ -132,7 +132,7 @@ async fn ollama_embedder_rejects_wrong_dimensions() -> Result<()> {
         dim: 2, // Erwartet 2
     });
 
-    let err = embedder.embed(&["x".to_string()]).await.unwrap_err();
+    let err = embedder.embed(&["x"]).await.unwrap_err();
     let msg = err.to_string();
     assert!(
         msg.contains("unexpected embedding dimensionality"),
@@ -160,7 +160,7 @@ async fn ollama_embedder_single_input_against_mock() -> Result<()> {
         dim: 2,
     });
 
-    let inputs = vec!["solo".to_string()];
+    let inputs = vec!["solo"];
     let embeddings = embedder.embed(&inputs).await?;
 
     assert_eq!(embeddings.len(), 1, "must return one vector");

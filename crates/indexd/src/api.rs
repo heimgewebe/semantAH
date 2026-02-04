@@ -460,7 +460,7 @@ async fn handle_search(
             }
         }
         let vectors = embedder
-            .embed(std::slice::from_ref(&query_text))
+            .embed(&[query_text.as_str()])
             .await
             .map_err(|err| server_unavailable(format!("failed to generate embedding: {err}")))?;
         (
@@ -555,7 +555,7 @@ async fn handle_embed_text(
 
     // Generate embedding
     let mut embeddings = embedder
-        .embed(std::slice::from_ref(&text))
+        .embed(&[text.as_str()])
         .await
         .map_err(|err| server_unavailable(format!("failed to generate embedding: {err}")))?;
 
@@ -669,7 +669,7 @@ mod tests {
 
     #[async_trait]
     impl Embedder for TestEmbedder {
-        async fn embed(&self, texts: &[String]) -> anyhow::Result<Vec<Vec<f32>>> {
+        async fn embed(&self, texts: &[&str]) -> anyhow::Result<Vec<Vec<f32>>> {
             Ok(texts.iter().map(|_| vec![1.0f32, 0.0]).collect())
         }
 
@@ -886,7 +886,7 @@ mod tests {
 
     #[async_trait]
     impl Embedder for FailingEmbedder {
-        async fn embed(&self, _texts: &[String]) -> anyhow::Result<Vec<Vec<f32>>> {
+        async fn embed(&self, _texts: &[&str]) -> anyhow::Result<Vec<Vec<f32>>> {
             Err(anyhow::anyhow!("provider unavailable"))
         }
 
@@ -980,7 +980,7 @@ mod tests {
 
     #[async_trait]
     impl Embedder for MismatchedEmbedder {
-        async fn embed(&self, _texts: &[String]) -> anyhow::Result<Vec<Vec<f32>>> {
+        async fn embed(&self, _texts: &[&str]) -> anyhow::Result<Vec<Vec<f32>>> {
             Ok(vec![vec![1.0, 0.0, 0.5]])
         }
 
@@ -1004,7 +1004,7 @@ mod tests {
 
         #[async_trait]
         impl Embedder for WrongVectorEmbedder {
-            async fn embed(&self, _texts: &[String]) -> anyhow::Result<Vec<Vec<f32>>> {
+            async fn embed(&self, _texts: &[&str]) -> anyhow::Result<Vec<Vec<f32>>> {
                 Ok(vec![vec![1.0, 0.0, 0.5]])
             }
 

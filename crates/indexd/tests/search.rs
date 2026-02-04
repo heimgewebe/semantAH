@@ -14,7 +14,7 @@ struct StaticEmbedder {
 
 #[async_trait]
 impl Embedder for StaticEmbedder {
-    async fn embed(&self, texts: &[String]) -> AnyResult<Vec<Vec<f32>>> {
+    async fn embed(&self, texts: &[&str]) -> AnyResult<Vec<Vec<f32>>> {
         Ok(texts.iter().map(|_| self.vector.clone()).collect())
     }
 

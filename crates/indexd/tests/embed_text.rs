@@ -56,7 +56,7 @@ async fn embed_text_validates_namespace() {
 
     #[async_trait]
     impl Embedder for TestEmbedder {
-        async fn embed(&self, texts: &[String]) -> anyhow::Result<Vec<Vec<f32>>> {
+        async fn embed(&self, texts: &[&str]) -> anyhow::Result<Vec<Vec<f32>>> {
             Ok(texts.iter().map(|_| vec![1.0f32, 0.0]).collect())
         }
 
@@ -107,7 +107,7 @@ async fn embed_text_requires_source_ref() {
 
     #[async_trait]
     impl Embedder for TestEmbedder {
-        async fn embed(&self, texts: &[String]) -> anyhow::Result<Vec<Vec<f32>>> {
+        async fn embed(&self, texts: &[&str]) -> anyhow::Result<Vec<Vec<f32>>> {
             Ok(texts.iter().map(|_| vec![1.0f32, 0.0]).collect())
         }
 
@@ -159,7 +159,7 @@ async fn embed_text_returns_schema_compliant_response() {
 
     #[async_trait]
     impl Embedder for TestEmbedder {
-        async fn embed(&self, texts: &[String]) -> anyhow::Result<Vec<Vec<f32>>> {
+        async fn embed(&self, texts: &[&str]) -> anyhow::Result<Vec<Vec<f32>>> {
             Ok(texts.iter().map(|_| vec![0.1f32, 0.2, 0.3]).collect())
         }
 
@@ -220,7 +220,7 @@ async fn embed_text_all_valid_namespaces() {
 
     #[async_trait]
     impl Embedder for TestEmbedder {
-        async fn embed(&self, texts: &[String]) -> anyhow::Result<Vec<Vec<f32>>> {
+        async fn embed(&self, texts: &[&str]) -> anyhow::Result<Vec<Vec<f32>>> {
             Ok(texts.iter().map(|_| vec![0.1f32]).collect())
         }
 
@@ -279,7 +279,7 @@ async fn embed_text_determinism() {
 
     #[async_trait]
     impl Embedder for DeterministicEmbedder {
-        async fn embed(&self, texts: &[String]) -> anyhow::Result<Vec<Vec<f32>>> {
+        async fn embed(&self, texts: &[&str]) -> anyhow::Result<Vec<Vec<f32>>> {
             // Simple deterministic embedding for testing purposes
             // Note: Uses basic hash function; collisions possible but acceptable for tests
             Ok(texts
@@ -366,7 +366,7 @@ async fn embed_text_rejects_empty_text() {
 
     #[async_trait]
     impl Embedder for TestEmbedder {
-        async fn embed(&self, texts: &[String]) -> anyhow::Result<Vec<Vec<f32>>> {
+        async fn embed(&self, texts: &[&str]) -> anyhow::Result<Vec<Vec<f32>>> {
             Ok(texts.iter().map(|_| vec![1.0f32, 0.0]).collect())
         }
 
