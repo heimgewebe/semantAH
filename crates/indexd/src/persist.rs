@@ -10,7 +10,11 @@ use serde_json::Value;
 use tokio::task;
 use tracing::{info, warn};
 
-use crate::{key::split_chunk_key, AppState};
+use crate::{
+    key::split_chunk_key_ref,
+    store::VectorStore,
+    AppState,
+};
 
 const ENV_DB_PATH: &str = "INDEXD_DB_PATH";
 
@@ -21,6 +25,15 @@ struct RowOwned {
     chunk_id: String,
     embedding: Vec<f32>,
     meta: Value,
+}
+
+#[derive(Serialize)]
+struct RowRef<'a> {
+    namespace: &'a str,
+    doc_id: &'a str,
+    chunk_id: &'a str,
+    embedding: &'a [f32],
+    meta: &'a Value,
 }
 
 pub async fn maybe_load_from_env(state: &Arc<AppState>) -> anyhow::Result<()> {
@@ -81,28 +94,15 @@ pub async fn maybe_save_from_env(state: &Arc<AppState>) -> anyhow::Result<()> {
         return Ok(());
     };
 
-    let store = state.store.read().await;
-    let mut rows = Vec::with_capacity(store.len());
-
-    for (namespace, ns_items) in store.items.iter() {
-        for (key, (embedding, meta)) in ns_items.iter() {
-            let (doc_id, chunk_id) = split_chunk_key(key);
-            rows.push(RowOwned {
-                namespace: namespace.clone(),
-                doc_id,
-                chunk_id,
-                embedding: embedding.clone(),
-                meta: meta.clone(),
-            });
-        }
-    }
-
-    let row_count = rows.len();
+    // Use read_owned to get an owned guard we can move into the blocking task
+    let store = state.store.clone().read_owned().await;
+    let row_count = store.len();
     let path_clone = path.clone();
-    task::spawn_blocking(move || write_jsonl_atomic(&path_clone, &rows))
+
+    task::spawn_blocking(move || save_store_atomic(&path_clone, &store))
         .await
-        .map_err(|err| anyhow!("spawn blocking write_jsonl_atomic failed: {}", err))?
-        .map_err(|err| anyhow!("write_jsonl_atomic failed: {}", err))?;
+        .map_err(|err| anyhow!("spawn blocking save_store_atomic failed: {}", err))?
+        .map_err(|err| anyhow!("save_store_atomic failed: {}", err))?;
 
     info!(path = %path.display(), count = row_count, "saved vector store");
     Ok(())
@@ -131,6 +131,53 @@ fn read_jsonl(path: &Path) -> anyhow::Result<Vec<RowOwned>> {
     Ok(rows)
 }
 
+fn save_store_atomic(path: &Path, store: &VectorStore) -> anyhow::Result<()> {
+    if let Some(dir) = path.parent() {
+        fs::create_dir_all(dir).with_context(|| format!("create_dir_all {}", dir.display()))?;
+    }
+
+    let tmp = path.with_extension("tmp");
+    let result: anyhow::Result<()> = (|| {
+        let file = File::create(&tmp)?;
+        let mut writer = BufWriter::new(file);
+
+        for (namespace, ns_items) in &store.items {
+            for (key, (embedding, meta)) in ns_items {
+                let (doc_id, chunk_id) = split_chunk_key_ref(key);
+                let row = RowRef {
+                    namespace,
+                    doc_id,
+                    chunk_id,
+                    embedding,
+                    meta,
+                };
+                serde_json::to_writer(&mut writer, &row)?;
+                writer.write_all(b"\n")?;
+            }
+        }
+
+        writer.flush()?;
+        Ok(())
+    })();
+
+    if result.is_err() {
+        let _ = fs::remove_file(&tmp);
+        return result;
+    }
+
+    #[cfg(windows)]
+    if path.exists() {
+        fs::remove_file(path)?;
+    }
+
+    if let Err(e) = fs::rename(&tmp, path) {
+        let _ = fs::remove_file(&tmp);
+        return Err(e.into());
+    }
+    Ok(())
+}
+
+#[cfg(test)]
 fn write_jsonl_atomic(path: &Path, rows: &[RowOwned]) -> anyhow::Result<()> {
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir).with_context(|| format!("create_dir_all {}", dir.display()))?;
@@ -205,5 +252,40 @@ mod tests {
             result.err()
         );
         assert!(result.unwrap().is_empty());
+    }
+
+    #[test]
+    fn jsonl_stream_roundtrip() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("store_stream.jsonl");
+
+        let mut store = VectorStore::new();
+        // vectors are normalized on insert, so we use unit vectors for easy check
+        store
+            .upsert(
+                "ns",
+                "d1",
+                "c1",
+                vec![1.0, 0.0],
+                serde_json::json!({"a": 1}),
+            )
+            .unwrap();
+        store
+            .upsert("ns", "d2", "c2", vec![0.0, 1.0], Value::Null)
+            .unwrap();
+
+        save_store_atomic(&path, &store).unwrap();
+        let back = read_jsonl(&path).unwrap();
+
+        assert_eq!(store.len(), back.len());
+
+        let row1 = back.iter().find(|r| r.doc_id == "d1").unwrap();
+        assert_eq!(row1.namespace, "ns");
+        assert_eq!(row1.chunk_id, "c1");
+        assert_eq!(row1.meta, serde_json::json!({"a": 1}));
+        assert_eq!(row1.embedding, vec![1.0, 0.0]);
+
+        let row2 = back.iter().find(|r| r.doc_id == "d2").unwrap();
+        assert_eq!(row2.embedding, vec![0.0, 1.0]);
     }
 }
