@@ -612,6 +612,7 @@ async fn handle_embed_text(
         namespace = %response.namespace,
         source_ref = %response.source_ref,
         model = %response.embedding_model,
+        revision = %response.model_revision,
         dim = response.embedding_dim,
         "generated embedding"
     );
