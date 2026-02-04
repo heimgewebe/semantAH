@@ -490,6 +490,9 @@ async fn handle_search(
                 return Err(message);
             }
         }
+
+        // NOTE: Search runs under a read lock of the current VectorStore state.
+        // This keeps results consistent with respect to concurrent updates.
         let scored = store.search(&namespace, &embedding, k, &filter_value);
 
         let results: Vec<SearchHit> = scored
