@@ -170,7 +170,10 @@ fn save_store_atomic(path: &Path, store: &VectorStore) -> anyhow::Result<()> {
         fs::remove_file(path)?;
     }
 
-    fs::rename(tmp, path)?;
+    if let Err(e) = fs::rename(&tmp, path) {
+        let _ = fs::remove_file(&tmp);
+        return Err(e.into());
+    }
     Ok(())
 }
 
