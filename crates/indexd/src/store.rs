@@ -153,7 +153,9 @@ impl VectorStore {
                 continue;
             }
 
-            let hit = Hit { key, score };
+            // 'key' here is &String from the map iteration.
+            // Hit expects &'a str, so we use as_str().
+            let hit = Hit { key: key.as_str(), score };
 
             if heap.len() < k {
                 heap.push(Reverse(hit));
