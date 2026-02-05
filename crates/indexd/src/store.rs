@@ -364,6 +364,14 @@ mod tests {
     }
 
     #[test]
+    fn search_with_k_zero_is_safe() {
+        let mut store = VectorStore::new();
+        store.upsert("ns", "d", "c", vec![1.0], Value::Null).unwrap();
+        let results = store.search("ns", &[1.0], 0, &Value::Null);
+        assert!(results.is_empty());
+    }
+
+    #[test]
     #[ignore]
     fn bench_search_performance() {
         use std::time::Instant;
