@@ -1,5 +1,5 @@
-use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::cmp::{Ordering, Reverse};
+use std::collections::{BinaryHeap, HashMap};
 
 use serde_json::Value;
 use thiserror::Error;
@@ -138,55 +138,53 @@ impl VectorStore {
         let mut query = query.to_vec();
         normalize(&mut query);
 
-        let mut scored: Vec<(&String, f32)> = self
-            .all_in_namespace(namespace)
-            .map(|(key, (embedding, _meta))| {
-                // Since both vectors are normalized, cosine similarity is just the dot product.
-                let score = dot(&query, embedding);
-                (key, score)
-            })
-            .collect();
+        // Min-Heap (via Reverse) to keep top-k best items.
+        // We store Reverse<Hit> so the Heap pops the "Worst" (Smallest) Hit.
+        // Hit Ord: High Score > Low Score.
+        let mut heap: BinaryHeap<Reverse<Hit>> = BinaryHeap::with_capacity(k);
+        let mut dropped_nan = 0usize;
 
-        // Guard against NaN scores from cosine() to keep ordering deterministic.
-        let original_len = scored.len();
-        scored.retain(|(_, score)| !score.is_nan());
-        let dropped = original_len - scored.len();
-        if dropped > 0 {
+        for (key, (embedding, _meta)) in self.all_in_namespace(namespace) {
+            // Since both vectors are normalized, cosine similarity is just the dot product.
+            let score = dot(&query, embedding);
+
+            if score.is_nan() {
+                dropped_nan += 1;
+                continue;
+            }
+
+            // 'key' here is &String from the map iteration.
+            // Hit expects &'a str, so we use as_str().
+            let hit = Hit { key: key.as_str(), score };
+
+            if heap.len() < k {
+                heap.push(Reverse(hit));
+            } else {
+                // Heap is full. Check if we should replace the worst element.
+                // peek() gives the Max of Reverse<Hit>, which is the Min of Hit (Worst).
+                let mut worst = heap.peek_mut().unwrap();
+                if hit > worst.0 {
+                    *worst = Reverse(hit);
+                }
+            }
+        }
+
+        if dropped_nan > 0 {
             tracing::warn!(
-                dropped = dropped,
+                dropped = dropped_nan,
                 "dropped search hits with NaN scores before ranking"
             );
         }
 
-        // Deterministic sorting: Score (desc) > DocID (asc) > ChunkID (asc).
-        // Note: We filter NaNs above, so partial_cmp should not return None, but we use unwrap_or(Equal) just in case.
-        // We use split_chunk_key_ref to avoid allocations during comparison.
-        let compare_hits = |a: &(&String, f32), b: &(&String, f32)| {
-            b.1.partial_cmp(&a.1)
-                .unwrap_or(Ordering::Equal)
-                .then_with(|| {
-                    let (doc_a, chunk_a) = split_chunk_key_ref(a.0);
-                    let (doc_b, chunk_b) = split_chunk_key_ref(b.0);
-                    doc_a.cmp(doc_b).then_with(|| chunk_a.cmp(chunk_b))
-                })
-        };
+        let mut sorted: Vec<_> = heap.into_vec().into_iter().map(|Reverse(h)| h).collect();
+        // Sort Best to Worst (Descending)
+        sorted.sort_unstable_by(|a, b| b.cmp(a));
 
-        if k < scored.len() {
-            // O(N) selection of top-k
-            // We want the best k elements, so we select the element at index k-1.
-            // Elements 0..=k-1 will be partition <= element[k-1] (better or equal).
-            scored.select_nth_unstable_by(k - 1, compare_hits);
-            scored.truncate(k);
-        }
-
-        // Final sort of the top-k results
-        scored.sort_by(compare_hits);
-
-        scored
+        sorted
             .into_iter()
-            .map(|(key, score)| {
-                let (doc_id, chunk_id) = split_chunk_key(key);
-                (doc_id, chunk_id, score)
+            .map(|h| {
+                let (doc_id, chunk_id) = split_chunk_key(h.key);
+                (doc_id, chunk_id, h.score)
             })
             .collect()
     }
@@ -206,8 +204,63 @@ pub enum VectorStoreError {
     DimensionalityMismatch { expected: usize, actual: usize },
 }
 
+struct Hit<'a> {
+    key: &'a str,
+    score: f32,
+}
+
+impl<'a> PartialEq for Hit<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl<'a> Eq for Hit<'a> {}
+
+impl<'a> PartialOrd for Hit<'a> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<'a> Ord for Hit<'a> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // "Better" hits must compare as Greater:
+        // 1) higher score is better
+        // 2) if score ties: doc_id asc, chunk_id asc is better (legacy)
+        self.score
+            .partial_cmp(&other.score)
+            .unwrap_or(Ordering::Equal)
+            .then_with(|| {
+                 let (doc_self, chunk_self) = split_chunk_key_ref(self.key);
+                 let (doc_other, chunk_other) = split_chunk_key_ref(other.key);
+
+                 // Invert so that smaller (doc,chunk) becomes "Greater"/better.
+                 doc_other.cmp(doc_self)
+                     .then_with(|| chunk_other.cmp(chunk_self))
+            })
+    }
+}
+
 fn dot(a: &[f32], b: &[f32]) -> f32 {
-    a.iter().zip(b.iter()).map(|(x, y)| x * y).sum()
+    debug_assert_eq!(a.len(), b.len());
+    let mut sum = 0.0;
+
+    let chunks_a = a.chunks_exact(8);
+    let chunks_b = b.chunks_exact(8);
+    let rem_a = chunks_a.remainder();
+    let rem_b = chunks_b.remainder();
+
+    for (ca, cb) in chunks_a.zip(chunks_b) {
+        sum += ca[0] * cb[0] + ca[1] * cb[1] + ca[2] * cb[2] + ca[3] * cb[3]
+             + ca[4] * cb[4] + ca[5] * cb[5] + ca[6] * cb[6] + ca[7] * cb[7];
+    }
+
+    for (x, y) in rem_a.iter().zip(rem_b.iter()) {
+        sum += x * y;
+    }
+
+    sum
 }
 
 fn l2_norm(vector: &[f32]) -> f32 {
@@ -308,5 +361,43 @@ mod tests {
 
         assert_eq!(results[2].0, "doc-b");
         assert_eq!(results[2].1, "c2");
+    }
+
+    #[test]
+    fn search_with_k_zero_is_safe() {
+        let mut store = VectorStore::new();
+        store.upsert("ns", "d", "c", vec![1.0], Value::Null).unwrap();
+        let results = store.search("ns", &[1.0], 0, &Value::Null);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    #[ignore]
+    fn bench_search_performance() {
+        use std::time::Instant;
+        let mut store = VectorStore::new();
+        let dim = 1536;
+        let num_vectors = 10_000;
+        let namespace = "bench_ns";
+
+        // Populate
+        for i in 0..num_vectors {
+            let vec: Vec<f32> = (0..dim).map(|v| (v as f32) + (i as f32)).collect();
+            store.upsert(namespace, &format!("doc-{}", i), "chunk", vec, Value::Null).unwrap();
+        }
+
+        let query: Vec<f32> = (0..dim).map(|v| v as f32).collect();
+
+        // Warmup
+        store.search(namespace, &query, 10, &Value::Null);
+
+        let start = Instant::now();
+        let iterations = 10;
+        for _ in 0..iterations {
+            store.search(namespace, &query, 10, &Value::Null);
+        }
+        let duration = start.elapsed();
+
+        println!("Search took avg: {:?} for {} iterations", duration / iterations, iterations);
     }
 }
