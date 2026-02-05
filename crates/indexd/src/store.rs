@@ -142,12 +142,14 @@ impl VectorStore {
         // We store Reverse<Hit> so the Heap pops the "Worst" (Smallest) Hit.
         // Hit Ord: High Score > Low Score.
         let mut heap: BinaryHeap<Reverse<Hit>> = BinaryHeap::with_capacity(k);
+        let mut dropped_nan = 0usize;
 
         for (key, (embedding, _meta)) in self.all_in_namespace(namespace) {
             // Since both vectors are normalized, cosine similarity is just the dot product.
             let score = dot(&query, embedding);
 
             if score.is_nan() {
+                dropped_nan += 1;
                 continue;
             }
 
@@ -163,6 +165,13 @@ impl VectorStore {
                     *worst = Reverse(hit);
                 }
             }
+        }
+
+        if dropped_nan > 0 {
+            tracing::warn!(
+                dropped = dropped_nan,
+                "dropped search hits with NaN scores before ranking"
+            );
         }
 
         let mut sorted: Vec<_> = heap.into_vec().into_iter().map(|Reverse(h)| h).collect();
@@ -200,7 +209,7 @@ struct Hit<'a> {
 
 impl<'a> PartialEq for Hit<'a> {
     fn eq(&self, other: &Self) -> bool {
-        self.score == other.score && self.key == other.key
+        self.score.to_bits() == other.score.to_bits() && self.key == other.key
     }
 }
 
@@ -217,12 +226,42 @@ impl<'a> Ord for Hit<'a> {
         // Order by score (descending effective preference)
         // High score > Low score
         // Tie-break: Low key > High key (lexicographically, respecting doc/chunk split)
+        // Note: We use split_chunk_key_ref to ensure consistent sorting with the legacy implementation
+        // which sorts (score desc, doc_id asc, chunk_id asc).
         self.score
             .partial_cmp(&other.score)
             .unwrap_or(Ordering::Equal)
             .then_with(|| {
-                 // We want Low Key to be "Better" (Greater in this Ord)
-                 // So compare(other, self)
+                 // We want Low Key to be "Better" (Greater in this Ord context where we want to keep "Better" items)
+                 // But wait, BinaryHeap is a MaxHeap.
+                 // We use Reverse<Hit> in the heap, so the heap is a Min-Heap of Hits.
+                 // The heap.peek() returns the Smallest Hit (the Worst one).
+                 // We want to EVICT the Worst one.
+                 // Worst = Low Score.
+                 // So Low Score should be "Small".
+                 // High Score should be "Large".
+                 // So Score comparison: self.score.cmp(other.score) (Ascending).
+
+                 // Tie-break: Worst = High Key (Lexicographically later).
+                 // So High Key should be "Small".
+                 // Low Key should be "Large".
+                 // So Key comparison: other.key.cmp(self.key) (Descending).
+
+                 // Let's re-verify:
+                 // Hit A: Score 1.0, Key "a" (Best)
+                 // Hit B: Score 0.0, Key "z" (Worst)
+                 // cmp(A, B): 1.0 > 0.0 -> Greater. A is "Larger" than B. Correct.
+
+                 // Hit A: Score 1.0, Key "a" (Better)
+                 // Hit B: Score 1.0, Key "b" (Worse)
+                 // cmp(A, B): Scores Equal.
+                 // Key cmp: "b".cmp("a") -> Greater. A is "Larger" than B. Correct.
+
+                 // Wait. "b" > "a". So other.key > self.key.
+                 // If A is "a" and B is "b".
+                 // A.cmp(B) -> other("b").cmp(self("a")) -> Greater.
+                 // So A > B.
+                 // A is "Larger" (Better). Correct.
 
                  let (doc_self, chunk_self) = split_chunk_key_ref(self.key);
                  let (doc_other, chunk_other) = split_chunk_key_ref(other.key);
@@ -234,6 +273,7 @@ impl<'a> Ord for Hit<'a> {
 }
 
 fn dot(a: &[f32], b: &[f32]) -> f32 {
+    debug_assert_eq!(a.len(), b.len());
     let mut sum = 0.0;
 
     let chunks_a = a.chunks_exact(8);
