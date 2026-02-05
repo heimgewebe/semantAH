@@ -223,49 +223,17 @@ impl<'a> PartialOrd for Hit<'a> {
 
 impl<'a> Ord for Hit<'a> {
     fn cmp(&self, other: &Self) -> Ordering {
-        // Order by score (descending effective preference)
-        // High score > Low score
-        // Tie-break: Low key > High key (lexicographically, respecting doc/chunk split)
-        // Note: We use split_chunk_key_ref to ensure consistent sorting with the legacy implementation
-        // which sorts (score desc, doc_id asc, chunk_id asc).
+        // "Better" hits must compare as Greater:
+        // 1) higher score is better
+        // 2) if score ties: doc_id asc, chunk_id asc is better (legacy)
         self.score
             .partial_cmp(&other.score)
             .unwrap_or(Ordering::Equal)
             .then_with(|| {
-                 // We want Low Key to be "Better" (Greater in this Ord context where we want to keep "Better" items)
-                 // But wait, BinaryHeap is a MaxHeap.
-                 // We use Reverse<Hit> in the heap, so the heap is a Min-Heap of Hits.
-                 // The heap.peek() returns the Smallest Hit (the Worst one).
-                 // We want to EVICT the Worst one.
-                 // Worst = Low Score.
-                 // So Low Score should be "Small".
-                 // High Score should be "Large".
-                 // So Score comparison: self.score.cmp(other.score) (Ascending).
-
-                 // Tie-break: Worst = High Key (Lexicographically later).
-                 // So High Key should be "Small".
-                 // Low Key should be "Large".
-                 // So Key comparison: other.key.cmp(self.key) (Descending).
-
-                 // Let's re-verify:
-                 // Hit A: Score 1.0, Key "a" (Best)
-                 // Hit B: Score 0.0, Key "z" (Worst)
-                 // cmp(A, B): 1.0 > 0.0 -> Greater. A is "Larger" than B. Correct.
-
-                 // Hit A: Score 1.0, Key "a" (Better)
-                 // Hit B: Score 1.0, Key "b" (Worse)
-                 // cmp(A, B): Scores Equal.
-                 // Key cmp: "b".cmp("a") -> Greater. A is "Larger" than B. Correct.
-
-                 // Wait. "b" > "a". So other.key > self.key.
-                 // If A is "a" and B is "b".
-                 // A.cmp(B) -> other("b").cmp(self("a")) -> Greater.
-                 // So A > B.
-                 // A is "Larger" (Better). Correct.
-
                  let (doc_self, chunk_self) = split_chunk_key_ref(self.key);
                  let (doc_other, chunk_other) = split_chunk_key_ref(other.key);
 
+                 // Invert so that smaller (doc,chunk) becomes "Greater"/better.
                  doc_other.cmp(doc_self)
                      .then_with(|| chunk_other.cmp(chunk_self))
             })
