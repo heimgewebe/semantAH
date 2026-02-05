@@ -211,7 +211,7 @@ struct Hit<'a> {
 
 impl<'a> PartialEq for Hit<'a> {
     fn eq(&self, other: &Self) -> bool {
-        self.score.to_bits() == other.score.to_bits() && self.key == other.key
+        self.cmp(other) == Ordering::Equal
     }
 }
 
