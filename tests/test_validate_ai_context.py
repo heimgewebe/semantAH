@@ -1,3 +1,4 @@
+import copy
 import pytest
 import yaml
 from scripts.ai_context import validate_ai_context
@@ -111,7 +112,7 @@ def test_validate_one(tmp_path):
     assert "ai_guidance.dont must not be empty" in errs
 
     # With placeholders
-    placeholder_data = valid_data.copy()
+    placeholder_data = copy.deepcopy(valid_data)
     placeholder_data["project"]["name"] = "TODO project"
     p = tmp_path / "placeholder.ai-context.yml"
     p.write_text(yaml.dump(placeholder_data), encoding="utf-8")
