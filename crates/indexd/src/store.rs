@@ -155,7 +155,10 @@ impl VectorStore {
 
             // 'key' here is &String from the map iteration.
             // Hit expects &'a str, so we use as_str().
-            let hit = Hit { key: key.as_str(), score };
+            let hit = Hit {
+                key: key.as_str(),
+                score,
+            };
 
             if heap.len() < k {
                 heap.push(Reverse(hit));
@@ -232,12 +235,13 @@ impl<'a> Ord for Hit<'a> {
             .partial_cmp(&other.score)
             .unwrap_or(Ordering::Equal)
             .then_with(|| {
-                 let (doc_self, chunk_self) = split_chunk_key_ref(self.key);
-                 let (doc_other, chunk_other) = split_chunk_key_ref(other.key);
+                let (doc_self, chunk_self) = split_chunk_key_ref(self.key);
+                let (doc_other, chunk_other) = split_chunk_key_ref(other.key);
 
-                 // Invert so that smaller (doc,chunk) becomes "Greater"/better.
-                 doc_other.cmp(doc_self)
-                     .then_with(|| chunk_other.cmp(chunk_self))
+                // Invert so that smaller (doc,chunk) becomes "Greater"/better.
+                doc_other
+                    .cmp(doc_self)
+                    .then_with(|| chunk_other.cmp(chunk_self))
             })
     }
 }
@@ -252,8 +256,14 @@ fn dot(a: &[f32], b: &[f32]) -> f32 {
     let rem_b = chunks_b.remainder();
 
     for (ca, cb) in chunks_a.zip(chunks_b) {
-        sum += ca[0] * cb[0] + ca[1] * cb[1] + ca[2] * cb[2] + ca[3] * cb[3]
-             + ca[4] * cb[4] + ca[5] * cb[5] + ca[6] * cb[6] + ca[7] * cb[7];
+        sum += ca[0] * cb[0]
+            + ca[1] * cb[1]
+            + ca[2] * cb[2]
+            + ca[3] * cb[3]
+            + ca[4] * cb[4]
+            + ca[5] * cb[5]
+            + ca[6] * cb[6]
+            + ca[7] * cb[7];
     }
 
     for (x, y) in rem_a.iter().zip(rem_b.iter()) {
@@ -366,7 +376,9 @@ mod tests {
     #[test]
     fn search_with_k_zero_is_safe() {
         let mut store = VectorStore::new();
-        store.upsert("ns", "d", "c", vec![1.0], Value::Null).unwrap();
+        store
+            .upsert("ns", "d", "c", vec![1.0], Value::Null)
+            .unwrap();
         let results = store.search("ns", &[1.0], 0, &Value::Null);
         assert!(results.is_empty());
     }
@@ -383,7 +395,9 @@ mod tests {
         // Populate
         for i in 0..num_vectors {
             let vec: Vec<f32> = (0..dim).map(|v| (v as f32) + (i as f32)).collect();
-            store.upsert(namespace, &format!("doc-{}", i), "chunk", vec, Value::Null).unwrap();
+            store
+                .upsert(namespace, &format!("doc-{}", i), "chunk", vec, Value::Null)
+                .unwrap();
         }
 
         let query: Vec<f32> = (0..dim).map(|v| v as f32).collect();
@@ -398,6 +412,10 @@ mod tests {
         }
         let duration = start.elapsed();
 
-        println!("Search took avg: {:?} for {} iterations", duration / iterations, iterations);
+        println!(
+            "Search took avg: {:?} for {} iterations",
+            duration / iterations,
+            iterations
+        );
     }
 }
