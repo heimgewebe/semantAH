@@ -90,7 +90,7 @@ def test_validate_one(tmp_path):
         "ai_guidance": {"do": ["test everything"], "dont": ["miss anything"]},
     }
     p = tmp_path / "valid.ai-context.yml"
-    p.write_text(yaml.dump(valid_data), encoding="utf-8")
+    p.write_text(yaml.safe_dump(valid_data), encoding="utf-8")
     assert validate_ai_context.validate_one(p) == []
 
     # Missing project fields
@@ -103,7 +103,7 @@ def test_validate_one(tmp_path):
         "ai_guidance": {"do": [], "dont": []},
     }
     p = tmp_path / "invalid.ai-context.yml"
-    p.write_text(yaml.dump(invalid_data), encoding="utf-8")
+    p.write_text(yaml.safe_dump(invalid_data), encoding="utf-8")
     errs = validate_ai_context.validate_one(p)
     assert "missing project.name" in errs
     assert "missing project.summary" in errs
@@ -115,7 +115,7 @@ def test_validate_one(tmp_path):
     placeholder_data = copy.deepcopy(valid_data)
     placeholder_data["project"]["name"] = "TODO project"
     p = tmp_path / "placeholder.ai-context.yml"
-    p.write_text(yaml.dump(placeholder_data), encoding="utf-8")
+    p.write_text(yaml.safe_dump(placeholder_data), encoding="utf-8")
     errs = validate_ai_context.validate_one(p)
     assert "contains placeholders (TODO/TBD/FIXME/lorem/ipsum)" in errs
 
@@ -127,13 +127,13 @@ def test_validate_file(tmp_path):
         "ai_guidance": {"do": ["D"], "dont": ["X"]},
     }
     p = tmp_path / "test.ai-context.yml"
-    p.write_text(yaml.dump(valid_data), encoding="utf-8")
+    p.write_text(yaml.safe_dump(valid_data), encoding="utf-8")
     assert validate_ai_context.validate_file(p) == 0
 
     # Invalid file
     invalid_data = {"project": {"name": ""}}
     p2 = tmp_path / "bad.ai-context.yml"
-    p2.write_text(yaml.dump(invalid_data), encoding="utf-8")
+    p2.write_text(yaml.safe_dump(invalid_data), encoding="utf-8")
     assert validate_ai_context.validate_file(p2) == 2
 
     # Missing file
@@ -158,17 +158,17 @@ def test_validate_templates(tmp_path):
 
     # All valid
     (templates_dir / "one.ai-context.yml").write_text(
-        yaml.dump(valid_data), encoding="utf-8"
+        yaml.safe_dump(valid_data), encoding="utf-8"
     )
     (templates_dir / "two.ai-context.yml").write_text(
-        yaml.dump(valid_data), encoding="utf-8"
+        yaml.safe_dump(valid_data), encoding="utf-8"
     )
     assert validate_ai_context.validate_templates(templates_dir) == 0
 
     # One invalid
     invalid_data = {"project": {"name": ""}}
     (templates_dir / "bad.ai-context.yml").write_text(
-        yaml.dump(invalid_data), encoding="utf-8"
+        yaml.safe_dump(invalid_data), encoding="utf-8"
     )
     assert validate_ai_context.validate_templates(templates_dir) == 2
 
