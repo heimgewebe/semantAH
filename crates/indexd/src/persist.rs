@@ -10,11 +10,7 @@ use serde_json::Value;
 use tokio::task;
 use tracing::{info, warn};
 
-use crate::{
-    key::split_chunk_key_ref,
-    store::VectorStore,
-    AppState,
-};
+use crate::{key::split_chunk_key_ref, store::VectorStore, AppState};
 
 const ENV_DB_PATH: &str = "INDEXD_DB_PATH";
 
