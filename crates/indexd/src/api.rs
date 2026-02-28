@@ -664,6 +664,33 @@ mod tests {
     use embeddings::Embedder;
     use serde_json::json;
 
+    fn mock_chunk(id: &str, embedding: Vec<f32>) -> ChunkPayload {
+        ChunkPayload {
+            id: id.into(),
+            _text: "ignored".into(),
+            meta: json!({ "embedding": embedding }),
+        }
+    }
+
+    fn mock_upsert(doc_id: &str, chunks: Vec<ChunkPayload>) -> UpsertRequest {
+        UpsertRequest {
+            doc_id: doc_id.into(),
+            namespace: "ns".into(),
+            chunks,
+        }
+    }
+
+    fn mock_search(query: QueryPayload, k: u32) -> SearchRequest {
+        SearchRequest {
+            query,
+            k,
+            namespace: "ns".into(),
+            filters: None,
+            embedding: None,
+            meta: None,
+        }
+    }
+
     #[derive(Debug)]
     struct TestEmbedder;
 
@@ -690,22 +717,13 @@ mod tests {
     async fn upsert_is_atomic_on_failure() {
         let state = Arc::new(AppState::new());
 
-        let payload = UpsertRequest {
-            doc_id: "doc".into(),
-            namespace: "ns".into(),
-            chunks: vec![
-                ChunkPayload {
-                    id: "chunk-1".into(),
-                    _text: "ignored".into(),
-                    meta: json!({ "embedding": [0.1, 0.2] }),
-                },
-                ChunkPayload {
-                    id: "chunk-2".into(),
-                    _text: "ignored".into(),
-                    meta: json!({ "embedding": [0.3] }),
-                },
+        let payload = mock_upsert(
+            "doc",
+            vec![
+                mock_chunk("chunk-1", vec![0.1, 0.2]),
+                mock_chunk("chunk-2", vec![0.3]),
             ],
-        };
+        );
 
         let result = handle_upsert(State(state.clone()), ApiJson(payload)).await;
         assert!(
@@ -720,14 +738,7 @@ mod tests {
     #[tokio::test]
     async fn search_requires_embedding() {
         let state = Arc::new(AppState::new());
-        let payload = SearchRequest {
-            query: QueryPayload::Text("hello".into()),
-            k: 5,
-            namespace: "ns".into(),
-            filters: None,
-            embedding: None,
-            meta: None,
-        };
+        let payload = mock_search(QueryPayload::Text("hello".into()), 5);
 
         let result = handle_search(State(state), ApiJson(payload)).await;
         assert!(result.is_err());
@@ -736,14 +747,8 @@ mod tests {
     #[tokio::test]
     async fn search_rejects_empty_top_level_embedding() {
         let state = Arc::new(AppState::new());
-        let payload = SearchRequest {
-            query: QueryPayload::Text("hello".into()),
-            k: 1,
-            namespace: "ns".into(),
-            filters: None,
-            embedding: Some(vec![]),
-            meta: None,
-        };
+        let mut payload = mock_search(QueryPayload::Text("hello".into()), 1);
+        payload.embedding = Some(vec![]);
 
         let result = handle_search(State(state), ApiJson(payload)).await;
         let (status, body) = result.expect_err("search should reject empty embedding");
@@ -758,27 +763,13 @@ mod tests {
     async fn search_accepts_top_level_embedding() {
         let state = Arc::new(AppState::new());
 
-        let upsert_payload = UpsertRequest {
-            doc_id: "doc".into(),
-            namespace: "ns".into(),
-            chunks: vec![ChunkPayload {
-                id: "chunk-1".into(),
-                _text: "ignored".into(),
-                meta: json!({ "embedding": [0.1, 0.2] }),
-            }],
-        };
+        let upsert_payload = mock_upsert("doc", vec![mock_chunk("chunk-1", vec![0.1, 0.2])]);
 
         let upsert_result = handle_upsert(State(state.clone()), ApiJson(upsert_payload)).await;
         assert!(upsert_result.is_ok(), "upsert should succeed");
 
-        let payload = SearchRequest {
-            query: QueryPayload::Text("hello".into()),
-            k: 1,
-            namespace: "ns".into(),
-            filters: None,
-            embedding: Some(vec![0.1, 0.2]),
-            meta: None,
-        };
+        let mut payload = mock_search(QueryPayload::Text("hello".into()), 1);
+        payload.embedding = Some(vec![0.1, 0.2]);
 
         let result = handle_search(State(state), ApiJson(payload)).await;
         assert!(result.is_ok(), "search should accept top-level embedding");
@@ -788,30 +779,18 @@ mod tests {
     async fn search_accepts_query_meta_embedding() {
         let state = Arc::new(AppState::new());
 
-        let upsert_payload = UpsertRequest {
-            doc_id: "doc".into(),
-            namespace: "ns".into(),
-            chunks: vec![ChunkPayload {
-                id: "chunk-1".into(),
-                _text: "ignored".into(),
-                meta: json!({ "embedding": [0.1, 0.2] }),
-            }],
-        };
+        let upsert_payload = mock_upsert("doc", vec![mock_chunk("chunk-1", vec![0.1, 0.2])]);
 
         let upsert_result = handle_upsert(State(state.clone()), ApiJson(upsert_payload)).await;
         assert!(upsert_result.is_ok(), "upsert should succeed");
 
-        let payload = SearchRequest {
-            query: QueryPayload::WithMeta {
+        let payload = mock_search(
+            QueryPayload::WithMeta {
                 text: "hello".into(),
                 meta: json!({ "embedding": [0.1, 0.2] }),
             },
-            k: 1,
-            namespace: "ns".into(),
-            filters: None,
-            embedding: None,
-            meta: None,
-        };
+            1,
+        );
 
         let result = handle_search(State(state), ApiJson(payload)).await;
         assert!(result.is_ok(), "search should accept query.meta.embedding");
@@ -821,27 +800,13 @@ mod tests {
     async fn search_accepts_legacy_meta_embedding() {
         let state = Arc::new(AppState::new());
 
-        let upsert_payload = UpsertRequest {
-            doc_id: "doc".into(),
-            namespace: "ns".into(),
-            chunks: vec![ChunkPayload {
-                id: "chunk-1".into(),
-                _text: "ignored".into(),
-                meta: json!({ "embedding": [0.1, 0.2] }),
-            }],
-        };
+        let upsert_payload = mock_upsert("doc", vec![mock_chunk("chunk-1", vec![0.1, 0.2])]);
 
         let upsert_result = handle_upsert(State(state.clone()), ApiJson(upsert_payload)).await;
         assert!(upsert_result.is_ok(), "upsert should succeed");
 
-        let payload = SearchRequest {
-            query: QueryPayload::Text("hello".into()),
-            k: 1,
-            namespace: "ns".into(),
-            filters: None,
-            embedding: None,
-            meta: Some(json!({ "embedding": [0.1, 0.2] })),
-        };
+        let mut payload = mock_search(QueryPayload::Text("hello".into()), 1);
+        payload.meta = Some(json!({ "embedding": [0.1, 0.2] }));
 
         let result = handle_search(State(state), ApiJson(payload)).await;
         assert!(result.is_ok(), "search should accept legacy meta.embedding");
@@ -852,27 +817,12 @@ mod tests {
         let embedder: Arc<dyn Embedder> = Arc::new(TestEmbedder);
         let state = Arc::new(AppState::with_embedder(Some(embedder)));
 
-        let upsert_payload = UpsertRequest {
-            doc_id: "doc".into(),
-            namespace: "ns".into(),
-            chunks: vec![ChunkPayload {
-                id: "chunk-1".into(),
-                _text: "ignored".into(),
-                meta: json!({ "embedding": [1.0, 0.0] }),
-            }],
-        };
+        let upsert_payload = mock_upsert("doc", vec![mock_chunk("chunk-1", vec![1.0, 0.0])]);
 
         let upsert_result = handle_upsert(State(state.clone()), ApiJson(upsert_payload)).await;
         assert!(upsert_result.is_ok(), "upsert should succeed");
 
-        let payload = SearchRequest {
-            query: QueryPayload::Text("hello".into()),
-            k: 1,
-            namespace: "ns".into(),
-            filters: None,
-            embedding: None,
-            meta: None,
-        };
+        let payload = mock_search(QueryPayload::Text("hello".into()), 1);
 
         let result = handle_search(State(state), ApiJson(payload)).await;
         let Json(response) = result.expect("search should succeed when embedder is configured");
@@ -908,14 +858,7 @@ mod tests {
         let embedder: Arc<dyn Embedder> = Arc::new(FailingEmbedder);
         let state = Arc::new(AppState::with_embedder(Some(embedder)));
 
-        let payload = SearchRequest {
-            query: QueryPayload::Text("hello".into()),
-            k: 1,
-            namespace: "ns".into(),
-            filters: None,
-            embedding: None,
-            meta: None,
-        };
+        let payload = mock_search(QueryPayload::Text("hello".into()), 1);
 
         let result = handle_search(State(state), ApiJson(payload)).await;
         let (status, body) = result.expect_err("search should fail when embedder returns an error");
@@ -929,14 +872,8 @@ mod tests {
     #[tokio::test]
     async fn search_with_k_zero_is_rejected() {
         let state = Arc::new(AppState::new());
-        let payload = SearchRequest {
-            query: QueryPayload::Text("hello".into()),
-            k: 0,
-            namespace: "ns".into(),
-            filters: None,
-            embedding: Some(vec![0.1, 0.2]),
-            meta: None,
-        };
+        let mut payload = mock_search(QueryPayload::Text("hello".into()), 0);
+        payload.embedding = Some(vec![0.1, 0.2]);
 
         let result = handle_search(State(state), ApiJson(payload)).await;
         assert!(result.is_err(), "search with k=0 should be rejected");
@@ -948,27 +885,13 @@ mod tests {
     async fn search_rejects_mismatched_embedding_dimensions() {
         let state = Arc::new(AppState::new());
 
-        let upsert_payload = UpsertRequest {
-            doc_id: "doc".into(),
-            namespace: "ns".into(),
-            chunks: vec![ChunkPayload {
-                id: "chunk-1".into(),
-                _text: "ignored".into(),
-                meta: json!({ "embedding": [0.1, 0.2] }),
-            }],
-        };
+        let upsert_payload = mock_upsert("doc", vec![mock_chunk("chunk-1", vec![0.1, 0.2])]);
 
         let upsert_result = handle_upsert(State(state.clone()), ApiJson(upsert_payload)).await;
         assert!(upsert_result.is_ok(), "upsert should succeed");
 
-        let payload = SearchRequest {
-            query: QueryPayload::Text("hello".into()),
-            k: 1,
-            namespace: "ns".into(),
-            filters: None,
-            embedding: Some(vec![0.1]),
-            meta: None,
-        };
+        let mut payload = mock_search(QueryPayload::Text("hello".into()), 1);
+        payload.embedding = Some(vec![0.1]);
 
         let result = handle_search(State(state), ApiJson(payload)).await;
         let (status, _) = result.expect_err("search should reject dimensionality mismatch");
@@ -1024,15 +947,7 @@ mod tests {
         let embedder: Arc<dyn Embedder> = Arc::new(WrongVectorEmbedder);
         let state = Arc::new(AppState::with_embedder(Some(embedder)));
 
-        let upsert_payload = UpsertRequest {
-            doc_id: "doc".into(),
-            namespace: "ns".into(),
-            chunks: vec![ChunkPayload {
-                id: "chunk-1".into(),
-                _text: "ignored".into(),
-                meta: json!({ "embedding": [0.1, 0.2] }),
-            }],
-        };
+        let upsert_payload = mock_upsert("doc", vec![mock_chunk("chunk-1", vec![0.1, 0.2])]);
 
         let upsert_result = handle_upsert(State(state.clone()), ApiJson(upsert_payload)).await;
         assert!(upsert_result.is_ok(), "upsert should succeed");
@@ -1041,14 +956,7 @@ mod tests {
             assert_eq!(store.dims, Some(2));
         }
 
-        let payload = SearchRequest {
-            query: QueryPayload::Text("hello".into()),
-            k: 1,
-            namespace: "ns".into(),
-            filters: None,
-            embedding: None,
-            meta: None,
-        };
+        let payload = mock_search(QueryPayload::Text("hello".into()), 1);
 
         let result = handle_search(State(state), ApiJson(payload)).await;
         let (status, _) = result.expect_err("search should fail on embedder/store mismatch");
@@ -1060,15 +968,7 @@ mod tests {
         let embedder: Arc<dyn Embedder> = Arc::new(MismatchedEmbedder);
         let state = Arc::new(AppState::with_embedder(Some(embedder)));
 
-        let upsert_payload = UpsertRequest {
-            doc_id: "doc".into(),
-            namespace: "ns".into(),
-            chunks: vec![ChunkPayload {
-                id: "chunk-1".into(),
-                _text: "ignored".into(),
-                meta: json!({ "embedding": [0.1, 0.2] }),
-            }],
-        };
+        let upsert_payload = mock_upsert("doc", vec![mock_chunk("chunk-1", vec![0.1, 0.2])]);
 
         let upsert_result = handle_upsert(State(state.clone()), ApiJson(upsert_payload)).await;
         assert!(upsert_result.is_ok(), "upsert should succeed");
@@ -1077,14 +977,7 @@ mod tests {
             assert_eq!(store.dims, Some(2));
         }
 
-        let payload = SearchRequest {
-            query: QueryPayload::Text("hello".into()),
-            k: 1,
-            namespace: "ns".into(),
-            filters: None,
-            embedding: None,
-            meta: None,
-        };
+        let payload = mock_search(QueryPayload::Text("hello".into()), 1);
 
         let result = handle_search(State(state), ApiJson(payload)).await;
         let (status, _) = result.expect_err("search should fail on embedder/store dim mismatch");
