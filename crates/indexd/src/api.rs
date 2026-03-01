@@ -86,7 +86,13 @@ impl<'de> Deserialize<'de> for TypedMetadata {
         D: serde::Deserializer<'de>,
     {
         use serde::de::Error;
-        let mut extra = serde_json::Map::deserialize(deserializer)?;
+        let value = Value::deserialize(deserializer)?;
+
+        let mut extra = match value {
+            Value::Null => return Ok(TypedMetadata::default()),
+            Value::Object(map) => map,
+            _ => return Err(D::Error::custom("meta must be an object or null")),
+        };
 
         let embedding = match extra.remove("embedding") {
             Some(Value::Array(arr)) => {
@@ -872,6 +878,27 @@ mod tests {
         assert_eq!(
             body.0.get("error").and_then(|v| v.as_str()).unwrap_or(""),
             "chunk 'chunk-1': embedding must be an array of numbers"
+        );
+    }
+
+    #[tokio::test]
+    async fn upsert_rejects_null_meta_as_missing_embedding() {
+        let state = Arc::new(AppState::new());
+        let raw_chunk = ChunkPayload {
+            id: "chunk-1".into(),
+            _text: "ignored".into(),
+            meta: serde_json::from_value(json!(null)).unwrap(),
+        };
+        let payload = mock_upsert("doc", vec![raw_chunk]);
+
+        let result = handle_upsert(State(state), ApiJson(payload)).await;
+        let (status, body) =
+            result.expect_err("upsert should reject null meta as missing embedding");
+        // Because meta is parsed as empty Default structure, missing embedding triggers the normal 400 guard.
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            body.0.get("error").and_then(|v| v.as_str()).unwrap_or(""),
+            "chunk 'chunk-1' meta must contain an 'embedding' array"
         );
     }
 
