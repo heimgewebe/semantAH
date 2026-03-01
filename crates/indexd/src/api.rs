@@ -71,13 +71,46 @@ where
 }
 
 /// Typed metadata that can contain an embedding and arbitrary other fields.
-#[derive(Debug, Deserialize, Serialize, Default, Clone)]
+#[derive(Debug, Serialize, Default, Clone)]
 pub struct TypedMetadata {
     /// Optional embedding vector.
     pub embedding: Option<Vec<f32>>,
     /// Other metadata fields.
     #[serde(flatten)]
     pub extra: serde_json::Map<String, Value>,
+}
+
+impl<'de> Deserialize<'de> for TypedMetadata {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error;
+        let mut extra = serde_json::Map::deserialize(deserializer)?;
+
+        let embedding = match extra.remove("embedding") {
+            Some(Value::Array(arr)) => {
+                let mut vec = Vec::with_capacity(arr.len());
+                for val in arr {
+                    if let Some(f) = val.as_f64() {
+                        vec.push(f as f32);
+                    } else {
+                        return Err(D::Error::custom("embedding must be an array of numbers"));
+                    }
+                }
+                Some(vec)
+            }
+            Some(Value::Null) => {
+                // Keep explicitly null embedding in extra so handlers can detect it.
+                extra.insert("embedding".to_string(), Value::Null);
+                None
+            }
+            Some(_) => return Err(D::Error::custom("embedding must be an array of numbers")),
+            None => None,
+        };
+
+        Ok(TypedMetadata { embedding, extra })
+    }
 }
 
 /// Request to insert or update document chunks with embeddings.
@@ -307,6 +340,13 @@ async fn handle_upsert(
     for chunk in chunks {
         let ChunkPayload { id, _text: _, meta } = chunk;
 
+        if meta.extra.contains_key("embedding") && meta.embedding.is_none() {
+            return Err(bad_request(format!(
+                "chunk '{}': embedding must be an array of numbers",
+                id
+            )));
+        }
+
         let vector = meta.embedding.ok_or_else(|| {
             bad_request(format!(
                 "chunk '{}' meta must contain an 'embedding' array",
@@ -411,7 +451,12 @@ async fn handle_search(
 
     let (query_text, query_embedding_value) = match query {
         QueryPayload::Text(text) => (text, None),
-        QueryPayload::WithMeta { text, meta } => (text, meta.embedding),
+        QueryPayload::WithMeta { text, meta } => {
+            if meta.extra.contains_key("embedding") && meta.embedding.is_none() {
+                return Err(bad_request("embedding must be an array of numbers"));
+            }
+            (text, meta.embedding)
+        }
     };
 
     let k = k as usize;
@@ -431,17 +476,21 @@ async fn handle_search(
         }
         (value, false)
     } else if let Some(meta) = meta {
-        let vector = meta.embedding.as_ref().ok_or_else(|| {
-            bad_request(
-                "embedding is required (provide query.meta.embedding, top-level embedding, or legacy meta.embedding)",
-            )
-        })?;
+        let vector = match meta.embedding {
+            Some(v) => {
+                if v.is_empty() {
+                    return Err(bad_request("embedding array cannot be empty"));
+                }
+                v
+            }
+            None => {
+                return Err(bad_request(
+                    "embedding is required (provide query.meta.embedding, top-level embedding, or legacy meta.embedding)",
+                ));
+            }
+        };
 
-        if vector.is_empty() {
-            return Err(bad_request("embedding array cannot be empty"));
-        }
-
-        (meta.embedding.unwrap(), false)
+        (vector, false)
     } else if let Some(embedder) = embedder {
         if store_dims.is_none() {
             store_dims = state.store.read().await.dims;
@@ -785,6 +834,45 @@ mod tests {
 
         let result = handle_search(State(state), ApiJson(payload)).await;
         assert!(result.is_ok(), "search should accept legacy meta.embedding");
+    }
+
+    #[tokio::test]
+    async fn search_rejects_null_query_meta_embedding() {
+        let state = Arc::new(AppState::new());
+        let payload = mock_search(
+            QueryPayload::WithMeta {
+                text: "hello".into(),
+                meta: serde_json::from_value(json!({ "embedding": null })).unwrap(),
+            },
+            1,
+        );
+
+        let result = handle_search(State(state), ApiJson(payload)).await;
+        let (status, body) = result.expect_err("search should reject null embedding");
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            body.0.get("error").and_then(|v| v.as_str()).unwrap_or(""),
+            "embedding must be an array of numbers"
+        );
+    }
+
+    #[tokio::test]
+    async fn upsert_rejects_null_embedding() {
+        let state = Arc::new(AppState::new());
+        let raw_chunk = ChunkPayload {
+            id: "chunk-1".into(),
+            _text: "ignored".into(),
+            meta: serde_json::from_value(json!({ "embedding": null })).unwrap(),
+        };
+        let payload = mock_upsert("doc", vec![raw_chunk]);
+
+        let result = handle_upsert(State(state), ApiJson(payload)).await;
+        let (status, body) = result.expect_err("upsert should reject null embedding");
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            body.0.get("error").and_then(|v| v.as_str()).unwrap_or(""),
+            "chunk 'chunk-1': embedding must be an array of numbers"
+        );
     }
 
     #[tokio::test]
