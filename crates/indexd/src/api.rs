@@ -70,6 +70,62 @@ where
     }
 }
 
+/// Typed metadata that can contain an embedding and arbitrary other fields.
+///
+/// The `meta` block itself may be an object or explicitly `null`.
+/// Within `meta`, if the `embedding` key is explicitly `null` (e.g. `{"embedding": null}`),
+/// it will trigger a `400 Bad Request` in handlers.
+/// If `embedding` is an empty array, handlers return `400 Bad Request`.
+/// If `embedding` is provided with a non-array, non-null type (e.g. a string, object, or number),
+/// a `422 Unprocessable Entity` will be returned during payload deserialization.
+#[derive(Debug, Serialize, Default, Clone)]
+pub struct TypedMetadata {
+    /// Optional embedding vector.
+    pub embedding: Option<Vec<f32>>,
+    /// Other metadata fields.
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, Value>,
+}
+
+impl<'de> Deserialize<'de> for TypedMetadata {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error;
+        let value = Value::deserialize(deserializer)?;
+
+        let mut extra = match value {
+            Value::Null => return Ok(TypedMetadata::default()),
+            Value::Object(map) => map,
+            _ => return Err(D::Error::custom("meta must be an object or null")),
+        };
+
+        let embedding = match extra.remove("embedding") {
+            Some(Value::Array(arr)) => {
+                let mut vec = Vec::with_capacity(arr.len());
+                for val in arr {
+                    if let Some(f) = val.as_f64() {
+                        vec.push(f as f32);
+                    } else {
+                        return Err(D::Error::custom("embedding must be an array of numbers"));
+                    }
+                }
+                Some(vec)
+            }
+            Some(Value::Null) => {
+                // Keep explicitly null embedding in extra so handlers can detect it.
+                extra.insert("embedding".to_string(), Value::Null);
+                None
+            }
+            Some(_) => return Err(D::Error::custom("embedding must be an array of numbers")),
+            None => None,
+        };
+
+        Ok(TypedMetadata { embedding, extra })
+    }
+}
+
 /// Request to insert or update document chunks with embeddings.
 ///
 /// All chunks for a document ID are replaced atomically. If any chunk fails
@@ -93,8 +149,8 @@ pub struct ChunkPayload {
     #[serde(rename = "text")]
     _text: String,
     /// Metadata must include an "embedding" array and may include a "snippet" string.
-    #[serde(default = "default_meta")]
-    pub meta: Value,
+    #[serde(default)]
+    pub meta: TypedMetadata,
 }
 
 /// Request to delete all chunks associated with a document.
@@ -132,7 +188,7 @@ pub struct SearchRequest {
     pub embedding: Option<Vec<f32>>,
     /// Legacy location for embedding. Use `query.meta.embedding` or `embedding` instead.
     #[serde(default)]
-    pub meta: Option<Value>,
+    pub meta: Option<TypedMetadata>,
 }
 
 /// Query payload that can be either plain text or text with metadata.
@@ -148,8 +204,8 @@ pub enum QueryPayload {
     /// Query text with optional metadata (including embedding).
     WithMeta {
         text: String,
-        #[serde(default = "default_meta")]
-        meta: Value,
+        #[serde(default)]
+        meta: TypedMetadata,
     },
 }
 
@@ -273,10 +329,6 @@ fn default_k() -> u32 {
     10
 }
 
-fn default_meta() -> Value {
-    Value::Object(Default::default())
-}
-
 async fn handle_upsert(
     State(state): State<Arc<AppState>>,
     ApiJson(payload): ApiJson<UpsertRequest>,
@@ -301,25 +353,26 @@ async fn handle_upsert(
     for chunk in chunks {
         let ChunkPayload { id, _text: _, meta } = chunk;
 
-        let mut meta = match meta {
-            Value::Object(map) => map,
-            _ => {
-                return Err(bad_request(format!(
-                    "chunk '{}' meta must be an object",
-                    id
-                )))
-            }
-        };
+        if meta.extra.contains_key("embedding") && meta.embedding.is_none() {
+            return Err(bad_request(format!(
+                "chunk '{}': embedding must be an array of numbers",
+                id
+            )));
+        }
 
-        let embedding_value = meta.remove("embedding").ok_or_else(|| {
+        let vector = meta.embedding.ok_or_else(|| {
             bad_request(format!(
                 "chunk '{}' meta must contain an 'embedding' array",
                 id
             ))
         })?;
 
-        let vector = parse_embedding(embedding_value)
-            .map_err(|err| bad_request(format!("chunk '{}': {}", id, err)))?;
+        if vector.is_empty() {
+            return Err(bad_request(format!(
+                "chunk '{}': embedding array cannot be empty",
+                id
+            )));
+        }
 
         if let Some(expected) = expected_dim {
             if expected != vector.len() {
@@ -334,7 +387,7 @@ async fn handle_upsert(
             expected_dim = Some(vector.len());
         }
 
-        staged.push((id, vector, Value::Object(meta)));
+        staged.push((id, vector, Value::Object(meta.extra)));
     }
 
     let mut store = state.store.write().await;
@@ -412,12 +465,10 @@ async fn handle_search(
     let (query_text, query_embedding_value) = match query {
         QueryPayload::Text(text) => (text, None),
         QueryPayload::WithMeta { text, meta } => {
-            let mut meta_map = match meta {
-                Value::Object(map) => map,
-                _ => return Err(bad_request("query meta must be an object")),
-            };
-            let embedding = meta_map.remove("embedding");
-            (text, embedding)
+            if meta.extra.contains_key("embedding") && meta.embedding.is_none() {
+                return Err(bad_request("embedding must be an array of numbers"));
+            }
+            (text, meta.embedding)
         }
     };
 
@@ -425,28 +476,34 @@ async fn handle_search(
     let filter_value = filters.unwrap_or(Value::Null);
 
     // Priority: query.meta.embedding > top-level embedding > legacy meta.embedding
-    let (embedding, embedding_generated): (Vec<f32>, bool) = if let Some(value) =
+    let (embedding, embedding_generated): (Vec<f32>, bool) = if let Some(vector) =
         query_embedding_value
     {
-        (parse_embedding(value).map_err(bad_request)?, false)
+        if vector.is_empty() {
+            return Err(bad_request("embedding array cannot be empty"));
+        }
+        (vector, false)
     } else if let Some(value) = embedding {
         if value.is_empty() {
             return Err(bad_request("embedding array cannot be empty"));
         }
         (value, false)
     } else if let Some(meta) = meta {
-        let mut legacy_meta = match meta {
-            Value::Object(map) => map,
-            _ => return Err(bad_request("legacy meta must be an object")),
+        let vector = match meta.embedding {
+            Some(v) => {
+                if v.is_empty() {
+                    return Err(bad_request("embedding array cannot be empty"));
+                }
+                v
+            }
+            None => {
+                return Err(bad_request(
+                    "embedding is required (provide query.meta.embedding, top-level embedding, or legacy meta.embedding)",
+                ));
+            }
         };
 
-        let Some(value) = legacy_meta.remove("embedding") else {
-            return Err(bad_request(
-                "embedding is required (provide query.meta.embedding, top-level embedding, or legacy meta.embedding)",
-            ));
-        };
-
-        (parse_embedding(value).map_err(bad_request)?, false)
+        (vector, false)
     } else if let Some(embedder) = embedder {
         if store_dims.is_none() {
             store_dims = state.store.read().await.dims;
@@ -620,26 +677,6 @@ async fn handle_embed_text(
     Ok(Json(response))
 }
 
-fn parse_embedding(value: Value) -> Result<Vec<f32>, String> {
-    match value {
-        Value::Array(values) => {
-            if values.is_empty() {
-                return Err("embedding array cannot be empty".to_string());
-            }
-
-            let mut result = Vec::with_capacity(values.len());
-            for (i, v) in values.into_iter().enumerate() {
-                let num = v
-                    .as_f64()
-                    .ok_or_else(|| format!("embedding[{}] must be a number, got {}", i, v))?;
-                result.push(num as f32);
-            }
-            Ok(result)
-        }
-        _ => Err("embedding must be an array of numbers".to_string()),
-    }
-}
-
 fn bad_request(message: impl Into<String>) -> (StatusCode, Json<Value>) {
     let body = json!({
         "error": message.into(),
@@ -668,7 +705,7 @@ mod tests {
         ChunkPayload {
             id: id.into(),
             _text: "ignored".into(),
-            meta: json!({ "embedding": embedding }),
+            meta: serde_json::from_value(json!({ "embedding": embedding })).unwrap(),
         }
     }
 
@@ -787,7 +824,7 @@ mod tests {
         let payload = mock_search(
             QueryPayload::WithMeta {
                 text: "hello".into(),
-                meta: json!({ "embedding": [0.1, 0.2] }),
+                meta: serde_json::from_value(json!({ "embedding": [0.1, 0.2] })).unwrap(),
             },
             1,
         );
@@ -806,10 +843,70 @@ mod tests {
         assert!(upsert_result.is_ok(), "upsert should succeed");
 
         let mut payload = mock_search(QueryPayload::Text("hello".into()), 1);
-        payload.meta = Some(json!({ "embedding": [0.1, 0.2] }));
+        payload.meta = Some(serde_json::from_value(json!({ "embedding": [0.1, 0.2] })).unwrap());
 
         let result = handle_search(State(state), ApiJson(payload)).await;
         assert!(result.is_ok(), "search should accept legacy meta.embedding");
+    }
+
+    #[tokio::test]
+    async fn search_rejects_null_query_meta_embedding() {
+        let state = Arc::new(AppState::new());
+        let payload = mock_search(
+            QueryPayload::WithMeta {
+                text: "hello".into(),
+                meta: serde_json::from_value(json!({ "embedding": null })).unwrap(),
+            },
+            1,
+        );
+
+        let result = handle_search(State(state), ApiJson(payload)).await;
+        let (status, body) = result.expect_err("search should reject null embedding");
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            body.0.get("error").and_then(|v| v.as_str()).unwrap_or(""),
+            "embedding must be an array of numbers"
+        );
+    }
+
+    #[tokio::test]
+    async fn upsert_rejects_null_embedding() {
+        let state = Arc::new(AppState::new());
+        let raw_chunk = ChunkPayload {
+            id: "chunk-1".into(),
+            _text: "ignored".into(),
+            meta: serde_json::from_value(json!({ "embedding": null })).unwrap(),
+        };
+        let payload = mock_upsert("doc", vec![raw_chunk]);
+
+        let result = handle_upsert(State(state), ApiJson(payload)).await;
+        let (status, body) = result.expect_err("upsert should reject null embedding");
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            body.0.get("error").and_then(|v| v.as_str()).unwrap_or(""),
+            "chunk 'chunk-1': embedding must be an array of numbers"
+        );
+    }
+
+    #[tokio::test]
+    async fn upsert_rejects_null_meta_as_missing_embedding() {
+        let state = Arc::new(AppState::new());
+        let raw_chunk = ChunkPayload {
+            id: "chunk-1".into(),
+            _text: "ignored".into(),
+            meta: serde_json::from_value(json!(null)).unwrap(),
+        };
+        let payload = mock_upsert("doc", vec![raw_chunk]);
+
+        let result = handle_upsert(State(state), ApiJson(payload)).await;
+        let (status, body) =
+            result.expect_err("upsert should reject null meta as missing embedding");
+        // Because meta is parsed as empty Default structure, missing embedding triggers the normal 400 guard.
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            body.0.get("error").and_then(|v| v.as_str()).unwrap_or(""),
+            "chunk 'chunk-1' meta must contain an 'embedding' array"
+        );
     }
 
     #[tokio::test]

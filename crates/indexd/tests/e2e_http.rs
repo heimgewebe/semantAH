@@ -77,6 +77,28 @@ async fn upsert_and_search_over_http() {
     assert_eq!(results[0]["chunk_id"], "c1");
     assert!(results[0]["score"].as_f64().unwrap() > 0.0);
 
+    // --- upsert with wrong embedding type (triggers 422 Unprocessable Entity)
+    let upsert_bad_payload = json!({
+        "doc_id": "d2",
+        "namespace": "ns",
+        "chunks": [{
+            "id": "c2",
+            "text": "bad typing",
+            "meta": { "embedding": "not an array" }
+        }]
+    });
+
+    let upsert_bad_res = client
+        .post(format!("{base}/index/upsert"))
+        .json(&upsert_bad_payload)
+        .send()
+        .await
+        .expect("upsert bad request failed");
+    assert_eq!(
+        upsert_bad_res.status(),
+        reqwest::StatusCode::UNPROCESSABLE_ENTITY
+    );
+
     // --- stop server
     server.abort();
 }
