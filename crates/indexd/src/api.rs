@@ -75,6 +75,7 @@ where
 /// The `meta` block itself may be an object or explicitly `null`.
 /// Within `meta`, if the `embedding` key is explicitly `null` (e.g. `{"embedding": null}`),
 /// it will trigger a `400 Bad Request` in handlers.
+/// If `embedding` is an empty array, handlers return `400 Bad Request`.
 /// If `embedding` is provided with a non-array, non-null type (e.g. a string, object, or number),
 /// a `422 Unprocessable Entity` will be returned during payload deserialization.
 #[derive(Debug, Serialize, Default, Clone)]
