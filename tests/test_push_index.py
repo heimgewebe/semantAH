@@ -1,4 +1,3 @@
-
 from unittest.mock import MagicMock
 import urllib.error
 from scripts.push_index import PooledUpsertClient
@@ -163,9 +162,6 @@ def test_to_batches_end_to_end_no_nan_ids_and_namespace_default():
             assert chunk_id != "nan"
             assert "nan" not in chunk_id
             assert chunk_id.strip() != ""
-
-
-
 
 
 def test_pooled_client_invalid_endpoint():
