@@ -285,13 +285,22 @@ class PooledUpsertClient:
         self.endpoint = endpoint
         self.timeout = timeout
         parsed = urllib.parse.urlparse(endpoint)
-        self.host = str(parsed.hostname)
+
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError(f"Unsupported URL scheme: {parsed.scheme}")
+        if not parsed.hostname:
+            raise ValueError(f"Invalid or missing hostname in endpoint: {endpoint}")
+
+        self.host = parsed.hostname
         self.port = parsed.port or (443 if parsed.scheme == "https" else 80)
         self.path = parsed.path or "/"
         if parsed.query:
             self.path += "?" + parsed.query
         self.scheme = parsed.scheme
         self.conn = None
+
+    def close(self) -> None:
+        self._reset_conn()
 
     def _get_conn(self) -> http.client.HTTPConnection:
         if self.conn is None:
@@ -418,15 +427,18 @@ def _push_sub_batch(
 
 def _push_all(batches: List[Dict[str, Any]], args: argparse.Namespace) -> bool:
     client = PooledUpsertClient(endpoint=args.endpoint, timeout=args.timeout)
-    for batch in batches:
-        for sub_batch in _split_batch(batch, args.max_chunks):
-            if not _push_sub_batch(
-                sub_batch,
-                client=client,
-                retries=args.retries,
-            ):
-                return False
-    return True
+    try:
+        for batch in batches:
+            for sub_batch in _split_batch(batch, args.max_chunks):
+                if not _push_sub_batch(
+                    sub_batch,
+                    client=client,
+                    retries=args.retries,
+                ):
+                    return False
+        return True
+    finally:
+        client.close()
 
 
 def _prepare_batches(df: pd.DataFrame, namespace: str) -> List[Dict[str, Any]] | None:
