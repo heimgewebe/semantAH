@@ -305,82 +305,111 @@ def post_upsert(
         return json.loads(body)
 
 
-def main() -> int:
-    args = parse_args()
-
-    if not args.embeddings.exists():
-        print(f"[push-index] Fehlend: {args.embeddings}", file=sys.stderr)
-        return 1
+def _load_df(path: Path) -> pd.DataFrame | None:
+    if not path.exists():
+        print(f"[push-index] Fehlend: {path}", file=sys.stderr)
+        return None
 
     try:
-        df = pd.read_parquet(args.embeddings)
+        return pd.read_parquet(path)
     except (OSError, ValueError) as exc:  # pragma: no cover - IO-Fehler
-        print(
-            f"[push-index] Konnte {args.embeddings} nicht lesen: {exc}", file=sys.stderr
-        )
-        return 1
+        print(f"[push-index] Konnte {path} nicht lesen: {exc}", file=sys.stderr)
+        return None
     except Exception as exc:
         print(f"[push-index] Unerwarteter Fehler: {exc}", file=sys.stderr)
         # Preserve traceback for post-mortem analysis
         traceback.print_exc()
-        return 1
+        return None
 
+
+def _push_sub_batch(
+    sub_batch: Dict[str, Any], endpoint: str, timeout: float, retries: int
+) -> bool:
+    for attempt in range(retries + 1):
+        try:
+            response = post_upsert(endpoint, sub_batch, timeout=timeout)
+        except error.HTTPError as exc:
+            if attempt >= retries:
+                doc_id = sub_batch["doc_id"]
+                ns = sub_batch["namespace"]
+                print(
+                    f"[push-index] HTTP-Fehler für doc={doc_id} "
+                    f"namespace={ns}: {exc}",
+                    file=sys.stderr,
+                )
+                return False
+            continue
+        except error.URLError as exc:
+            if attempt >= retries:
+                print(
+                    f"[push-index] Konnte {endpoint} nicht "
+                    f"erreichen: {exc.reason}",
+                    file=sys.stderr,
+                )
+                return False
+            continue
+        else:
+            chunks = len(sub_batch["chunks"])
+            status = response.get("status") if isinstance(response, dict) else "ok"
+            doc_id = sub_batch["doc_id"]
+            ns = sub_batch["namespace"]
+            print(
+                f"[push-index] Upsert gesendet • doc={doc_id} "
+                f"namespace={ns} chunks={chunks} status={status}",
+            )
+            return True
+    return False
+
+
+def _push_all(batches: List[Dict[str, Any]], args: argparse.Namespace) -> bool:
+    for batch in batches:
+        for sub_batch in _split_batch(batch, args.max_chunks):
+            if not _push_sub_batch(
+                sub_batch,
+                endpoint=args.endpoint,
+                timeout=args.timeout,
+                retries=args.retries,
+            ):
+                return False
+    return True
+
+
+def _prepare_batches(df: pd.DataFrame, namespace: str) -> List[Dict[str, Any]] | None:
     if df.empty:
         print("[push-index] Keine Embeddings gefunden — nichts zu tun.")
-        return 0
+        return []
 
     try:
-        batches = list(to_batches(df, args.namespace))
+        batches = list(to_batches(df, namespace))
     except ValueError as exc:
         print(
             f"[push-index] Fehler bei der Batch-Erstellung (doc_id?): {exc}",
             file=sys.stderr,
         )
-        return 1
+        return None
 
     if not batches:
         print("[push-index] Keine gültigen Batches erzeugt.", file=sys.stderr)
+        return None
+
+    return batches
+
+
+def main() -> int:
+    args = parse_args()
+
+    df = _load_df(args.embeddings)
+    if df is None:
         return 1
 
-    for batch in batches:
-        for sub_batch in _split_batch(batch, args.max_chunks):
-            for attempt in range(args.retries + 1):
-                try:
-                    response = post_upsert(
-                        args.endpoint, sub_batch, timeout=args.timeout
-                    )
-                except error.HTTPError as exc:
-                    if attempt >= args.retries:
-                        doc_id = sub_batch["doc_id"]
-                        ns = sub_batch["namespace"]
-                        print(
-                            f"[push-index] HTTP-Fehler für doc={doc_id} "
-                            f"namespace={ns}: {exc}",
-                            file=sys.stderr,
-                        )
-                        return 1
-                    continue
-                except error.URLError as exc:
-                    if attempt >= args.retries:
-                        print(
-                            f"[push-index] Konnte {args.endpoint} nicht "
-                            f"erreichen: {exc.reason}",
-                            file=sys.stderr,
-                        )
-                        return 1
-                    continue
-                else:
-                    chunks = len(sub_batch["chunks"])
-                    status = (
-                        response.get("status") if isinstance(response, dict) else "ok"
-                    )
-                    doc_id = sub_batch["doc_id"]
-                    ns = sub_batch["namespace"]
-                    print(
-                        f"[push-index] Upsert gesendet • doc={doc_id} "
-                        f"namespace={ns} chunks={chunks} status={status}",
-                    )
-                    break
+    batches = _prepare_batches(df, args.namespace)
+    if batches is None:
+        return 1
+    if not batches:
+        return 0
+
+    if not _push_all(batches, args):
+        return 1
 
     return 0
 
