@@ -1,3 +1,6 @@
+from unittest.mock import MagicMock
+import urllib.error
+from scripts.push_index import PooledUpsertClient
 from itertools import permutations
 
 import pandas as pd
@@ -159,3 +162,87 @@ def test_to_batches_end_to_end_no_nan_ids_and_namespace_default():
             assert chunk_id != "nan"
             assert "nan" not in chunk_id
             assert chunk_id.strip() != ""
+
+
+def test_pooled_client_invalid_endpoint():
+    with pytest.raises(ValueError, match="Unsupported URL scheme"):
+        PooledUpsertClient("ftp://localhost/upsert")
+
+    with pytest.raises(ValueError, match="Invalid or missing hostname"):
+        PooledUpsertClient("http://")
+
+
+def test_pooled_client_http_error(monkeypatch):
+    client = PooledUpsertClient("http://localhost:8080/upsert")
+
+    mock_conn = MagicMock()
+    mock_resp = MagicMock()
+    mock_resp.status = 500
+    mock_resp.reason = "Internal Server Error"
+    mock_resp.read.return_value = b'{"error": "bad"}'
+    mock_resp.headers.get.return_value = ""
+    mock_conn.getresponse.return_value = mock_resp
+
+    # Set connection beforehand so we can properly test it gets reset
+    client.conn = mock_conn
+    monkeypatch.setattr(client, "_get_conn", lambda: mock_conn)
+
+    with pytest.raises(urllib.error.HTTPError) as exc_info:
+        client.post_upsert({"test": "data"})
+
+    assert exc_info.value.code == 500
+    assert exc_info.value.reason == "Internal Server Error"
+
+    # Assert reset logic triggers correctly
+    assert client.conn is None
+    mock_conn.close.assert_called_once()
+
+
+def test_pooled_client_url_error(monkeypatch):
+    import http.client
+
+    client = PooledUpsertClient("http://localhost:8080/upsert")
+
+    mock_conn = MagicMock()
+    mock_conn.request.side_effect = http.client.RemoteDisconnected("disconnected")
+
+    # Set connection beforehand so we can properly test it gets reset
+    client.conn = mock_conn
+    monkeypatch.setattr(client, "_get_conn", lambda: mock_conn)
+
+    with pytest.raises(urllib.error.URLError):
+        client.post_upsert({"test": "data"})
+
+    # Assert reset logic triggers correctly
+    assert client.conn is None
+    mock_conn.close.assert_called_once()
+
+
+def test_pooled_client_connection_close_header(monkeypatch):
+    client = PooledUpsertClient("http://localhost:8080/upsert")
+
+    mock_conn = MagicMock()
+    mock_resp = MagicMock()
+    mock_resp.status = 200
+    mock_resp.read.return_value = b'{"status": "ok"}'
+
+    def mock_header_get(key, default=""):
+        if key.lower() == "connection":
+            return "close"
+        return default
+
+    mock_resp.headers.get = mock_header_get
+
+    mock_conn.getresponse.return_value = mock_resp
+
+    # Pre-populate connection to test reset logic
+    client.conn = mock_conn
+    monkeypatch.setattr(client, "_get_conn", lambda: mock_conn)
+
+    resp = client.post_upsert({"test": "data"})
+
+    assert resp == {"status": "ok"}
+
+    # Assert reset logic triggers correctly
+    assert client.conn is None
+    mock_conn.close.assert_called_once()
