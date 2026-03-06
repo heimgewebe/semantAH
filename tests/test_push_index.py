@@ -183,6 +183,8 @@ def test_pooled_client_http_error(monkeypatch):
     mock_resp.headers.get.return_value = ""
     mock_conn.getresponse.return_value = mock_resp
 
+    # Set connection beforehand so we can properly test it gets reset
+    client.conn = mock_conn
     monkeypatch.setattr(client, "_get_conn", lambda: mock_conn)
 
     with pytest.raises(urllib.error.HTTPError) as exc_info:
@@ -190,7 +192,10 @@ def test_pooled_client_http_error(monkeypatch):
 
     assert exc_info.value.code == 500
     assert exc_info.value.reason == "Internal Server Error"
-    assert client.conn is None  # connection should be reset on 500
+
+    # Assert reset logic triggers correctly
+    assert client.conn is None
+    mock_conn.close.assert_called_once()
 
 
 def test_pooled_client_url_error(monkeypatch):
@@ -201,12 +206,16 @@ def test_pooled_client_url_error(monkeypatch):
     mock_conn = MagicMock()
     mock_conn.request.side_effect = http.client.RemoteDisconnected("disconnected")
 
+    # Set connection beforehand so we can properly test it gets reset
+    client.conn = mock_conn
     monkeypatch.setattr(client, "_get_conn", lambda: mock_conn)
 
     with pytest.raises(urllib.error.URLError):
         client.post_upsert({"test": "data"})
 
-    assert client.conn is None  # connection should be reset on network error
+    # Assert reset logic triggers correctly
+    assert client.conn is None
+    mock_conn.close.assert_called_once()
 
 
 def test_pooled_client_connection_close_header(monkeypatch):
@@ -233,4 +242,7 @@ def test_pooled_client_connection_close_header(monkeypatch):
     resp = client.post_upsert({"test": "data"})
 
     assert resp == {"status": "ok"}
-    assert client.conn is None  # connection should be reset due to Connection: close
+
+    # Assert reset logic triggers correctly
+    assert client.conn is None
+    mock_conn.close.assert_called_once()

@@ -404,7 +404,6 @@ def _push_sub_batch(
             continue
         except error.URLError as exc:
             if attempt >= retries:
-                # HTTPError has no reason attribute, URLError does.
                 reason = getattr(exc, "reason", str(exc))
                 print(
                     f"[push-index] Konnte {client.endpoint} nicht erreichen: {reason}",
