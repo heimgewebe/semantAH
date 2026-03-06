@@ -280,7 +280,6 @@ def _normalise_meta_value(value: Any) -> Any:
     return value
 
 
-
 class PooledUpsertClient:
     def __init__(self, endpoint: str, timeout: float = 10.0):
         self.endpoint = endpoint
@@ -361,7 +360,6 @@ def _split_batch(batch: Dict[str, Any], max_chunks: int) -> Iterable[Dict[str, A
         }
 
 
-
 def _load_df(path: Path) -> pd.DataFrame | None:
     if not path.exists():
         print(f"[push-index] Fehlend: {path}", file=sys.stderr)
@@ -378,6 +376,7 @@ def _load_df(path: Path) -> pd.DataFrame | None:
         traceback.print_exc()
         return None
 
+
 def _push_sub_batch(
     sub_batch: Dict[str, Any], client: PooledUpsertClient, retries: int
 ) -> bool:
@@ -389,8 +388,7 @@ def _push_sub_batch(
                 doc_id = sub_batch["doc_id"]
                 ns = sub_batch["namespace"]
                 print(
-                    f"[push-index] HTTP-Fehler für doc={doc_id} "
-                    f"namespace={ns}: {exc}",
+                    f"[push-index] HTTP-Fehler für doc={doc_id} namespace={ns}: {exc}",
                     file=sys.stderr,
                 )
                 return False
@@ -398,10 +396,9 @@ def _push_sub_batch(
         except error.URLError as exc:
             if attempt >= retries:
                 # HTTPError has no reason attribute, URLError does.
-                reason = getattr(exc, 'reason', str(exc))
+                reason = getattr(exc, "reason", str(exc))
                 print(
-                    f"[push-index] Konnte {client.endpoint} nicht "
-                    f"erreichen: {reason}",
+                    f"[push-index] Konnte {client.endpoint} nicht erreichen: {reason}",
                     file=sys.stderr,
                 )
                 return False
@@ -418,6 +415,7 @@ def _push_sub_batch(
             return True
     return False
 
+
 def _push_all(batches: List[Dict[str, Any]], args: argparse.Namespace) -> bool:
     client = PooledUpsertClient(endpoint=args.endpoint, timeout=args.timeout)
     for batch in batches:
@@ -429,6 +427,7 @@ def _push_all(batches: List[Dict[str, Any]], args: argparse.Namespace) -> bool:
             ):
                 return False
     return True
+
 
 def _prepare_batches(df: pd.DataFrame, namespace: str) -> List[Dict[str, Any]] | None:
     if df.empty:
@@ -449,6 +448,7 @@ def _prepare_batches(df: pd.DataFrame, namespace: str) -> List[Dict[str, Any]] |
         return None
 
     return batches
+
 
 def main() -> int:
     args = parse_args()
