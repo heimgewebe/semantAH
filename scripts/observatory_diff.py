@@ -25,7 +25,7 @@ except ImportError:
     import observatory_lib
 
 
-def parse_args():
+def parse_args(args: list[str] | None = None):
     parser = argparse.ArgumentParser(
         description="Generate knowledge observatory drift report."
     )
@@ -58,7 +58,7 @@ def parse_args():
         action="store_true",
         help="Fail with exit code 1 if baseline is missing or invalid (Guard mode).",
     )
-    return parser.parse_args()
+    return parser.parse_args(args)
 
 
 def generate_diff(snapshot: dict, baseline: dict | None, baseline_status: dict) -> dict:
