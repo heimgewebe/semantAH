@@ -31,20 +31,15 @@ class DummyHandler(BaseHTTPRequestHandler):
         content_length = int(self.headers.get("Content-Length", 0))
         self.rfile.read(content_length)
 
-        # Raw write avoids BaseHTTPRequestHandler's slow send_response/send_header
-        # which can trigger Nagle's algorithm issues or DNS lookups depending on Python version
-        response_body = b'{"status": "ok"}'
-        self.wfile.write(
-            b"HTTP/1.1 200 OK\r\n"
-            b"Content-Type: application/json\r\n"
-            b"Content-Length: 16\r\n"
-            b"Connection: keep-alive\r\n\r\n" + response_body
-        )
-        self.wfile.flush()
+        response_body = json.dumps({"status": "ok"}).encode("utf-8")
 
-    def address_string(self):
-        # Prevents slow DNS reverse lookups in some environments
-        return self.client_address[0]
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(response_body)))
+        self.send_header("Connection", "keep-alive")
+        self.end_headers()
+
+        self.wfile.write(response_body)
 
     def log_message(self, format, *args):
         pass
@@ -73,10 +68,10 @@ def main():
     iterations = 500
 
     print(f"Running baseline benchmark with {iterations} iterations...")
-    start_time = time.time()
+    start_time = time.perf_counter()
     for _ in range(iterations):
         post_upsert_original(endpoint, payload, timeout=5.0)
-    end_time = time.time()
+    end_time = time.perf_counter()
 
     elapsed_baseline = end_time - start_time
     print(
@@ -86,10 +81,10 @@ def main():
     print(f"Running pooled benchmark with {iterations} iterations...")
     client = PooledUpsertClient(endpoint, timeout=5.0)
     try:
-        start_time = time.time()
+        start_time = time.perf_counter()
         for _ in range(iterations):
             client.post_upsert(payload)
-        end_time = time.time()
+        end_time = time.perf_counter()
     finally:
         client.close()
 
