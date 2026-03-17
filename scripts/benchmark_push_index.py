@@ -2,7 +2,6 @@ import json
 import time
 import http.server
 import http.client
-import urllib.parse
 import threading
 import socket
 from urllib import request
