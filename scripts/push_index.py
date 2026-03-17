@@ -5,10 +5,13 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import http.client
 import json
 import math
+import socket
 import sys
 import traceback
+import urllib.parse
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Set
 from urllib import error, request
@@ -291,18 +294,58 @@ def _split_batch(batch: Dict[str, Any], max_chunks: int) -> Iterable[Dict[str, A
         }
 
 
-def post_upsert(
-    endpoint: str, payload: Dict[str, Any], *, timeout: float
-) -> Dict[str, Any] | None:
-    data = json.dumps(payload).encode("utf-8")
-    req = request.Request(
-        endpoint, data=data, headers={"Content-Type": "application/json"}
-    )
-    with request.urlopen(req, timeout=timeout) as resp:
-        body = resp.read().decode("utf-8").strip()
-        if not body:
-            return None
-        return json.loads(body)
+class PooledUpsertClient:
+    """Reusable HTTP client for upserting chunks with connection pooling."""
+
+    def __init__(self, endpoint: str, timeout: float):
+        self.url = urllib.parse.urlparse(endpoint)
+        self.timeout = timeout
+        self._conn: http.client.HTTPConnection | None = None
+
+    def _get_conn(self) -> http.client.HTTPConnection:
+        if self._conn is None:
+            if self.url.scheme == "https":
+                self._conn = http.client.HTTPSConnection(
+                    self.url.netloc, timeout=self.timeout
+                )
+            else:
+                self._conn = http.client.HTTPConnection(
+                    self.url.netloc, timeout=self.timeout
+                )
+        return self._conn
+
+    def post_upsert(self, payload: Dict[str, Any]) -> Dict[str, Any] | None:
+        """Sends a POST request to the upsert endpoint using a pooled connection."""
+        data = json.dumps(payload).encode("utf-8")
+        conn = self._get_conn()
+        try:
+            conn.request(
+                "POST",
+                self.url.path or "/",
+                body=data,
+                headers={"Content-Type": "application/json"},
+            )
+            resp = conn.getresponse()
+            if resp.status >= 400:
+                raise error.HTTPError(
+                    self.url.geturl(), resp.status, resp.reason, resp.headers, None
+                )
+
+            body = resp.read().decode("utf-8").strip()
+            if not body:
+                return None
+            return json.loads(body)
+        except (http.client.HTTPException, socket.error) as exc:
+            if self._conn:
+                self._conn.close()
+                self._conn = None
+            raise error.URLError(str(exc)) from exc
+
+    def close(self) -> None:
+        """Closes the underlying connection."""
+        if self._conn:
+            self._conn.close()
+            self._conn = None
 
 
 def main() -> int:
@@ -342,33 +385,33 @@ def main() -> int:
         print("[push-index] Keine gültigen Batches erzeugt.", file=sys.stderr)
         return 1
 
-    for batch in batches:
-        for sub_batch in _split_batch(batch, args.max_chunks):
-            for attempt in range(args.retries + 1):
-                try:
-                    response = post_upsert(
-                        args.endpoint, sub_batch, timeout=args.timeout
-                    )
-                except error.HTTPError as exc:
-                    if attempt >= args.retries:
-                        doc_id = sub_batch["doc_id"]
-                        ns = sub_batch["namespace"]
-                        print(
-                            f"[push-index] HTTP-Fehler für doc={doc_id} "
-                            f"namespace={ns}: {exc}",
-                            file=sys.stderr,
-                        )
-                        return 1
-                    continue
-                except error.URLError as exc:
-                    if attempt >= args.retries:
-                        print(
-                            f"[push-index] Konnte {args.endpoint} nicht "
-                            f"erreichen: {exc.reason}",
-                            file=sys.stderr,
-                        )
-                        return 1
-                    continue
+    client = PooledUpsertClient(args.endpoint, timeout=args.timeout)
+    try:
+        for batch in batches:
+            for sub_batch in _split_batch(batch, args.max_chunks):
+                for attempt in range(args.retries + 1):
+                    try:
+                        response = client.post_upsert(sub_batch)
+                    except error.HTTPError as exc:
+                        if attempt >= args.retries:
+                            doc_id = sub_batch["doc_id"]
+                            ns = sub_batch["namespace"]
+                            print(
+                                f"[push-index] HTTP-Fehler für doc={doc_id} "
+                                f"namespace={ns}: {exc}",
+                                file=sys.stderr,
+                            )
+                            return 1
+                        continue
+                    except error.URLError as exc:
+                        if attempt >= args.retries:
+                            print(
+                                f"[push-index] Konnte {args.endpoint} nicht "
+                                f"erreichen: {exc.reason}",
+                                file=sys.stderr,
+                            )
+                            return 1
+                        continue
                 else:
                     chunks = len(sub_batch["chunks"])
                     status = (
@@ -381,6 +424,8 @@ def main() -> int:
                         f"namespace={ns} chunks={chunks} status={status}",
                     )
                     break
+    finally:
+        client.close()
 
     return 0
 
