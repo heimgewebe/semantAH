@@ -1,16 +1,12 @@
 import json
-import time
-import http.server
-import http.client
-import threading
-import socket
-from urllib import request
-from typing import Dict, Any
-import sys
 import os
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from scripts.push_index import PooledUpsertClient
+import socket
+import sys
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import Any, Dict
+from urllib import request
 
 
 # Original post_upsert implementation for comparison
@@ -28,28 +24,44 @@ def post_upsert_original(
         return json.loads(body)
 
 
-class DummyHandler(http.server.BaseHTTPRequestHandler):
+class DummyHandler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
     def do_POST(self):
-        content_length = int(self.headers["Content-Length"])
+        content_length = int(self.headers.get("Content-Length", 0))
         self.rfile.read(content_length)
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.end_headers()
-        self.wfile.write(json.dumps({"status": "ok"}).encode("utf-8"))
+
+        # Raw write avoids BaseHTTPRequestHandler's slow send_response/send_header
+        # which can trigger Nagle's algorithm issues or DNS lookups depending on Python version
+        response_body = b'{"status": "ok"}'
+        self.wfile.write(
+            b"HTTP/1.1 200 OK\r\n"
+            b"Content-Type: application/json\r\n"
+            b"Content-Length: 16\r\n"
+            b"Connection: keep-alive\r\n\r\n" + response_body
+        )
+        self.wfile.flush()
+
+    def address_string(self):
+        # Prevents slow DNS reverse lookups in some environments
+        return self.client_address[0]
 
     def log_message(self, format, *args):
         pass
 
 
 def run_dummy_server(port):
-    server = http.server.HTTPServer(("127.0.0.1", port), DummyHandler)
+    server = HTTPServer(("127.0.0.1", port), DummyHandler)
     server.serve_forever()
 
 
 def main():
-    # Find a free port
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+    from scripts.push_index import PooledUpsertClient
+
+    # Find a free port locally
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("", 0))
+        s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
 
     server_thread = threading.Thread(target=run_dummy_server, args=(port,), daemon=True)
@@ -73,10 +85,13 @@ def main():
 
     print(f"Running pooled benchmark with {iterations} iterations...")
     client = PooledUpsertClient(endpoint, timeout=5.0)
-    start_time = time.time()
-    for _ in range(iterations):
-        client.post_upsert(payload)
-    end_time = time.time()
+    try:
+        start_time = time.time()
+        for _ in range(iterations):
+            client.post_upsert(payload)
+        end_time = time.time()
+    finally:
+        client.close()
 
     elapsed_pooled = end_time - start_time
     print(
