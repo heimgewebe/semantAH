@@ -5,11 +5,11 @@ use tokio::net::TcpListener;
 
 #[tokio::test]
 async fn ollama_embedder_returns_error_on_http_500() {
-    // Mini-Axum-Server, der /api/embeddings immer 500 liefert
+    // Mini-Axum-Server, der /api/embed immer 500 liefert
     async fn handler() -> (StatusCode, &'static str) {
         (StatusCode::INTERNAL_SERVER_ERROR, "boom")
     }
-    let app = Router::new().route("/api/embeddings", post(handler));
+    let app = Router::new().route("/api/embed", post(handler));
 
     let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
     let addr = listener.local_addr().unwrap();

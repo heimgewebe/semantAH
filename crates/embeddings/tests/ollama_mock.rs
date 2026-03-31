@@ -7,7 +7,7 @@ use tokio::net::TcpListener;
 
 use embeddings::{Embedder, OllamaConfig, OllamaEmbedder};
 
-/// Minimaler Mock für /api/embeddings:
+/// Minimaler Mock für /api/embed:
 /// Ignoriert den Request-Body und liefert für jede Eingabe
 /// einen Vektor der Länge 2 zurück.
 async fn mock_embeddings(Json(_body): Json<serde_json::Value>) -> Json<serde_json::Value> {
@@ -15,8 +15,8 @@ async fn mock_embeddings(Json(_body): Json<serde_json::Value>) -> Json<serde_jso
     // Wir geben zwei Vektoren zurück, um Mehrfacheingaben zu testen.
     Json(json!({
         "embeddings": [
-            { "embedding": [1.0, 0.0] },
-            { "embedding": [0.0, 1.0] }
+            [1.0, 0.0],
+            [0.0, 1.0]
         ]
     }))
 }
@@ -25,7 +25,7 @@ async fn mock_embeddings(Json(_body): Json<serde_json::Value>) -> Json<serde_jso
 async fn mock_single_embedding(Json(_body): Json<serde_json::Value>) -> Json<serde_json::Value> {
     Json(json!({
         "embeddings": [
-            { "embedding": [1.0, 0.0] }
+            [1.0, 0.0]
         ]
     }))
 }
@@ -39,7 +39,7 @@ async fn mock_500(_body: String) -> (StatusCode, String) {
 async fn mock_bad_dim(Json(_body): Json<serde_json::Value>) -> Json<serde_json::Value> {
     Json(json!({
         "embeddings": [
-            { "embedding": [1.0, 0.0, 0.5] }
+            [1.0, 0.0, 0.5]
         ]
     }))
 }
@@ -47,7 +47,7 @@ async fn mock_bad_dim(Json(_body): Json<serde_json::Value>) -> Json<serde_json::
 #[tokio::test]
 async fn ollama_embedder_happy_path_against_mock() -> Result<()> {
     // --- Mock-Server auf zufälligem Port hochfahren
-    let app = Router::new().route("/api/embeddings", post(mock_embeddings));
+    let app = Router::new().route("/api/embed", post(mock_embeddings));
     let listener = TcpListener::bind(("127.0.0.1", 0)).await?;
     let addr: SocketAddr = listener.local_addr()?;
     let server = tokio::spawn(async move {
@@ -86,7 +86,7 @@ async fn ollama_embedder_happy_path_against_mock() -> Result<()> {
 #[tokio::test]
 async fn ollama_embedder_propagates_http_status_error() -> Result<()> {
     // Mock, der 500 zurückgibt
-    let app = Router::new().route("/api/embeddings", post(mock_500));
+    let app = Router::new().route("/api/embed", post(mock_500));
     let listener = TcpListener::bind(("127.0.0.1", 0)).await?;
     let addr: SocketAddr = listener.local_addr()?;
     let server = tokio::spawn(async move {
@@ -118,7 +118,7 @@ async fn ollama_embedder_propagates_http_status_error() -> Result<()> {
 /// Negativtest: Falsche Dimensionalität (Server liefert 3, Embedder erwartet 2).
 #[tokio::test]
 async fn ollama_embedder_rejects_wrong_dimensions() -> Result<()> {
-    let app = Router::new().route("/api/embeddings", post(mock_bad_dim));
+    let app = Router::new().route("/api/embed", post(mock_bad_dim));
     let listener = TcpListener::bind(("127.0.0.1", 0)).await?;
     let addr: SocketAddr = listener.local_addr()?;
     let server = tokio::spawn(async move {
@@ -146,7 +146,7 @@ async fn ollama_embedder_rejects_wrong_dimensions() -> Result<()> {
 /// Optional: Test für Einzeleingabe — Mock liefert trotzdem "embeddings" (Mehrfachform).
 #[tokio::test]
 async fn ollama_embedder_single_input_against_mock() -> Result<()> {
-    let app = Router::new().route("/api/embeddings", post(mock_single_embedding));
+    let app = Router::new().route("/api/embed", post(mock_single_embedding));
     let listener = TcpListener::bind(("127.0.0.1", 0)).await?;
     let addr: SocketAddr = listener.local_addr()?;
     let server = tokio::spawn(async move {

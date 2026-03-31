@@ -219,8 +219,6 @@ def _to_embedding(value: Any) -> List[float]:
         raise ValueError("Missing embedding in record")
     if hasattr(value, "tolist"):
         value = value.tolist()
-    if np is not None and isinstance(value, np.ndarray):  # type: ignore[arg-type]
-        value = value.tolist()
     if not isinstance(value, (list, tuple)):
         raise TypeError(f"Unexpected embedding type: {type(value)!r}")
     return [float(x) for x in value]

@@ -15,8 +15,6 @@ try:
     import observatory_lib
 except ImportError:
     # If not running as a module, try adding current directory to path
-    import sys
-
     sys.path.append(str(Path(__file__).parent))
     import observatory_lib
 
