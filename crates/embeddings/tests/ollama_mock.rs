@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use axum::{http::StatusCode, routing::post, Json, Router};
@@ -166,6 +167,77 @@ async fn ollama_embedder_single_input_against_mock() -> Result<()> {
     assert_eq!(embeddings.len(), 1, "must return one vector");
     assert_eq!(embeddings[0].len(), 2, "dim must be 2");
     assert_eq!(embeddings[0], vec![1.0, 0.0]);
+
+    server.abort();
+    Ok(())
+}
+
+/// Contract test: the client must send `input` (array), not the deprecated `prompt` field.
+/// This test captures the actual POST body and inspects it directly,
+/// so a regression back to `prompt` would cause an immediate test failure.
+#[tokio::test]
+async fn ollama_embedder_sends_input_not_prompt() -> Result<()> {
+    let captured: Arc<Mutex<Option<serde_json::Value>>> = Arc::new(Mutex::new(None));
+    let captured2 = captured.clone();
+
+    let app = Router::new().route(
+        "/api/embed",
+        post(move |Json(body): Json<serde_json::Value>| {
+            let cap = captured2.clone();
+            async move {
+                *cap.lock().unwrap() = Some(body);
+                Json(json!({
+                    "embeddings": [[1.0, 0.0]]
+                }))
+            }
+        }),
+    );
+
+    let listener = TcpListener::bind(("127.0.0.1", 0)).await?;
+    let addr: SocketAddr = listener.local_addr()?;
+    let server = tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+
+    let embedder = OllamaEmbedder::new(OllamaConfig {
+        base_url: format!("http://{}", addr),
+        model: "nomic-embed-text".to_string(),
+        dim: 2,
+    });
+
+    embedder.embed(&["hello world"]).await?;
+
+    let body = captured
+        .lock()
+        .unwrap()
+        .take()
+        .expect("mock handler was never called");
+
+    // Contract: must NOT send deprecated `prompt` field (used by old /api/embeddings endpoint)
+    assert!(
+        body.get("prompt").is_none(),
+        "must NOT send deprecated `prompt` field; got: {body}"
+    );
+
+    // Contract: must send `input` as an array containing the submitted texts
+    let input = body
+        .get("input")
+        .expect("must send `input` field (required by /api/embed)")
+        .as_array()
+        .expect("`input` must be an array");
+    assert_eq!(input.len(), 1, "`input` array length must match number of texts");
+    assert_eq!(
+        input[0].as_str(),
+        Some("hello world"),
+        "`input[0]` must be the submitted text"
+    );
+
+    // Contract: must include the configured model name
+    assert_eq!(
+        body.get("model").and_then(|v| v.as_str()),
+        Some("nomic-embed-text"),
+        "must include correct `model` field; got: {body}"
+    );
 
     server.abort();
     Ok(())
