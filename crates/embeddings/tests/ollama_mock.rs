@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use axum::{http::StatusCode, routing::post, Json, Router};
@@ -7,7 +8,7 @@ use tokio::net::TcpListener;
 
 use embeddings::{Embedder, OllamaConfig, OllamaEmbedder};
 
-/// Minimaler Mock für /api/embeddings:
+/// Minimaler Mock für /api/embed:
 /// Ignoriert den Request-Body und liefert für jede Eingabe
 /// einen Vektor der Länge 2 zurück.
 async fn mock_embeddings(Json(_body): Json<serde_json::Value>) -> Json<serde_json::Value> {
@@ -15,8 +16,8 @@ async fn mock_embeddings(Json(_body): Json<serde_json::Value>) -> Json<serde_jso
     // Wir geben zwei Vektoren zurück, um Mehrfacheingaben zu testen.
     Json(json!({
         "embeddings": [
-            { "embedding": [1.0, 0.0] },
-            { "embedding": [0.0, 1.0] }
+            [1.0, 0.0],
+            [0.0, 1.0]
         ]
     }))
 }
@@ -25,7 +26,7 @@ async fn mock_embeddings(Json(_body): Json<serde_json::Value>) -> Json<serde_jso
 async fn mock_single_embedding(Json(_body): Json<serde_json::Value>) -> Json<serde_json::Value> {
     Json(json!({
         "embeddings": [
-            { "embedding": [1.0, 0.0] }
+            [1.0, 0.0]
         ]
     }))
 }
@@ -39,7 +40,7 @@ async fn mock_500(_body: String) -> (StatusCode, String) {
 async fn mock_bad_dim(Json(_body): Json<serde_json::Value>) -> Json<serde_json::Value> {
     Json(json!({
         "embeddings": [
-            { "embedding": [1.0, 0.0, 0.5] }
+            [1.0, 0.0, 0.5]
         ]
     }))
 }
@@ -47,7 +48,7 @@ async fn mock_bad_dim(Json(_body): Json<serde_json::Value>) -> Json<serde_json::
 #[tokio::test]
 async fn ollama_embedder_happy_path_against_mock() -> Result<()> {
     // --- Mock-Server auf zufälligem Port hochfahren
-    let app = Router::new().route("/api/embeddings", post(mock_embeddings));
+    let app = Router::new().route("/api/embed", post(mock_embeddings));
     let listener = TcpListener::bind(("127.0.0.1", 0)).await?;
     let addr: SocketAddr = listener.local_addr()?;
     let server = tokio::spawn(async move {
@@ -86,7 +87,7 @@ async fn ollama_embedder_happy_path_against_mock() -> Result<()> {
 #[tokio::test]
 async fn ollama_embedder_propagates_http_status_error() -> Result<()> {
     // Mock, der 500 zurückgibt
-    let app = Router::new().route("/api/embeddings", post(mock_500));
+    let app = Router::new().route("/api/embed", post(mock_500));
     let listener = TcpListener::bind(("127.0.0.1", 0)).await?;
     let addr: SocketAddr = listener.local_addr()?;
     let server = tokio::spawn(async move {
@@ -118,7 +119,7 @@ async fn ollama_embedder_propagates_http_status_error() -> Result<()> {
 /// Negativtest: Falsche Dimensionalität (Server liefert 3, Embedder erwartet 2).
 #[tokio::test]
 async fn ollama_embedder_rejects_wrong_dimensions() -> Result<()> {
-    let app = Router::new().route("/api/embeddings", post(mock_bad_dim));
+    let app = Router::new().route("/api/embed", post(mock_bad_dim));
     let listener = TcpListener::bind(("127.0.0.1", 0)).await?;
     let addr: SocketAddr = listener.local_addr()?;
     let server = tokio::spawn(async move {
@@ -146,7 +147,7 @@ async fn ollama_embedder_rejects_wrong_dimensions() -> Result<()> {
 /// Optional: Test für Einzeleingabe — Mock liefert trotzdem "embeddings" (Mehrfachform).
 #[tokio::test]
 async fn ollama_embedder_single_input_against_mock() -> Result<()> {
-    let app = Router::new().route("/api/embeddings", post(mock_single_embedding));
+    let app = Router::new().route("/api/embed", post(mock_single_embedding));
     let listener = TcpListener::bind(("127.0.0.1", 0)).await?;
     let addr: SocketAddr = listener.local_addr()?;
     let server = tokio::spawn(async move {
@@ -166,6 +167,77 @@ async fn ollama_embedder_single_input_against_mock() -> Result<()> {
     assert_eq!(embeddings.len(), 1, "must return one vector");
     assert_eq!(embeddings[0].len(), 2, "dim must be 2");
     assert_eq!(embeddings[0], vec![1.0, 0.0]);
+
+    server.abort();
+    Ok(())
+}
+
+/// Contract test: the client must send `input` (array), not the deprecated `prompt` field.
+/// This test captures the actual POST body and inspects it directly,
+/// so a regression back to `prompt` would cause an immediate test failure.
+#[tokio::test]
+async fn ollama_embedder_sends_input_not_prompt() -> Result<()> {
+    let captured: Arc<Mutex<Option<serde_json::Value>>> = Arc::new(Mutex::new(None));
+    let captured2 = captured.clone();
+
+    let app = Router::new().route(
+        "/api/embed",
+        post(move |Json(body): Json<serde_json::Value>| {
+            let cap = captured2.clone();
+            async move {
+                *cap.lock().unwrap() = Some(body);
+                Json(json!({
+                    "embeddings": [[1.0, 0.0]]
+                }))
+            }
+        }),
+    );
+
+    let listener = TcpListener::bind(("127.0.0.1", 0)).await?;
+    let addr: SocketAddr = listener.local_addr()?;
+    let server = tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+
+    let embedder = OllamaEmbedder::new(OllamaConfig {
+        base_url: format!("http://{}", addr),
+        model: "nomic-embed-text".to_string(),
+        dim: 2,
+    });
+
+    embedder.embed(&["hello world"]).await?;
+
+    let body = captured
+        .lock()
+        .unwrap()
+        .take()
+        .expect("mock handler was never called");
+
+    // Contract: must NOT send deprecated `prompt` field (used by old /api/embeddings endpoint)
+    assert!(
+        body.get("prompt").is_none(),
+        "must NOT send deprecated `prompt` field; got: {body}"
+    );
+
+    // Contract: must send `input` as an array containing the submitted texts
+    let input = body
+        .get("input")
+        .expect("must send `input` field (required by /api/embed)")
+        .as_array()
+        .expect("`input` must be an array");
+    assert_eq!(input.len(), 1, "`input` array length must match number of texts");
+    assert_eq!(
+        input[0].as_str(),
+        Some("hello world"),
+        "`input[0]` must be the submitted text"
+    );
+
+    // Contract: must include the configured model name
+    assert_eq!(
+        body.get("model").and_then(|v| v.as_str()),
+        Some("nomic-embed-text"),
+        "must include correct `model` field; got: {body}"
+    );
 
     server.abort();
     Ok(())
