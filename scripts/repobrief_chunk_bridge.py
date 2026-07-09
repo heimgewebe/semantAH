@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import math
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Sequence
@@ -24,6 +25,7 @@ except ModuleNotFoundError:  # pragma: no cover - optional in minimal envs
 KIND = "semantah.repobrief_chunk_embedding_bridge"
 VERSION = "v1"
 DEFAULT_DIM = 8
+DEFAULT_EVAL_K = 10
 DOES_NOT_ESTABLISH = [
     "answer_correctness",
     "semantic_correctness",
@@ -86,6 +88,13 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def read_json(path: Path) -> dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"JSON report must be an object: {path}")
+    return payload
+
+
 def _non_empty_string(value: Any) -> str | None:
     return value if isinstance(value, str) and value.strip() else None
 
@@ -132,7 +141,9 @@ def chunk_record_from_row(row: dict[str, Any], *, ordinal: int, default_repo_id:
     range_ref = _range_from_row(row)
     if range_ref is None:
         raise ValueError(f"row {ordinal} lacks stable byte range")
-    file_path = _non_empty_string(range_ref.get("file_path")) or _non_empty_string(row.get("path"))
+    file_path = _non_empty_string(range_ref.get("file_path")) or _non_empty_string(
+        row.get("path")
+    )
     start_byte = _int_value(range_ref.get("start_byte"))
     end_byte = _int_value(range_ref.get("end_byte"))
     if file_path is None or start_byte is None or end_byte is None or end_byte <= start_byte:
@@ -190,27 +201,207 @@ def build_records(
     return records
 
 
-def evaluate_recall(records: Sequence[dict[str, Any]], goldset: Sequence[dict[str, Any]]) -> dict[str, Any]:
-    by_chunk = {str(r["repobrief_chunk_id"]): idx + 1 for idx, r in enumerate(records)}
+def _tokens(value: str) -> set[str]:
+    return {token for token in re.split(r"[^A-Za-z0-9_]+", value.lower()) if token}
+
+
+def _query_score(record: dict[str, Any], query: str) -> tuple[int, int, str, str]:
+    query_tokens = _tokens(query)
+    haystack = " ".join(
+        [
+            str(record.get("text", "")),
+            str(record.get("file_path", "")),
+            str(record.get("repobrief_chunk_id", "")),
+        ]
+    )
+    record_tokens = _tokens(haystack)
+    overlap = len(query_tokens & record_tokens)
+    phrase_bonus = 1 if query.lower() in haystack.lower() else 0
+    return (
+        -(overlap + phrase_bonus),
+        len(str(record.get("file_path", ""))),
+        str(record.get("file_path", "")),
+        str(record.get("repobrief_chunk_id", "")),
+    )
+
+
+def _rank_records(records: Sequence[dict[str, Any]], query: str | None) -> list[dict[str, Any]]:
+    if not query:
+        return list(records)
+    return sorted(records, key=lambda record: _query_score(record, query))
+
+
+def evaluate_recall(
+    records: Sequence[dict[str, Any]],
+    goldset: Sequence[dict[str, Any]],
+    *,
+    k: int = DEFAULT_EVAL_K,
+) -> dict[str, Any]:
     total = len(goldset)
     hits = 0
     reciprocal_sum = 0.0
     misses: list[dict[str, Any]] = []
+    case_details: list[dict[str, Any]] = []
+
     for item in goldset:
         expected = item.get("expected_chunk_id")
-        rank = by_chunk.get(str(expected)) if expected is not None else None
+        query = _non_empty_string(item.get("query"))
+        ranked = _rank_records(records, query)
+        top_k = ranked[:k]
+        top_ids = [str(r["repobrief_chunk_id"]) for r in top_k]
+        rank = None
+        if expected is not None:
+            for idx, record in enumerate(ranked, start=1):
+                if str(record.get("repobrief_chunk_id")) == str(expected):
+                    rank = idx
+                    break
         if rank is None:
-            misses.append({"expected_chunk_id": expected, "reason": "missing_from_bridge_records"})
+            miss_reason = "missing_from_bridge_records"
+            misses.append({"expected_chunk_id": expected, "reason": miss_reason})
+            case_details.append(
+                {
+                    "query": query,
+                    "expected_chunk_id": expected,
+                    "rank": None,
+                    "top_k": top_ids,
+                    "hit": False,
+                    "miss_type": miss_reason,
+                }
+            )
             continue
-        hits += 1
-        reciprocal_sum += 1.0 / rank
+        hit = rank <= k
+        if hit:
+            hits += 1
+            reciprocal_sum += 1.0 / rank
+            miss_type = None
+        else:
+            miss_type = "expected_rank_below_k"
+            misses.append({"expected_chunk_id": expected, "reason": miss_type, "rank": rank})
+        case_details.append(
+            {
+                "query": query,
+                "expected_chunk_id": expected,
+                "rank": rank,
+                "top_k": top_ids,
+                "hit": hit,
+                "miss_type": miss_type,
+            }
+        )
+
     return {
         "status": "pass" if total == hits else "warn",
         "gold_count": total,
         "hit_count": hits,
+        "k": k,
         "recall": 1.0 if total == 0 else hits / total,
         "mrr": 0.0 if total == 0 else reciprocal_sum / total,
+        "rank_basis": "query_token_overlap_when_query_present_else_record_order",
         "miss_taxonomy": misses,
+        "cases": case_details,
+    }
+
+
+def _normalise_metric(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    metric = float(value)
+    if metric > 1.0:
+        metric = metric / 100.0
+    return metric
+
+
+def _baseline_recall(metrics: dict[str, Any]) -> float | None:
+    for key in ("recall@10", "recall", "recall_at_10"):
+        metric = _normalise_metric(metrics.get(key))
+        if metric is not None:
+            return metric
+    return None
+
+
+def _baseline_mrr(metrics: dict[str, Any]) -> float | None:
+    for key in ("mrr", "MRR"):
+        metric = _normalise_metric(metrics.get(key))
+        if metric is not None:
+            return metric
+    return None
+
+
+def _baseline_miss_count(report: dict[str, Any]) -> int | None:
+    metrics = report.get("metrics")
+    if isinstance(metrics, dict):
+        for key in ("misses", "miss_count", "total_misses"):
+            value = metrics.get(key)
+            if isinstance(value, int) and not isinstance(value, bool):
+                return value
+    taxonomy = report.get("miss_taxonomy")
+    if isinstance(taxonomy, dict):
+        aggregate = taxonomy.get("aggregate")
+        if isinstance(aggregate, dict):
+            value = aggregate.get("total_misses")
+            if isinstance(value, int) and not isinstance(value, bool):
+                return value
+    details = report.get("details")
+    if isinstance(details, list):
+        return sum(1 for item in details if isinstance(item, dict) and not item.get("is_relevant"))
+    return None
+
+
+def compare_to_baseline(
+    bridge_eval: dict[str, Any], baseline_report: dict[str, Any]
+) -> dict[str, Any]:
+    metrics = baseline_report.get("metrics")
+    if not isinstance(metrics, dict):
+        return {
+            "status": "warn",
+            "reason": "baseline_metrics_missing",
+            "promotion_allowed": False,
+        }
+
+    baseline_recall = _baseline_recall(metrics)
+    baseline_mrr = _baseline_mrr(metrics)
+    baseline_misses = _baseline_miss_count(baseline_report)
+    bridge_recall = _normalise_metric(bridge_eval.get("recall"))
+    bridge_mrr = _normalise_metric(bridge_eval.get("mrr"))
+    bridge_misses = len(bridge_eval.get("miss_taxonomy", []))
+
+    blockers: list[str] = []
+    if baseline_recall is None:
+        blockers.append("baseline_recall_missing")
+    elif bridge_recall is None or bridge_recall < baseline_recall:
+        blockers.append("recall_regression")
+    if baseline_mrr is None:
+        blockers.append("baseline_mrr_missing")
+    elif bridge_mrr is None or bridge_mrr < baseline_mrr:
+        blockers.append("mrr_regression")
+    if baseline_misses is not None and bridge_misses > baseline_misses:
+        blockers.append("miss_taxonomy_regression")
+
+    return {
+        "status": "pass" if not blockers else "warn",
+        "promotion_allowed": False,
+        "promotion_rule": "default use requires explicit later decision after measured baseline comparison",
+        "baseline_metrics": {
+            "recall": baseline_recall,
+            "mrr": baseline_mrr,
+            "miss_count": baseline_misses,
+        },
+        "bridge_metrics": {
+            "recall": bridge_recall,
+            "mrr": bridge_mrr,
+            "miss_count": bridge_misses,
+        },
+        "deltas": {
+            "recall": None
+            if baseline_recall is None or bridge_recall is None
+            else bridge_recall - baseline_recall,
+            "mrr": None
+            if baseline_mrr is None or bridge_mrr is None
+            else bridge_mrr - baseline_mrr,
+            "miss_count": None
+            if baseline_misses is None
+            else bridge_misses - baseline_misses,
+        },
+        "blockers": blockers,
     }
 
 
@@ -219,6 +410,8 @@ def build_report(
     chunk_index: Path,
     records: Sequence[dict[str, Any]],
     goldset: Sequence[dict[str, Any]] | None = None,
+    baseline_report: dict[str, Any] | None = None,
+    k: int = DEFAULT_EVAL_K,
 ) -> dict[str, Any]:
     chunk_bytes = chunk_index.read_bytes()
     report = {
@@ -243,11 +436,25 @@ def build_report(
         "does_not_establish": DOES_NOT_ESTABLISH,
     }
     if goldset is not None:
-        report["evaluation"] = evaluate_recall(records, goldset)
+        report["evaluation"] = evaluate_recall(records, goldset, k=k)
     else:
         report["evaluation"] = {
             "status": "not_run",
             "reason": "no_goldset_provided",
+            "promotion_allowed": False,
+        }
+
+    if goldset is not None and baseline_report is not None:
+        report["baseline_comparison"] = compare_to_baseline(
+            report["evaluation"], baseline_report
+        )
+    else:
+        reason = "no_baseline_report_provided"
+        if goldset is None:
+            reason = "no_goldset_provided"
+        report["baseline_comparison"] = {
+            "status": "not_run",
+            "reason": reason,
             "promotion_allowed": False,
         }
     return report
@@ -272,10 +479,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--chunk-index", required=True, type=Path)
     parser.add_argument("--default-repo-id", default="repo")
     parser.add_argument("--dim", type=int, default=DEFAULT_DIM)
+    parser.add_argument("--eval-k", type=int, default=DEFAULT_EVAL_K)
     parser.add_argument("--out-jsonl", type=Path)
     parser.add_argument("--out-parquet", type=Path)
     parser.add_argument("--report", required=True, type=Path)
     parser.add_argument("--goldset", type=Path)
+    parser.add_argument("--baseline-report", type=Path)
     return parser.parse_args(argv)
 
 
@@ -284,13 +493,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     rows = read_jsonl(args.chunk_index)
     records = build_records(rows, default_repo_id=args.default_repo_id, dim=args.dim)
     goldset = read_jsonl(args.goldset) if args.goldset else None
+    baseline_report = read_json(args.baseline_report) if args.baseline_report else None
     if args.out_jsonl:
         write_jsonl(args.out_jsonl, records)
     if args.out_parquet:
         write_parquet(args.out_parquet, records)
-    report = build_report(chunk_index=args.chunk_index, records=records, goldset=goldset)
+    report = build_report(
+        chunk_index=args.chunk_index,
+        records=records,
+        goldset=goldset,
+        baseline_report=baseline_report,
+        k=args.eval_k,
+    )
     args.report.parent.mkdir(parents=True, exist_ok=True)
-    args.report.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    args.report.write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0
 
