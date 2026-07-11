@@ -11,13 +11,14 @@ dependencies = [
     "jsonschema",
     "numpy",
     "pandas",
-    "pyarrow",
+    "pyarrow>=23.0.1",
     "pyyaml",
 ]
 
 [project.optional-dependencies]
 test = [
-    "pytest>=7.0",
+    "pytest>=9.0.3",
+    "pygments>=2.20.0",
     "pytest-cov>=4.1",
     "coverage>=7.5",
     "hypothesis>=6.100",
