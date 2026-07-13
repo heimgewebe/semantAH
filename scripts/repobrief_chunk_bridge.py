@@ -74,7 +74,9 @@ def stable_text_embedding(text: str, *, dim: int = DEFAULT_DIM) -> list[float]:
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+    for line_no, line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(), start=1
+    ):
         stripped = line.strip()
         if not stripped:
             continue
@@ -131,11 +133,15 @@ def _content_hash(row: dict[str, Any], text: str, range_ref: dict[str, Any]) -> 
     return sha256_bytes(text.encode("utf-8"))
 
 
-def chunk_record_from_row(row: dict[str, Any], *, ordinal: int, default_repo_id: str) -> ChunkRecord:
+def chunk_record_from_row(
+    row: dict[str, Any], *, ordinal: int, default_repo_id: str
+) -> ChunkRecord:
     text = _non_empty_string(row.get("content")) or _non_empty_string(row.get("text"))
     if text is None:
         raise ValueError(f"row {ordinal} lacks non-empty content/text")
-    chunk_id = _non_empty_string(row.get("chunk_id")) or _non_empty_string(row.get("id"))
+    chunk_id = _non_empty_string(row.get("chunk_id")) or _non_empty_string(
+        row.get("id")
+    )
     if chunk_id is None:
         raise ValueError(f"row {ordinal} lacks stable chunk_id/id")
     range_ref = _range_from_row(row)
@@ -146,7 +152,12 @@ def chunk_record_from_row(row: dict[str, Any], *, ordinal: int, default_repo_id:
     )
     start_byte = _int_value(range_ref.get("start_byte"))
     end_byte = _int_value(range_ref.get("end_byte"))
-    if file_path is None or start_byte is None or end_byte is None or end_byte <= start_byte:
+    if (
+        file_path is None
+        or start_byte is None
+        or end_byte is None
+        or end_byte <= start_byte
+    ):
         raise ValueError(f"row {ordinal} has invalid file_path/start_byte/end_byte")
     repo_id = _non_empty_string(row.get("repo_id")) or default_repo_id
     content_sha256 = _content_hash(row, text, range_ref)
@@ -176,7 +187,9 @@ def build_records(
     records: list[dict[str, Any]] = []
     seen: set[str] = set()
     for ordinal, row in enumerate(rows):
-        chunk = chunk_record_from_row(row, ordinal=ordinal, default_repo_id=default_repo_id)
+        chunk = chunk_record_from_row(
+            row, ordinal=ordinal, default_repo_id=default_repo_id
+        )
         if chunk.record_id in seen:
             raise ValueError(f"duplicate stable record id: {chunk.record_id}")
         seen.add(chunk.record_id)
@@ -225,7 +238,9 @@ def _query_score(record: dict[str, Any], query: str) -> tuple[int, int, str, str
     )
 
 
-def _rank_records(records: Sequence[dict[str, Any]], query: str | None) -> list[dict[str, Any]]:
+def _rank_records(
+    records: Sequence[dict[str, Any]], query: str | None
+) -> list[dict[str, Any]]:
     if not query:
         return list(records)
     return sorted(records, key=lambda record: _query_score(record, query))
@@ -276,7 +291,9 @@ def evaluate_recall(
             miss_type = None
         else:
             miss_type = "expected_rank_below_k"
-            misses.append({"expected_chunk_id": expected, "reason": miss_type, "rank": rank})
+            misses.append(
+                {"expected_chunk_id": expected, "reason": miss_type, "rank": rank}
+            )
         case_details.append(
             {
                 "query": query,
@@ -342,7 +359,11 @@ def _baseline_miss_count(report: dict[str, Any]) -> int | None:
                 return value
     details = report.get("details")
     if isinstance(details, list):
-        return sum(1 for item in details if isinstance(item, dict) and not item.get("is_relevant"))
+        return sum(
+            1
+            for item in details
+            if isinstance(item, dict) and not item.get("is_relevant")
+        )
     return None
 
 
@@ -430,7 +451,12 @@ def build_report(
         },
         "mutation_boundary": {
             "writes": ["external_semantic_records", "bridge_report"],
-            "does_not_mutate": ["repobrief_core", "repo_worktree", "git", "pull_requests"],
+            "does_not_mutate": [
+                "repobrief_core",
+                "repo_worktree",
+                "git",
+                "pull_requests",
+            ],
             "does_not_crawl_repo": True,
         },
         "does_not_establish": DOES_NOT_ESTABLISH,
