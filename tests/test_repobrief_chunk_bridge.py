@@ -57,7 +57,9 @@ def test_build_records_rejects_unstable_rows_without_range():
 def test_report_keeps_semantic_layer_external_and_non_promoted(tmp_path: Path):
     chunk_index = tmp_path / "demo.chunk_index.jsonl"
     chunk_index.write_text(json.dumps(_row()) + "\n", encoding="utf-8")
-    records = bridge.build_records(bridge.read_jsonl(chunk_index), default_repo_id="fallback")
+    records = bridge.build_records(
+        bridge.read_jsonl(chunk_index), default_repo_id="fallback"
+    )
 
     report = bridge.build_report(chunk_index=chunk_index, records=records)
 
@@ -103,7 +105,9 @@ def test_goldset_eval_reports_query_ranked_recall_mrr_and_misses():
 def test_baseline_comparison_is_required_for_promotion_claims(tmp_path: Path):
     chunk_index = tmp_path / "demo.chunk_index.jsonl"
     chunk_index.write_text(json.dumps(_row()) + "\n", encoding="utf-8")
-    records = bridge.build_records(bridge.read_jsonl(chunk_index), default_repo_id="fallback")
+    records = bridge.build_records(
+        bridge.read_jsonl(chunk_index), default_repo_id="fallback"
+    )
     goldset = [{"query": "semantic bridge", "expected_chunk_id": "c1"}]
     baseline = {
         "metrics": {"recall@10": 50.0, "mrr": 0.25},
@@ -190,7 +194,9 @@ def test_cli_writes_external_jsonl_report_and_baseline_comparison(tmp_path: Path
         check=True,
     )
 
-    written = [json.loads(line) for line in out_jsonl.read_text(encoding="utf-8").splitlines()]
+    written = [
+        json.loads(line) for line in out_jsonl.read_text(encoding="utf-8").splitlines()
+    ]
     payload = json.loads(report.read_text(encoding="utf-8"))
     assert proc.returncode == 0
     assert len(written) == 1
