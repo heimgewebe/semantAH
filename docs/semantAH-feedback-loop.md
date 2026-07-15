@@ -1,5 +1,9 @@
 # semantAH Feedback-Loop
 
+> **Historischer Konzeptstand:** Dieses Dokument bewahrt die frühere Organismusmetapher und
+> beschreibt keine aktuelle System- oder Rollenwahrheit. Der heutige Zweck und Lifecycle-Status
+> von `semantAH` werden im [Systemkatalog](https://github.com/heimgewebe/systemkatalog) geführt.
+
 Dieses Dokument beschreibt, wie semantAH als semantisches Observatorium
 Signale an den Heimgewebe-Organismus zurückgeben soll – und wie daraus
 Policies für Selbstverbesserung entstehen können.

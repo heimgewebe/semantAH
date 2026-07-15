@@ -273,7 +273,7 @@ Das Observatory selbst hat **keine Meinung** zu seiner Ungewissheit. Es meldet F
 ### Producer-Semantik
 Das Schema setzt `producer: "semantAH"` konstant. Technisch wird der Endpoint von `indexd` bereitgestellt, einem Sub-Service von semantAH. 
 
-**Aktueller Stand**: `producer="semantAH"` repräsentiert das Organ im Heimgewebe-Organismus.
+**Aktueller Stand**: `producer="semantAH"` identifiziert die veröffentlichende Komponente. Die organisationsweite Rolle wird im Systemkatalog geführt.
 
 **Alternativen für zukünftige Versionen**:
 - `producer="indexd"` (technisch präziser)

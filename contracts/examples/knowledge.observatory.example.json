@@ -11,7 +11,7 @@
       "confidence": 0.85,
       "sources": [
         { "type": "event", "ref": "event-123", "weight": 0.9 },
-        { "type": "repo_file", "ref": "docs/system/heimgewebe-zielbild.md", "weight": 0.5 }
+        { "type": "repo_file", "ref": "docs/semantAH/observatory.md", "weight": 0.5 }
       ],
       "suggested_questions": [
         "Is the drift accelerating?",
