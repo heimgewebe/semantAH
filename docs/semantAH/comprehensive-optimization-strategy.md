@@ -1,5 +1,9 @@
 # semantAH: Umfassende Optimierungsstrategie und Architektur-Analyse
 
+> **Historischer Konzeptstand:** Die folgenden Organismus- und Rollenbilder sind nicht normativ.
+> Aktuelle Systemzwecke und Beziehungen werden im [Systemkatalog](https://github.com/heimgewebe/systemkatalog) geführt; technische
+> Aussagen sind gegen den heutigen Repositoryzustand zu prüfen.
+
 Dieses Dokument vereint die technische Architektur-Analyse mit den semantischen Optimierungsstrategien, um *semantAH* zu einem robusten, leistungsfähigen und „verständigen“ Wissens-Organ im Heimgewebe-Organismus zu entwickeln.
 
 ## 1. Überblick über den aktuellen Stand
