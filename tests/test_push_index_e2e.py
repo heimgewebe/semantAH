@@ -2,6 +2,7 @@ import json
 import os
 import shlex
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -77,18 +78,55 @@ def _wait_for_healthz(base: str, deadline_s: float = 15.0):
 
 
 @contextmanager
-def run_indexd():
-    """
-    Baut 'indexd' vorab, startet dann 'cargo run -p indexd' im Hintergrund auf Port 8080,
-    wartet auf /healthz (mit großzügiger Deadline) und räumt beim Verlassen auf.
-    """
-    # 0) Vorab-Build (kann auf kalten CI-Runnern mehrere Minuten dauern)
+def _occupy_default_port():
+    """Keep port 8080 occupied, or preserve an existing foreign owner."""
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        listener.bind(("127.0.0.1", 8080))
+        listener.listen()
+    except OSError:
+        listener.close()
+        yield
+        return
+
+    try:
+        yield
+    finally:
+        listener.close()
+
+
+def _free_tcp_port() -> int:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+    finally:
+        sock.close()
+
+
+def _stop_process(proc: subprocess.Popen[bytes]) -> bytes:
+    if proc.poll() is None:
+        proc.send_signal(signal.SIGINT)
+    try:
+        stdout, _ = proc.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        stdout, _ = proc.communicate(timeout=5)
+    return stdout or b""
+
+
+@contextmanager
+def run_indexd(tmp_path: Path):
+    """Start indexd on a free loopback port, wait for readiness, and clean up."""
     _prebuild_indexd()
+    port = _free_tcp_port()
+    base = f"http://127.0.0.1:{port}"
     env = os.environ.copy()
-    # persistenz in tmp, damit Tests nichts in echte Arbeitsverzeichnisse schreiben
-    tmp_state = Path.cwd() / ".test-indexd-state"
-    tmp_state.mkdir(exist_ok=True)
-    env["INDEXD_DB_PATH"] = str(tmp_state / "store.jsonl")
+    state_dir = tmp_path / "indexd-state"
+    state_dir.mkdir()
+    env["INDEXD_DB_PATH"] = str(state_dir / "store.jsonl")
+    env["INDEXD_BIND_ADDR"] = f"127.0.0.1:{port}"
 
     proc = subprocess.Popen(
         ["cargo", "run", "-q", "-p", "indexd"],
@@ -97,82 +135,82 @@ def run_indexd():
         env=env,
     )
     try:
-        # 1) Auf Health warten – großzügige Default-Deadline, via ENV überschreibbar
         _wait_for_healthz(
-            "http://127.0.0.1:8080",
+            base,
             deadline_s=_healthz_deadline_from_env(default=120.0),
         )
-        yield proc
+        yield base, proc
     finally:
-        # Sauber beenden
-        try:
-            proc.send_signal(signal.SIGINT)
-            try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-        finally:
-            # Logausgabe im Fehlerfall anhängen
-            if proc.stdout:
-                out = proc.stdout.read().decode("utf-8", "replace")
-                sys.stdout.write("\n[indexd output]\n")
-                sys.stdout.write(out)
-                sys.stdout.write("\n[/indexd output]\n")
+        output = _stop_process(proc)
+        if output:
+            sys.stdout.write("\n[indexd output]\n")
+            sys.stdout.write(output.decode("utf-8", "replace"))
+            sys.stdout.write("\n[/indexd output]\n")
 
 
 @pytest.mark.integration
-def test_push_index_script_end_to_end(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    # 1) Start server
-    with run_indexd():
-        base = "http://127.0.0.1:8080"
+def test_push_index_script_end_to_end(tmp_path: Path):
+    # Port 8080 remains occupied while indexd runs on an explicit free port.
+    server = None
+    with _occupy_default_port():
+        with pytest.raises(RuntimeError, match="cleanup sentinel"):
+            with run_indexd(tmp_path) as (base, server):
+                assert not base.endswith(":8080")
 
-        # 2) Schreibe Minimal-Parquet in isoliertem Arbeitsverzeichnis
-        work = tmp_path / "work"
-        (work / ".gewebe").mkdir(parents=True)
-        parquet = work / ".gewebe" / "embeddings.parquet"
-        df = pd.DataFrame(
-            [
-                {
-                    "doc_id": "D1",
+                # 2) Schreibe Minimal-Parquet in isoliertem Arbeitsverzeichnis
+                work = tmp_path / "work"
+                (work / ".gewebe").mkdir(parents=True)
+                parquet = work / ".gewebe" / "embeddings.parquet"
+                df = pd.DataFrame(
+                    [
+                        {
+                            "doc_id": "D1",
+                            "namespace": "ns",
+                            "id": "c1",
+                            "text": "hello world",
+                            "embedding": [1.0, 0.0],
+                        }
+                    ]
+                )
+                # pandas benötigt i.d.R. pyarrow/fastparquet – in diesem Projekt sollte pyarrow verfügbar sein.
+                df.to_parquet(parquet)
+
+                # 3) push_index.py gegen den laufenden Dienst ausführen
+                # Hinweis: wir setzen CWD auf 'work', damit der Default-Pfad funktioniert;
+                # übergeben aber explizit --embeddings zur Sicherheit.
+                script = Path(__file__).parent.parent / "scripts" / "push_index.py"
+                cmd = [
+                    sys.executable,
+                    str(script),
+                    "--embeddings",
+                    str(parquet),
+                    "--endpoint",
+                    f"{base}/index/upsert",
+                ]
+                proc = subprocess.run(
+                    cmd, cwd=work, capture_output=True, text=True, timeout=25
+                )
+                if proc.returncode != 0:
+                    pytest.fail(
+                        f"push_index.py failed: rc={proc.returncode}\n"
+                        f"STDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
+                    )
+
+                # 4) Suche absetzen und Treffer prüfen
+                payload = {
+                    "query": "hello",
+                    "k": 5,
                     "namespace": "ns",
-                    "id": "c1",
-                    "text": "hello world",
                     "embedding": [1.0, 0.0],
                 }
-            ]
-        )
-        # pandas benötigt i.d.R. pyarrow/fastparquet – in diesem Projekt sollte pyarrow verfügbar sein.
-        df.to_parquet(parquet)
+                res = _http_json(f"{base}/index/search", payload, timeout=5.0)
+                results = res.get("results", [])
+                assert len(results) == 1
+                assert results[0]["doc_id"] == "D1"
+                assert results[0]["chunk_id"] == "c1"
+                assert results[0]["score"] > 0.0
 
-        # 3) push_index.py gegen den laufenden Dienst ausführen
-        # Hinweis: wir setzen CWD auf 'work', damit der Default-Pfad funktioniert;
-        # übergeben aber explizit --embeddings zur Sicherheit.
-        script = Path(__file__).parent.parent / "scripts" / "push_index.py"
-        cmd = [
-            sys.executable,
-            str(script),
-            "--embeddings",
-            str(parquet),
-            "--endpoint",
-            f"{base}/index/upsert",
-        ]
-        proc = subprocess.run(cmd, cwd=work, capture_output=True, text=True, timeout=25)
-        if proc.returncode != 0:
-            pytest.fail(
-                f"push_index.py failed: rc={proc.returncode}\n"
-                f"STDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
-            )
+                raise RuntimeError("cleanup sentinel")
 
-        # 4) Suche absetzen und Treffer prüfen
-        payload = {
-            "query": "hello",
-            "k": 5,
-            "namespace": "ns",
-            "embedding": [1.0, 0.0],
-        }
-        res = _http_json(f"{base}/index/search", payload, timeout=5.0)
-        results = res.get("results", [])
-        assert len(results) == 1
-        assert results[0]["doc_id"] == "D1"
-        assert results[0]["chunk_id"] == "c1"
-        assert results[0]["score"] > 0.0
+    assert server is not None
+    assert server.poll() is not None

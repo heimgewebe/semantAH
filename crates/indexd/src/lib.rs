@@ -12,6 +12,8 @@ use tokio::{net::TcpListener, signal};
 use tracing::{info, warn, Level};
 use tracing_subscriber::FmtSubscriber;
 
+const DEFAULT_BIND_ADDR: &str = "0.0.0.0:8080";
+
 pub struct AppState {
     pub store: Arc<RwLock<store::VectorStore>>,
     embedder: Option<Arc<dyn Embedder>>,
@@ -68,7 +70,8 @@ pub fn router(state: Arc<AppState>) -> Router {
         .with_state(state)
 }
 
-/// Startet den Server auf 0.0.0.0:8080 und merged die vom Caller gelieferten Routen.
+/// Startet den Server auf `INDEXD_BIND_ADDR` (Default: `0.0.0.0:8080`) und
+/// merged die vom Caller gelieferten Routen.
 pub async fn run(
     build_routes: impl FnOnce(Arc<AppState>) -> Router + Send + 'static,
 ) -> anyhow::Result<()> {
@@ -80,7 +83,7 @@ pub async fn run(
 
     let router = build_routes(state.clone()).merge(router(state.clone()));
 
-    let addr: SocketAddr = "0.0.0.0:8080".parse()?;
+    let addr = bind_addr_from_env()?;
     info!(%addr, "starting indexd");
 
     let listener = TcpListener::bind(addr).await?;
@@ -94,6 +97,24 @@ pub async fn run(
 
     info!("indexd stopped");
     Ok(())
+}
+
+fn bind_addr_from_env() -> anyhow::Result<SocketAddr> {
+    match env::var("INDEXD_BIND_ADDR") {
+        Ok(raw) => parse_bind_addr(&raw),
+        Err(env::VarError::NotPresent) => parse_bind_addr(DEFAULT_BIND_ADDR),
+        Err(env::VarError::NotUnicode(_)) => {
+            anyhow::bail!("INDEXD_BIND_ADDR must contain valid UTF-8")
+        }
+    }
+}
+
+fn parse_bind_addr(raw: &str) -> anyhow::Result<SocketAddr> {
+    raw.parse().map_err(|err| {
+        anyhow::anyhow!(
+            "INDEXD_BIND_ADDR must be a socket address such as 127.0.0.1:8080, got {raw:?}: {err}"
+        )
+    })
 }
 
 fn maybe_init_embedder() -> anyhow::Result<Option<Arc<dyn Embedder>>> {
@@ -208,4 +229,21 @@ async fn shutdown_signal() {
 
 async fn healthz() -> &'static str {
     "ok"
+}
+
+#[cfg(test)]
+mod bind_addr_tests {
+    use super::*;
+
+    #[test]
+    fn parses_explicit_loopback_bind_address() {
+        let addr = parse_bind_addr("127.0.0.1:49152").expect("valid bind address");
+        assert_eq!(addr, SocketAddr::from(([127, 0, 0, 1], 49152)));
+    }
+
+    #[test]
+    fn rejects_bind_address_without_port() {
+        let err = parse_bind_addr("127.0.0.1").expect_err("port is required");
+        assert!(err.to_string().contains("INDEXD_BIND_ADDR"));
+    }
 }
