@@ -4,7 +4,7 @@
 
 ## Komponenten
 - `AppState`: verwaltet den `VectorStore` (RW-Lock) und kann in Tests ersetzt werden.
-- `run`: Hilfsfunktion, die den Server unter `0.0.0.0:8080` startet und zusätzliche Routen injiziert.
+- `run`: Hilfsfunktion, die den Server standardmäßig unter `0.0.0.0:8080` startet und zusätzliche Routen injiziert. Für isolierte Tests oder abweichende Laufzeitumgebungen kann die Bind-Adresse über `INDEXD_BIND_ADDR` gesetzt werden, zum Beispiel `127.0.0.1:49152`.
 - `store`-Modul: In-Memory-Vektorablage mit Namensraum-Unterstützung und einfacher Persistenz-Erweiterbarkeit.
 
 ## HTTP-API
