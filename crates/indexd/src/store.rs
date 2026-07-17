@@ -6,6 +6,54 @@ use thiserror::Error;
 
 use crate::key::{make_chunk_key, split_chunk_key, split_chunk_key_ref, KEY_SEPARATOR};
 
+macro_rules! rank_normalized_query {
+    ($store:expr, $namespace:expr, $query:expr, $k:expr) => {{
+        let mut heap: BinaryHeap<Reverse<Hit>> = BinaryHeap::with_capacity($k);
+        let mut dropped_nan = 0usize;
+
+        for (key, (embedding, _meta)) in $store.all_in_namespace($namespace) {
+            let score = dot($query, embedding);
+
+            if score.is_nan() {
+                dropped_nan += 1;
+                continue;
+            }
+
+            let hit = Hit {
+                key: key.as_str(),
+                score,
+            };
+
+            if heap.len() < $k {
+                heap.push(Reverse(hit));
+            } else {
+                let mut worst = heap.peek_mut().unwrap();
+                if hit > worst.0 {
+                    *worst = Reverse(hit);
+                }
+            }
+        }
+
+        if dropped_nan > 0 {
+            tracing::warn!(
+                dropped = dropped_nan,
+                "dropped search hits with NaN scores before ranking"
+            );
+        }
+
+        let mut sorted: Vec<_> = heap.into_vec().into_iter().map(|Reverse(h)| h).collect();
+        sorted.sort_unstable_by(|a, b| b.cmp(a));
+
+        sorted
+            .into_iter()
+            .map(|hit| {
+                let (doc_id, chunk_id) = split_chunk_key(hit.key);
+                (doc_id, chunk_id, hit.score)
+            })
+            .collect()
+    }};
+}
+
 /// In-memory vector store for embeddings with cosine similarity search.
 ///
 /// All vectors in the store must have the same dimensionality, which is
@@ -136,60 +184,41 @@ impl VectorStore {
         }
 
         let mut query = query.to_vec();
-        normalize(&mut query);
+        normalize_query(&mut query);
+        rank_normalized_query!(self, namespace, &query, k)
+    }
 
-        // Min-Heap (via Reverse) to keep top-k best items.
-        // We store Reverse<Hit> so the Heap pops the "Worst" (Smallest) Hit.
-        // Hit Ord: High Score > Low Score.
-        let mut heap: BinaryHeap<Reverse<Hit>> = BinaryHeap::with_capacity(k);
-        let mut dropped_nan = 0usize;
-
-        for (key, (embedding, _meta)) in self.all_in_namespace(namespace) {
-            // Since both vectors are normalized, cosine similarity is just the dot product.
-            let score = dot(&query, embedding);
-
-            if score.is_nan() {
-                dropped_nan += 1;
-                continue;
-            }
-
-            // 'key' here is &String from the map iteration.
-            // Hit expects &'a str, so we use as_str().
-            let hit = Hit {
-                key: key.as_str(),
-                score,
-            };
-
-            if heap.len() < k {
-                heap.push(Reverse(hit));
-            } else {
-                // Heap is full. Check if we should replace the worst element.
-                // peek() gives the Max of Reverse<Hit>, which is the Min of Hit (Worst).
-                let mut worst = heap.peek_mut().unwrap();
-                if hit > worst.0 {
-                    *worst = Reverse(hit);
-                }
-            }
+    /// Searches with a query that has already been normalized in place.
+    ///
+    /// This is crate-private so API handlers that already own the query vector
+    /// can avoid a second allocation and keep normalization outside the store
+    /// read-lock. Callers must use [`normalize_query`] first.
+    #[inline(always)]
+    pub(crate) fn search_normalized(
+        &self,
+        namespace: &str,
+        query: &[f32],
+        k: usize,
+        _filters: &Value,
+    ) -> Vec<(String, String, f32)> {
+        if k == 0 {
+            return Vec::new();
         }
 
-        if dropped_nan > 0 {
+        let Some(expected) = self.dims else {
+            return Vec::new();
+        };
+
+        if expected != query.len() {
             tracing::warn!(
-                dropped = dropped_nan,
-                "dropped search hits with NaN scores before ranking"
+                expected = expected,
+                actual = query.len(),
+                "vector dimensionality mismatch in search; returning no results"
             );
+            return Vec::new();
         }
 
-        let mut sorted: Vec<_> = heap.into_vec().into_iter().map(|Reverse(h)| h).collect();
-        // Sort Best to Worst (Descending)
-        sorted.sort_unstable_by(|a, b| b.cmp(a));
-
-        sorted
-            .into_iter()
-            .map(|h| {
-                let (doc_id, chunk_id) = split_chunk_key(h.key);
-                (doc_id, chunk_id, h.score)
-            })
-            .collect()
+        rank_normalized_query!(self, namespace, query, k)
     }
 
     pub fn chunk_meta(&self, namespace: &str, doc_id: &str, chunk_id: &str) -> Option<&Value> {
@@ -275,6 +304,10 @@ fn dot(a: &[f32], b: &[f32]) -> f32 {
 
 fn l2_norm(vector: &[f32]) -> f32 {
     vector.iter().map(|x| x * x).sum::<f32>().sqrt()
+}
+
+pub(crate) fn normalize_query(vector: &mut [f32]) {
+    normalize(vector);
 }
 
 fn normalize(vector: &mut [f32]) {
@@ -371,6 +404,44 @@ mod tests {
 
         assert_eq!(results[2].0, "doc-b");
         assert_eq!(results[2].1, "c2");
+    }
+
+    #[test]
+    fn prepared_search_matches_public_search() {
+        let mut store = VectorStore::new();
+        store
+            .upsert("ns", "doc-a", "c1", vec![3.0, 4.0], Value::Null)
+            .unwrap();
+        store
+            .upsert("ns", "doc-b", "c2", vec![4.0, 3.0], Value::Null)
+            .unwrap();
+
+        let query = vec![6.0, 8.0];
+        let expected = store.search("ns", &query, 2, &Value::Null);
+        let mut prepared = query;
+        normalize_query(&mut prepared);
+        let actual = store.search_normalized("ns", &prepared, 2, &Value::Null);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn prepared_search_preserves_zero_query_tie_order() {
+        let mut store = VectorStore::new();
+        store
+            .upsert("ns", "doc-b", "c1", vec![1.0, 0.0], Value::Null)
+            .unwrap();
+        store
+            .upsert("ns", "doc-a", "c1", vec![0.0, 1.0], Value::Null)
+            .unwrap();
+
+        let query = vec![0.0, 0.0];
+        let expected = store.search("ns", &query, 2, &Value::Null);
+        let mut prepared = query;
+        normalize_query(&mut prepared);
+        let actual = store.search_normalized("ns", &prepared, 2, &Value::Null);
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
