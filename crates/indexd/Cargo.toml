@@ -51,3 +51,8 @@ path = "tests/embed_text.rs"
 [[test]]
 name = "migration"
 path = "tests/migration.rs"
+
+[[bench]]
+name = "indexd_real_workload"
+path = "benches/indexd_real_workload.rs"
+harness = false
