@@ -18,10 +18,11 @@ use serde_json::{json, Value};
 use tokio::sync::Barrier;
 use tower::ServiceExt;
 
-const REPORT_SCHEMA: &str = "indexd-real-workload-benchmark-v1";
+const REPORT_SCHEMA: &str = "indexd-real-workload-benchmark-v2";
 const NAMESPACE: &str = "code";
 const RESPONSE_LIMIT_BYTES: usize = 4 * 1024 * 1024;
 const MIN_RATIO_BASELINE_NS: f64 = 1_000.0;
+const SEARCH_LOCK_MODE: &str = "namespace-snapshot";
 
 struct CountingAllocator;
 
@@ -157,9 +158,19 @@ struct RegressionBudgets {
     sequential_p50_percent: f64,
     sequential_p95_percent: f64,
     sequential_p99_percent: f64,
+    #[serde(default = "default_sequential_latency_absolute_slack_ns")]
+    sequential_latency_absolute_slack_ns: u64,
     allocation_bytes_per_search_percent: f64,
     concurrent_search_p95_percent: f64,
     writer_lock_wait_p95_percent: f64,
+    #[serde(default = "default_writer_end_to_end_max_percent")]
+    writer_end_to_end_max_percent: f64,
+    #[serde(default = "default_writer_improvement_percent")]
+    writer_lock_wait_p95_min_improvement_percent: f64,
+    #[serde(default = "default_writer_improvement_percent")]
+    writer_end_to_end_max_min_improvement_percent: f64,
+    #[serde(default = "default_writer_improvement_min_dimensions")]
+    writer_improvement_min_dimensions: usize,
 }
 
 impl Default for RegressionBudgets {
@@ -168,9 +179,14 @@ impl Default for RegressionBudgets {
             sequential_p50_percent: 5.0,
             sequential_p95_percent: 10.0,
             sequential_p99_percent: 15.0,
+            sequential_latency_absolute_slack_ns: default_sequential_latency_absolute_slack_ns(),
             allocation_bytes_per_search_percent: 5.0,
             concurrent_search_p95_percent: 10.0,
             writer_lock_wait_p95_percent: 15.0,
+            writer_end_to_end_max_percent: default_writer_end_to_end_max_percent(),
+            writer_lock_wait_p95_min_improvement_percent: default_writer_improvement_percent(),
+            writer_end_to_end_max_min_improvement_percent: default_writer_improvement_percent(),
+            writer_improvement_min_dimensions: default_writer_improvement_min_dimensions(),
         }
     }
 }
@@ -182,6 +198,8 @@ struct RegressionCheck {
     baseline: f64,
     current: f64,
     allowed_regression_percent: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    allowed_absolute_increase: Option<f64>,
     change_percent: Option<f64>,
     passed: bool,
 }
@@ -203,6 +221,10 @@ struct RuntimeInfo {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 struct MeasurementContract {
+    #[serde(default = "default_comparison_family")]
+    comparison_family: String,
+    #[serde(default = "default_baseline_search_lock_mode")]
+    search_lock_mode: String,
     search_path: String,
     writer_path: String,
     allocation_scope: String,
@@ -267,7 +289,13 @@ async fn main() -> Result<()> {
                 .unwrap_or(1),
         },
         measurement_contract: MeasurementContract {
-            search_path: "in-process Axum /index/search request using the production handler, Tokio RwLock read_owned and spawn_blocking path".to_string(),
+            comparison_family: default_comparison_family(),
+            search_lock_mode: SEARCH_LOCK_MODE.to_string(),
+            search_path: match SEARCH_LOCK_MODE {
+                "held-read-lock" => "in-process Axum /index/search request using the production handler, Tokio RwLock read guard held through spawn_blocking ranking and snippet materialization".to_string(),
+                "namespace-snapshot" => "in-process Axum /index/search request using the production handler, O(1) Arc-backed namespace snapshot under a short Tokio RwLock read guard and spawn_blocking ranking".to_string(),
+                _ => unreachable!("search lock mode validated by parse_options"),
+            },
             writer_path: "direct VectorStore upsert under the same Tokio RwLock, with lock-wait and end-to-end durations reported separately".to_string(),
             allocation_scope: "process-global counting allocator sampled around isolated in-process API dispatch; concurrent metrics do not claim per-request allocation isolation".to_string(),
             percentile_method: "nearest-rank over sorted nanosecond samples".to_string(),
@@ -579,6 +607,30 @@ fn ratio(numerator: f64, denominator: f64) -> Option<f64> {
     }
 }
 
+fn default_comparison_family() -> String {
+    "in-process-axum-index-search-v1".to_string()
+}
+
+fn default_baseline_search_lock_mode() -> String {
+    "held-read-lock".to_string()
+}
+
+fn default_sequential_latency_absolute_slack_ns() -> u64 {
+    150_000
+}
+
+fn default_writer_end_to_end_max_percent() -> f64 {
+    15.0
+}
+
+fn default_writer_improvement_percent() -> f64 {
+    75.0
+}
+
+fn default_writer_improvement_min_dimensions() -> usize {
+    768
+}
+
 fn compare_reports(
     current: &BenchmarkReport,
     baseline: &BenchmarkReport,
@@ -632,11 +684,35 @@ fn compare_reports(
         ));
     }
 
-    if baseline.measurement_contract != current.measurement_contract {
-        issues.push("baseline measurement contract does not match current report".to_string());
+    if baseline.measurement_contract.comparison_family
+        != current.measurement_contract.comparison_family
+        || baseline.measurement_contract.writer_path != current.measurement_contract.writer_path
+        || baseline.measurement_contract.allocation_scope
+            != current.measurement_contract.allocation_scope
+        || baseline.measurement_contract.percentile_method
+            != current.measurement_contract.percentile_method
+    {
+        issues.push(
+            "baseline invariant measurement contract does not match current report".to_string(),
+        );
     }
     if baseline.regression_budgets != current.regression_budgets {
         issues.push("baseline regression budgets do not match current report".to_string());
+    }
+    let lock_transition = (
+        baseline.measurement_contract.search_lock_mode.as_str(),
+        current.measurement_contract.search_lock_mode.as_str(),
+    );
+    if !matches!(
+        lock_transition,
+        ("held-read-lock", "namespace-snapshot")
+            | ("held-read-lock", "held-read-lock")
+            | ("namespace-snapshot", "namespace-snapshot")
+    ) {
+        issues.push(format!(
+            "unsupported search lock mode transition {:?} -> {:?}",
+            lock_transition.0, lock_transition.1
+        ));
     }
 
     let mut baseline_scenarios = BTreeMap::new();
@@ -689,26 +765,29 @@ fn compare_reports(
             ));
             continue;
         }
-        checks.push(regression_check(
+        checks.push(regression_check_with_absolute_slack(
             &scenario.name,
             "sequential_api_latency.p50_ns",
             previous.sequential_api_latency.p50_ns as f64,
             scenario.sequential_api_latency.p50_ns as f64,
             budgets.sequential_p50_percent,
+            budgets.sequential_latency_absolute_slack_ns as f64,
         ));
-        checks.push(regression_check(
+        checks.push(regression_check_with_absolute_slack(
             &scenario.name,
             "sequential_api_latency.p95_ns",
             previous.sequential_api_latency.p95_ns as f64,
             scenario.sequential_api_latency.p95_ns as f64,
             budgets.sequential_p95_percent,
+            budgets.sequential_latency_absolute_slack_ns as f64,
         ));
-        checks.push(regression_check(
+        checks.push(regression_check_with_absolute_slack(
             &scenario.name,
             "sequential_api_latency.p99_ns",
             previous.sequential_api_latency.p99_ns as f64,
             scenario.sequential_api_latency.p99_ns as f64,
             budgets.sequential_p99_percent,
+            budgets.sequential_latency_absolute_slack_ns as f64,
         ));
         checks.push(regression_check(
             &scenario.name,
@@ -731,6 +810,32 @@ fn compare_reports(
             scenario.concurrency.concurrent_writer_lock_wait.p95_ns as f64,
             budgets.writer_lock_wait_p95_percent,
         ));
+        checks.push(regression_check(
+            &scenario.name,
+            "concurrency.concurrent_writer_end_to_end.max_ns",
+            previous.concurrency.concurrent_writer_end_to_end.max_ns as f64,
+            scenario.concurrency.concurrent_writer_end_to_end.max_ns as f64,
+            budgets.writer_end_to_end_max_percent,
+        ));
+        if baseline.measurement_contract.search_lock_mode == "held-read-lock"
+            && current.measurement_contract.search_lock_mode == "namespace-snapshot"
+            && scenario.dimensions >= budgets.writer_improvement_min_dimensions
+        {
+            checks.push(improvement_check(
+                &scenario.name,
+                "concurrency.concurrent_writer_lock_wait.p95_ns.improvement",
+                previous.concurrency.concurrent_writer_lock_wait.p95_ns as f64,
+                scenario.concurrency.concurrent_writer_lock_wait.p95_ns as f64,
+                budgets.writer_lock_wait_p95_min_improvement_percent,
+            ));
+            checks.push(improvement_check(
+                &scenario.name,
+                "concurrency.concurrent_writer_end_to_end.max_ns.improvement",
+                previous.concurrency.concurrent_writer_end_to_end.max_ns as f64,
+                scenario.concurrency.concurrent_writer_end_to_end.max_ns as f64,
+                budgets.writer_end_to_end_max_min_improvement_percent,
+            ));
+        }
     }
 
     let passed = issues.is_empty() && checks.iter().all(|check| check.passed);
@@ -742,6 +847,31 @@ fn compare_reports(
     }
 }
 
+fn improvement_check(
+    scenario: &str,
+    metric: &str,
+    baseline: f64,
+    current: f64,
+    minimum_improvement_percent: f64,
+) -> RegressionCheck {
+    let change_percent = if baseline.abs() < f64::EPSILON {
+        None
+    } else {
+        Some(((current - baseline) / baseline) * 100.0)
+    };
+    let passed = current <= baseline * (1.0 - minimum_improvement_percent / 100.0);
+    RegressionCheck {
+        scenario: scenario.to_string(),
+        metric: metric.to_string(),
+        baseline,
+        current,
+        allowed_regression_percent: -minimum_improvement_percent,
+        allowed_absolute_increase: None,
+        change_percent,
+        passed,
+    }
+}
+
 fn regression_check(
     scenario: &str,
     metric: &str,
@@ -749,23 +879,45 @@ fn regression_check(
     current: f64,
     allowed_regression_percent: f64,
 ) -> RegressionCheck {
+    regression_check_with_absolute_slack(
+        scenario,
+        metric,
+        baseline,
+        current,
+        allowed_regression_percent,
+        0.0,
+    )
+}
+
+fn regression_check_with_absolute_slack(
+    scenario: &str,
+    metric: &str,
+    baseline: f64,
+    current: f64,
+    allowed_regression_percent: f64,
+    allowed_absolute_increase: f64,
+) -> RegressionCheck {
     let change_percent = if baseline <= f64::EPSILON {
         None
     } else {
         Some(((current - baseline) / baseline) * 100.0)
     };
-    let passed = match change_percent {
+    let relative_passed = match change_percent {
         Some(change) => change <= allowed_regression_percent,
         None => current <= f64::EPSILON,
     };
+    let absolute_passed =
+        allowed_absolute_increase > 0.0 && current <= baseline + allowed_absolute_increase;
     RegressionCheck {
         scenario: scenario.to_string(),
         metric: metric.to_string(),
         baseline,
         current,
         allowed_regression_percent,
+        allowed_absolute_increase: (allowed_absolute_increase > 0.0)
+            .then_some(allowed_absolute_increase),
         change_percent,
-        passed,
+        passed: relative_passed || absolute_passed,
     }
 }
 
@@ -821,7 +973,8 @@ fn required_value(arguments: &mut impl Iterator<Item = String>, flag: &str) -> R
 fn print_help() {
     println!(
         "indexd real-workload benchmark\n\n\
-         Usage:\n  cargo bench -p indexd --bench indexd_real_workload -- \\\n         --profile smoke|standard|full [--output PATH] [--baseline PATH] \\\n         [--source-commit SHA] [--environment-id STABLE_HOST_ID]\n\n\
+         Usage:\n  cargo bench -p indexd --bench indexd_real_workload -- \\\n         --profile smoke|standard|full [--output PATH] [--baseline PATH] \\\n         [--source-commit SHA] [--environment-id STABLE_HOST_ID] \\
+         [--search-lock-mode held-read-lock|namespace-snapshot]\n\n\
          A failed baseline comparison exits with status 2 after writing the report."
     );
 }
@@ -858,33 +1011,33 @@ fn profile_configs(profile: &str) -> Result<Vec<ScenarioConfig>> {
                 vectors: 5_000,
                 dimensions: 384,
                 k: 10,
-                warmups: 5,
-                sequential_samples: 30,
+                warmups: 20,
+                sequential_samples: 500,
                 readers: 4,
-                concurrent_searches_per_reader: 15,
-                writer_operations: 20,
+                concurrent_searches_per_reader: 75,
+                writer_operations: 100,
             },
             ScenarioConfig {
                 name: "standard-10k-768",
                 vectors: 10_000,
                 dimensions: 768,
                 k: 10,
-                warmups: 5,
-                sequential_samples: 30,
+                warmups: 15,
+                sequential_samples: 200,
                 readers: 4,
-                concurrent_searches_per_reader: 15,
-                writer_operations: 20,
+                concurrent_searches_per_reader: 50,
+                writer_operations: 100,
             },
             ScenarioConfig {
                 name: "standard-10k-1536",
                 vectors: 10_000,
                 dimensions: 1_536,
                 k: 10,
-                warmups: 5,
-                sequential_samples: 20,
+                warmups: 12,
+                sequential_samples: 150,
                 readers: 4,
-                concurrent_searches_per_reader: 10,
-                writer_operations: 20,
+                concurrent_searches_per_reader: 40,
+                writer_operations: 100,
             },
         ],
         "full" => vec![

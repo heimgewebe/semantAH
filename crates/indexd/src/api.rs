@@ -533,13 +533,15 @@ async fn handle_search(
         ));
     };
 
-    // The request already owns this vector. Normalize it before acquiring the
-    // long-lived store read-lock so search does not allocate and normalize a
-    // second copy while writers are blocked.
+    // Normalize before taking the short store read-lock. The lock is used only
+    // to capture an immutable namespace snapshot containing Arc-backed entries.
     normalize_query(&mut embedding);
 
-    let store = state.store.clone().read_owned().await;
-    let current_dims = store.dims;
+    let snapshot = {
+        let store = state.store.read().await;
+        store.namespace_snapshot(&namespace)
+    };
+    let current_dims = snapshot.dims();
 
     let results = task::spawn_blocking(move || {
         let expected_dim = store_dims.or(current_dims);
@@ -554,26 +556,17 @@ async fn handle_search(
             }
         }
 
-        // NOTE: Search runs under a read lock of the current VectorStore state.
-        // This keeps results consistent with respect to concurrent updates.
-        let scored = store.search_normalized(&namespace, &embedding, k, &filter_value);
-
-        let results: Vec<SearchHit> = scored
+        // Ranking and snippet materialization use one consistent request-local
+        // snapshot after the shared mutable store lock has been released.
+        let results: Vec<SearchHit> = snapshot
+            .search_normalized_with_snippets(&embedding, k, &filter_value)
             .into_iter()
-            .map(|(doc_id, chunk_id, score)| {
-                let snippet = store
-                    .chunk_meta(&namespace, &doc_id, &chunk_id)
-                    .and_then(|meta| meta.get("snippet"))
-                    .and_then(|value| value.as_str())
-                    .unwrap_or_default()
-                    .to_string();
-                SearchHit {
-                    doc_id,
-                    chunk_id,
-                    score,
-                    snippet,
-                    rationale: Vec::new(),
-                }
+            .map(|(doc_id, chunk_id, score, snippet)| SearchHit {
+                doc_id,
+                chunk_id,
+                score,
+                snippet,
+                rationale: Vec::new(),
             })
             .collect();
         Ok(results)
@@ -776,6 +769,48 @@ mod tests {
 
         let store = state.store.read().await;
         assert!(store.is_empty(), "store must remain empty");
+    }
+
+    #[tokio::test]
+    async fn retained_namespace_snapshot_does_not_hold_store_lock() {
+        let state = Arc::new(AppState::new());
+        {
+            let mut store = state.store.write().await;
+            store
+                .upsert(
+                    "ns",
+                    "doc-a",
+                    "c1",
+                    vec![1.0, 0.0],
+                    json!({"snippet": "old"}),
+                )
+                .unwrap();
+        }
+
+        let snapshot = {
+            let store = state.store.read().await;
+            store.namespace_snapshot("ns")
+        };
+
+        let mut store =
+            tokio::time::timeout(std::time::Duration::from_millis(50), state.store.write())
+                .await
+                .expect("snapshot must not retain the shared read lock");
+        store
+            .upsert(
+                "ns",
+                "doc-b",
+                "c1",
+                vec![0.0, 1.0],
+                json!({"snippet": "new"}),
+            )
+            .unwrap();
+        drop(store);
+
+        let results = snapshot.search_normalized_with_snippets(&[1.0, 0.0], 10, &Value::Null);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].0, "doc-a");
+        assert_eq!(results[0].3, "old");
     }
 
     #[tokio::test]

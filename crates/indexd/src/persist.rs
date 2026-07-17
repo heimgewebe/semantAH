@@ -138,14 +138,14 @@ fn save_store_atomic(path: &Path, store: &VectorStore) -> anyhow::Result<()> {
         let mut writer = BufWriter::new(file);
 
         for (namespace, ns_items) in &store.items {
-            for (key, (embedding, meta)) in ns_items {
-                let (doc_id, chunk_id) = split_chunk_key_ref(key);
+            for item in ns_items.stored_items() {
+                let (doc_id, chunk_id) = split_chunk_key_ref(item.key.as_ref());
                 let row = RowRef {
                     namespace,
                     doc_id,
                     chunk_id,
-                    embedding,
-                    meta,
+                    embedding: &item.embedding,
+                    meta: &item.meta,
                 };
                 serde_json::to_writer(&mut writer, &row)?;
                 writer.write_all(b"\n")?;

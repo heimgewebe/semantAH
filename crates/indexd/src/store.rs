@@ -1,5 +1,6 @@
 use std::cmp::{Ordering, Reverse};
 use std::collections::{BinaryHeap, HashMap};
+use std::sync::Arc;
 
 use serde_json::Value;
 use thiserror::Error;
@@ -7,22 +8,19 @@ use thiserror::Error;
 use crate::key::{make_chunk_key, split_chunk_key, split_chunk_key_ref, KEY_SEPARATOR};
 
 macro_rules! rank_normalized_query {
-    ($store:expr, $namespace:expr, $query:expr, $k:expr) => {{
+    ($entries:expr, $query:expr, $k:expr) => {{
         let mut heap: BinaryHeap<Reverse<Hit>> = BinaryHeap::with_capacity($k);
         let mut dropped_nan = 0usize;
 
-        for (key, (embedding, _meta)) in $store.all_in_namespace($namespace) {
-            let score = dot($query, embedding);
+        for item in $entries {
+            let score = dot($query, &item.embedding);
 
             if score.is_nan() {
                 dropped_nan += 1;
                 continue;
             }
 
-            let hit = Hit {
-                key: key.as_str(),
-                score,
-            };
+            let hit = Hit { item, score };
 
             if heap.len() < $k {
                 heap.push(Reverse(hit));
@@ -43,15 +41,84 @@ macro_rules! rank_normalized_query {
 
         let mut sorted: Vec<_> = heap.into_vec().into_iter().map(|Reverse(h)| h).collect();
         sorted.sort_unstable_by(|a, b| b.cmp(a));
-
         sorted
-            .into_iter()
-            .map(|hit| {
-                let (doc_id, chunk_id) = split_chunk_key(hit.key);
-                (doc_id, chunk_id, hit.score)
-            })
-            .collect()
     }};
+}
+
+/// One immutable stored vector and its metadata.
+///
+/// Entries are reference-counted so a request can retain a consistent namespace
+/// snapshot after the mutable store lock has been released. Replacing or deleting
+/// a live entry does not mutate snapshots already held by in-flight searches.
+#[derive(Debug)]
+pub struct StoredItem {
+    pub(crate) key: Arc<str>,
+    pub(crate) embedding: Vec<f32>,
+    pub(crate) meta: Value,
+}
+
+/// Immutable namespace storage shared by live state and request snapshots.
+///
+/// The entry vector keeps exact-search scans contiguous, while the key index
+/// preserves O(1) replacement and metadata lookup. Cloning this structure is
+/// shallow because keys and stored entries are both Arc-backed.
+#[derive(Debug, Clone, Default)]
+pub struct NamespaceItems {
+    by_key: HashMap<Arc<str>, usize>,
+    entries: Vec<Arc<StoredItem>>,
+}
+
+impl NamespaceItems {
+    fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    fn upsert(&mut self, key: Arc<str>, item: Arc<StoredItem>) {
+        if let Some(index) = self.by_key.get(key.as_ref()).copied() {
+            self.entries[index] = item;
+        } else {
+            let index = self.entries.len();
+            self.by_key.insert(key, index);
+            self.entries.push(item);
+        }
+    }
+
+    fn delete_doc(&mut self, doc_id: &str) {
+        let prefix = format!("{doc_id}{KEY_SEPARATOR}");
+        self.entries
+            .retain(|item| !item.key.starts_with(prefix.as_str()));
+        self.by_key.clear();
+        self.by_key.reserve(self.entries.len());
+        for (index, item) in self.entries.iter().enumerate() {
+            self.by_key.insert(Arc::clone(&item.key), index);
+        }
+    }
+
+    fn get(&self, key: &str) -> Option<&StoredItem> {
+        self.by_key
+            .get(key)
+            .and_then(|index| self.entries.get(*index))
+            .map(Arc::as_ref)
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &StoredItem> {
+        self.entries.iter().map(Arc::as_ref)
+    }
+
+    pub(crate) fn stored_items(&self) -> impl Iterator<Item = &StoredItem> {
+        self.iter()
+    }
+}
+
+/// Request-local immutable view of one namespace.
+#[derive(Debug, Clone)]
+pub(crate) struct NamespaceSnapshot {
+    dims: Option<usize>,
+    items: Arc<NamespaceItems>,
 }
 
 /// In-memory vector store for embeddings with cosine similarity search.
@@ -63,8 +130,8 @@ macro_rules! rank_normalized_query {
 pub struct VectorStore {
     /// Expected dimensionality of all vectors. Set by the first insertion.
     pub dims: Option<usize>,
-    /// Storage: namespace -> (chunk_key -> (embedding_vector, metadata))
-    pub items: HashMap<String, HashMap<String, (Vec<f32>, Value)>>,
+    /// Storage: namespace -> immutable indexed namespace data.
+    pub items: HashMap<String, Arc<NamespaceItems>>,
 }
 
 impl VectorStore {
@@ -118,11 +185,13 @@ impl VectorStore {
 
         normalize(&mut vector);
 
-        let chunk_key = make_chunk_key(doc_id, chunk_id);
-        self.items
-            .entry(namespace.to_string())
-            .or_default()
-            .insert(chunk_key, (vector, meta));
+        let chunk_key: Arc<str> = make_chunk_key(doc_id, chunk_id).into();
+        let item = Arc::new(StoredItem {
+            key: Arc::clone(&chunk_key),
+            embedding: vector,
+            meta,
+        });
+        Arc::make_mut(self.items.entry(namespace.to_string()).or_default()).upsert(chunk_key, item);
         Ok(())
     }
 
@@ -131,8 +200,8 @@ impl VectorStore {
     /// If this leaves the store empty, the dimensionality constraint is reset.
     pub fn delete_doc(&mut self, namespace: &str, doc_id: &str) {
         let is_empty = if let Some(ns_items) = self.items.get_mut(namespace) {
-            let prefix = format!("{doc_id}{KEY_SEPARATOR}");
-            ns_items.retain(|key, _| !key.starts_with(&prefix));
+            let ns_items = Arc::make_mut(ns_items);
+            ns_items.delete_doc(doc_id);
             ns_items.is_empty()
         } else {
             false
@@ -150,11 +219,23 @@ impl VectorStore {
     pub fn all_in_namespace<'a>(
         &'a self,
         namespace: &'a str,
-    ) -> impl Iterator<Item = (&'a String, &'a (Vec<f32>, Value))> + 'a {
+    ) -> impl Iterator<Item = &'a StoredItem> + 'a {
         self.items
             .get(namespace)
             .into_iter()
             .flat_map(|ns_items| ns_items.iter())
+    }
+
+    /// Capture a consistent namespace view while holding the caller's store lock.
+    ///
+    /// Snapshot capture is O(1): it clones the namespace map's `Arc`, not its
+    /// keys, vectors or metadata. A concurrent writer shallow-clones only the map
+    /// of Arc-backed entries before mutation, leaving in-flight snapshots intact.
+    pub(crate) fn namespace_snapshot(&self, namespace: &str) -> NamespaceSnapshot {
+        NamespaceSnapshot {
+            dims: self.dims,
+            items: self.items.get(namespace).cloned().unwrap_or_default(),
+        }
     }
 
     /// Executes a cosine-similarity search over all items in the namespace and
@@ -185,7 +266,13 @@ impl VectorStore {
 
         let mut query = query.to_vec();
         normalize_query(&mut query);
-        rank_normalized_query!(self, namespace, &query, k)
+        rank_normalized_query!(self.all_in_namespace(namespace), &query, k)
+            .into_iter()
+            .map(|hit| {
+                let (doc_id, chunk_id) = split_chunk_key(hit.item.key.as_ref());
+                (doc_id, chunk_id, hit.score)
+            })
+            .collect()
     }
 
     /// Searches with a query that has already been normalized in place.
@@ -193,6 +280,7 @@ impl VectorStore {
     /// This is crate-private so API handlers that already own the query vector
     /// can avoid a second allocation and keep normalization outside the store
     /// read-lock. Callers must use [`normalize_query`] first.
+    #[cfg(test)]
     #[inline(always)]
     pub(crate) fn search_normalized(
         &self,
@@ -218,15 +306,67 @@ impl VectorStore {
             return Vec::new();
         }
 
-        rank_normalized_query!(self, namespace, query, k)
+        rank_normalized_query!(self.all_in_namespace(namespace), query, k)
+            .into_iter()
+            .map(|hit| {
+                let (doc_id, chunk_id) = split_chunk_key(hit.item.key.as_ref());
+                (doc_id, chunk_id, hit.score)
+            })
+            .collect()
     }
 
     pub fn chunk_meta(&self, namespace: &str, doc_id: &str, chunk_id: &str) -> Option<&Value> {
         let chunk_key = make_chunk_key(doc_id, chunk_id);
         self.items
             .get(namespace)
-            .and_then(|ns_items| ns_items.get(&chunk_key))
-            .map(|(_, meta)| meta)
+            .and_then(|ns_items| ns_items.get(chunk_key.as_str()))
+            .map(|item| &item.meta)
+    }
+}
+
+impl NamespaceSnapshot {
+    pub(crate) fn dims(&self) -> Option<usize> {
+        self.dims
+    }
+
+    /// Search and materialize snippets from this immutable request snapshot.
+    pub(crate) fn search_normalized_with_snippets(
+        &self,
+        query: &[f32],
+        k: usize,
+        _filters: &Value,
+    ) -> Vec<(String, String, f32, String)> {
+        if k == 0 {
+            return Vec::new();
+        }
+
+        let Some(expected) = self.dims else {
+            return Vec::new();
+        };
+
+        if expected != query.len() {
+            tracing::warn!(
+                expected,
+                actual = query.len(),
+                "vector dimensionality mismatch in snapshot search; returning no results"
+            );
+            return Vec::new();
+        }
+
+        rank_normalized_query!(self.items.iter(), query, k)
+            .into_iter()
+            .map(|hit| {
+                let (doc_id, chunk_id) = split_chunk_key(hit.item.key.as_ref());
+                let snippet = hit
+                    .item
+                    .meta
+                    .get("snippet")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                (doc_id, chunk_id, hit.score, snippet)
+            })
+            .collect()
     }
 }
 
@@ -237,7 +377,7 @@ pub enum VectorStoreError {
 }
 
 struct Hit<'a> {
-    key: &'a str,
+    item: &'a StoredItem,
     score: f32,
 }
 
@@ -264,8 +404,8 @@ impl<'a> Ord for Hit<'a> {
             .partial_cmp(&other.score)
             .unwrap_or(Ordering::Equal)
             .then_with(|| {
-                let (doc_self, chunk_self) = split_chunk_key_ref(self.key);
-                let (doc_other, chunk_other) = split_chunk_key_ref(other.key);
+                let (doc_self, chunk_self) = split_chunk_key_ref(self.item.key.as_ref());
+                let (doc_other, chunk_other) = split_chunk_key_ref(other.item.key.as_ref());
 
                 // Invert so that smaller (doc,chunk) becomes "Greater"/better.
                 doc_other
@@ -442,6 +582,114 @@ mod tests {
         let actual = store.search_normalized("ns", &prepared, 2, &Value::Null);
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn namespace_copy_on_write_reuses_unchanged_stored_items() {
+        let mut store = VectorStore::new();
+        store
+            .upsert(
+                "ns",
+                "doc-a",
+                "c1",
+                vec![1.0, 0.0],
+                serde_json::json!({"snippet": "a"}),
+            )
+            .unwrap();
+        store
+            .upsert(
+                "ns",
+                "doc-b",
+                "c1",
+                vec![0.0, 1.0],
+                serde_json::json!({"snippet": "b"}),
+            )
+            .unwrap();
+
+        let snapshot = store.namespace_snapshot("ns");
+        let retained = Arc::clone(
+            snapshot
+                .items
+                .entries
+                .iter()
+                .find(|item| item.key.as_ref() == make_chunk_key("doc-a", "c1"))
+                .expect("doc-a is present"),
+        );
+
+        store
+            .upsert(
+                "ns",
+                "doc-c",
+                "c1",
+                vec![1.0, 1.0],
+                serde_json::json!({"snippet": "c"}),
+            )
+            .unwrap();
+
+        let live = store.namespace_snapshot("ns");
+        let reused = live
+            .items
+            .entries
+            .iter()
+            .find(|item| item.key.as_ref() == make_chunk_key("doc-a", "c1"))
+            .expect("doc-a remains present");
+        assert!(Arc::ptr_eq(&retained, reused));
+    }
+
+    #[test]
+    fn namespace_snapshot_remains_consistent_after_live_mutation() {
+        let mut store = VectorStore::new();
+        store
+            .upsert(
+                "ns",
+                "doc-a",
+                "c1",
+                vec![1.0, 0.0],
+                serde_json::json!({"snippet": "old"}),
+            )
+            .unwrap();
+
+        let original = store.namespace_snapshot("ns");
+        store
+            .upsert(
+                "ns",
+                "doc-a",
+                "c1",
+                vec![0.0, 1.0],
+                serde_json::json!({"snippet": "new"}),
+            )
+            .unwrap();
+        store
+            .upsert(
+                "ns",
+                "doc-b",
+                "c1",
+                vec![1.0, 0.0],
+                serde_json::json!({"snippet": "added"}),
+            )
+            .unwrap();
+        let after_update = store.namespace_snapshot("ns");
+        store.delete_doc("ns", "doc-a");
+
+        let original_results =
+            original.search_normalized_with_snippets(&[1.0, 0.0], 10, &Value::Null);
+        assert_eq!(original_results.len(), 1);
+        assert_eq!(original_results[0].0, "doc-a");
+        assert_eq!(original_results[0].3, "old");
+        assert!((original_results[0].2 - 1.0).abs() < f32::EPSILON);
+
+        let updated_results =
+            after_update.search_normalized_with_snippets(&[1.0, 0.0], 10, &Value::Null);
+        assert_eq!(updated_results.len(), 2);
+        assert_eq!(updated_results[0].0, "doc-b");
+        assert_eq!(updated_results[0].3, "added");
+        assert_eq!(updated_results[1].3, "new");
+
+        let live_results = store
+            .namespace_snapshot("ns")
+            .search_normalized_with_snippets(&[1.0, 0.0], 10, &Value::Null);
+        assert_eq!(live_results.len(), 1);
+        assert_eq!(live_results[0].0, "doc-b");
     }
 
     #[test]
