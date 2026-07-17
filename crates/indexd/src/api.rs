@@ -7,6 +7,7 @@ use tracing::{debug, info};
 
 use tokio::task;
 
+use crate::store::normalize_query;
 use crate::AppState;
 
 /// Custom JSON extractor that returns consistent error format.
@@ -476,7 +477,7 @@ async fn handle_search(
     let filter_value = filters.unwrap_or(Value::Null);
 
     // Priority: query.meta.embedding > top-level embedding > legacy meta.embedding
-    let (embedding, embedding_generated): (Vec<f32>, bool) = if let Some(vector) =
+    let (mut embedding, embedding_generated): (Vec<f32>, bool) = if let Some(vector) =
         query_embedding_value
     {
         if vector.is_empty() {
@@ -532,6 +533,11 @@ async fn handle_search(
         ));
     };
 
+    // The request already owns this vector. Normalize it before acquiring the
+    // long-lived store read-lock so search does not allocate and normalize a
+    // second copy while writers are blocked.
+    normalize_query(&mut embedding);
+
     let store = state.store.clone().read_owned().await;
     let current_dims = store.dims;
 
@@ -550,7 +556,7 @@ async fn handle_search(
 
         // NOTE: Search runs under a read lock of the current VectorStore state.
         // This keeps results consistent with respect to concurrent updates.
-        let scored = store.search(&namespace, &embedding, k, &filter_value);
+        let scored = store.search_normalized(&namespace, &embedding, k, &filter_value);
 
         let results: Vec<SearchHit> = scored
             .into_iter()
