@@ -1,4 +1,4 @@
-//! Minimal HTTP server stub for the semantic index daemon (indexd).
+//! HTTP server entry point for the semantic index daemon (`indexd`).
 
 use indexd::api;
 

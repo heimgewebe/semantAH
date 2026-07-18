@@ -1,29 +1,53 @@
 # `indexd` crate
 
-`indexd` ist der HTTP-Dienst für den semantischen Index. Er kapselt den Axum-Server, einen im Speicher gehaltenen `VectorStore` und stellt CRUD-Operationen für Chunks sowie eine Suchroute bereit.
+`indexd` ist der Axum-Dienst für den semantischen Index. Die kanonische
+Ist-Architektur, Leistungsgrenzen und Nichtaussagen stehen in
+[`docs/indexd-architecture.md`](../../docs/indexd-architecture.md).
 
-## Komponenten
-- `AppState`: verwaltet den `VectorStore` (RW-Lock) und kann in Tests ersetzt werden.
-- `run`: Hilfsfunktion, die den Server standardmäßig unter `0.0.0.0:8080` startet und zusätzliche Routen injiziert. Für isolierte Tests oder abweichende Laufzeitumgebungen kann die Bind-Adresse über `INDEXD_BIND_ADDR` gesetzt werden, zum Beispiel `127.0.0.1:49152`.
-- `store`-Modul: In-Memory-Vektorablage mit Namensraum-Unterstützung und einfacher Persistenz-Erweiterbarkeit.
+## Implementierte Komponenten
+
+- `AppState`: hält einen `Tokio::RwLock<VectorStore>` und optional einen Embedder.
+- `run`: lädt optional `INDEXD_DB_PATH`, startet den Server standardmäßig auf
+  `0.0.0.0:8080` und speichert beim geordneten Shutdown atomar zurück. Die Bind-Adresse
+  kann über `INDEXD_BIND_ADDR` gesetzt werden.
+- `store`: exakte lineare Cosinus-Suche über normalisierte Vektoren, Namespace-Isolation,
+  deterministische Tie-Breaks und O(1)-Snapshots für Ranking außerhalb des Store-Locks.
+- `persist`: JSONL-Start-/Shutdown-Persistenz; kein WAL und keine kontinuierliche
+  Durability-Garantie.
 
 ## HTTP-API
-| Methode & Pfad | Beschreibung | Beispiel-Payload |
-| --- | --- | --- |
-| `POST /index/upsert` | Nimmt Chunks mit Embeddings entgegen und ersetzt vorhandene Einträge atomar. | `{ "doc_id": "note-42", "namespace": "vault", "chunks": [{ "id": "note-42#0", "text": "...", "meta": { "embedding": [0.1, 0.2], "source_path": "notes/foo.md" }}] }` |
-| `POST /index/delete` | Entfernt alle Chunks eines Dokuments aus einem Namespace. | `{ "doc_id": "note-42", "namespace": "vault" }` |
-| `POST /index/search` | Führt eine k-Nearest-Nachbarn-Suche aus und liefert Treffer mitsamt Score & Rationale zurück. Aktuell noch Stub → leeres `results`-Array. | `{ "query": "backup policy", "namespace": "vault", "k": 10 }` |
-| `GET /healthz` | Healthcheck für Liveness-Probes. | – |
 
-Antworten enthalten bei Fehlern strukturierte JSON-Bodies (`{"error": "..."}`) sowie `400 Bad Request` bei Validierungsproblemen.
+| Methode & Pfad | Verhalten |
+| --- | --- |
+| `POST /index/upsert` | Fügt Chunks ein oder ersetzt sie atomar; alle Vektoren müssen dieselbe Dimension haben. |
+| `POST /index/delete` | Entfernt alle Chunks eines Dokuments innerhalb eines Namespace. |
+| `POST /index/search` | Führt exakte Top-k-Suche aus und liefert Score sowie optional `meta.snippet`; `filters` wird derzeit nicht angewendet. |
+| `POST /embed/text` | Erzeugt über den konfigurierten Embedder ein provenancegebundenes Embedding. |
+| `GET /healthz` | Liveness-Check. |
 
-## Beispielstart
+Die vollständigen Payloads und Fehlerverträge stehen in
+[`docs/indexd-api.md`](../../docs/indexd-api.md).
+
+## Start
+
 ```bash
 cargo run -p indexd
 ```
 
-## Tests
-- `tests/healthz.rs`: prüft den Healthcheck-Endpunkt.
-- Integrationstest in `src/main.rs`: stellt sicher, dass fehlende Dimensionalität nicht zum teilweisen Upsert führt.
+Optional:
 
-Für persistente Vector-Stores oder echte Ähnlichkeitssuche kann das `store`-Modul ersetzt und `handle_search` erweitert werden.
+```bash
+export INDEXD_BIND_ADDR=127.0.0.1:49152
+export INDEXD_DB_PATH=.gewebe/indexd/store.jsonl
+cargo run -p indexd
+```
+
+## Tests und Benchmark
+
+```bash
+cargo test -p indexd --all-features --locked
+cargo bench -p indexd --bench indexd_real_workload -- --profile smoke
+```
+
+Nicht implementiert sind HNSW/Faiss/andere ANN-Indizes, Metadatenfilter, Sled/SQLite,
+Write-Ahead-Logging, Authentifizierung und Multi-Instanz-Koordination.
