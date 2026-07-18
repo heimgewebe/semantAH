@@ -1,5 +1,7 @@
 # Konfigurationsreferenz (`semantah.yml`)
 
+> **`indexd`-Laufzeit:** Der heutige Dienst liest Persistenz nicht aus `index.persist_path`, sondern ausschließlich aus `INDEXD_DB_PATH`. Die Tabellenzeile bleibt ein geplanter Konfigurationsadapter. Siehe [`indexd-architecture.md`](indexd-architecture.md).
+
 `semantah.yml` dient als zentrale Drehscheibe für die Pipeline-Konfiguration. Die Datei ist aktuell ein **Platzhalter** – die angebundenen Skripte und Dienste nutzen die Konfiguration noch nicht, sondern arbeiten mit fest kodierten Pfaden und Standardwerten.
 
 Die folgende Tabelle dokumentiert das Zielschema und den aktuellen Implementierungsstatus.
@@ -11,7 +13,7 @@ Die folgende Tabelle dokumentiert das Zielschema und den aktuellen Implementieru
 | `embedder.provider` | String | Kennung des Embedding-Providers (`ollama`, `openai`, …). | `ollama` | Stub |
 | `embedder.model` | String | Modellname/Identifier, der an den Provider übergeben wird. | `nomic-embed-text` | Stub |
 | `embedder.base_url` | URL | Optional: überschreibt die Basis-URL für lokale Provider (z. B. `http://localhost:11434`). | `http://localhost:11434` | Stub |
-| `index.top_k` | Integer | Anzahl Treffer, die bei Suchen (`/index/search`) zurückgegeben werden. | `20` | Stub (HTTP-Stub verwendet Payload `k`) |
+| `index.top_k` | Integer | Geplanter Standardwert für Suchen. Der HTTP-Endpunkt verwendet derzeit ausschließlich das Requestfeld `k`. | `20` | Konfigurationsadapter nicht implementiert |
 | `index.persist_path` | Pfad | Ablageort für den persistenten Index. | – | geplant |
 | `graph.cutoffs.min_cooccur` | Integer | Minimale Co-Vorkommnisse zweier Notizen, um eine Kante zu erzeugen. | `2` | Stub |
 | `graph.cutoffs.min_weight` | Float | Mindestgewicht für gewichtete Kanten. | `0.15` | Stub |

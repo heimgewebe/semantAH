@@ -1,5 +1,10 @@
 # Vault-Gewebe: Finale Blaupause
 
+> **Status: historischer Entwurf.** HNSW-, Sled/SQLite-, HausKI-Mounting- und
+> Persistenzangaben in diesem Dokument beschreiben Zielbilder, nicht den heutigen
+> `indexd`-Code. Kanonischer Ist-Stand: [`indexd-architecture.md`](indexd-architecture.md).
+
+
 Diese Datei fasst die komplette Architektur für das semantische Vault-Gewebe zusammen. Sie kombiniert den semantischen Index, den Wissensgraphen, Obsidian-Automatismen sowie Qualitäts- und Review-Schleifen. Alle Schritte sind lokal reproduzierbar und werden in `.gewebe/` versioniert.
 
 ---

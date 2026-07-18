@@ -41,7 +41,7 @@ Lokale Entwicklungsumgebungen laufen ohne Authentifizierung. Für produktive Set
 - **Antwort:** `{ "status": "accepted" }`
 
 ### `POST /index/search`
-- **Zweck:** Führt eine vektorbasierte Suche aus.
+- **Zweck:** Führt eine exakte lineare Vektorsuche innerhalb eines Namespace aus.
 - **Body:**
   ```json
   {
@@ -65,7 +65,7 @@ Lokale Entwicklungsumgebungen laufen ohne Authentifizierung. Für produktive Set
         "chunk_id": "note-42#0",
         "score": 0.87,
         "snippet": "...",
-        "rationale": ["Tag match: policy", "Vector cosine: 0.87"]
+        "rationale": []
       }
     ]
   }
@@ -82,7 +82,7 @@ Lokale Entwicklungsumgebungen laufen ohne Authentifizierung. Für produktive Set
   Server `INDEXD_EMBEDDER_PROVIDER=ollama` (plus optionale Parameter) gesetzt,
   wird – falls kein Embedding im Request vorliegt – der Query-Text über den
   konfigurierten Provider eingebettet.
-  Aktuell liefert der Stub eine leere Trefferliste; das Schema ist dennoch stabil und kann für Clients genutzt werden.
+  Die Suche scannt den gewählten Namespace exakt und sortiert nach Cosinus-Score. `snippet` stammt aus `meta.snippet`; `rationale` ist derzeit leer. Das optionale `filters`-Feld wird akzeptiert, aber noch nicht ausgewertet.
 
 ### `GET /healthz`
 - **Zweck:** Liveness-Check; antwortet mit `200 OK` und Body `"ok"`.
@@ -127,12 +127,12 @@ Lokale Entwicklungsumgebungen laufen ohne Authentifizierung. Für produktive Set
 
 ## Antwortschema & Fehlercodes
 - Erfolgreiche Antworten sind JSON (`application/json`).
-+- **400 Bad Request**: Clientseitige Probleme (z. B. falsches `embedding`-Format,
-+  Dimensionsmismatch, invalides JSON) – Response: `{ "error": "…" }`.
-+- **503 Service Unavailable**: Serverseitige Einbettung fehlgeschlagen
-+  (z. B. Embedder/Provider nicht erreichbar oder liefert keine Vektoren).
-+  Clients sollten verzögert **retry** ausführen. Response: `{ "error": "…" }`.
- - Weitere HTTP-Codes (z. B. `500`) sind für zukünftige Persistenzfehler reserviert.
+- **400 Bad Request**: Clientseitige Probleme (z. B. falsches `embedding`-Format,
+  Dimensionsmismatch, invalides JSON) – Response: `{ "error": "…" }`.
+- **503 Service Unavailable**: Serverseitige Einbettung fehlgeschlagen
+  (z. B. Embedder/Provider nicht erreichbar oder liefert keine Vektoren).
+  Clients sollten verzögert **retry** ausführen. Response: `{ "error": "…" }`.
+- Weitere HTTP-Codes (z. B. `500`) bleiben für interne Fehler reserviert. Persistenzfehler können beim Start oder geordneten Shutdown auftreten und liegen nicht im Requestpfad.
 
 ## Beispiele mit `curl`
 ```bash

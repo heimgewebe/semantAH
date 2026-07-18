@@ -1,5 +1,10 @@
 # HausKI-Integration
 
+> **Status: historischer Entwurf.** HNSW-, Sled/SQLite-, HausKI-Mounting- und
+> Persistenzangaben in diesem Dokument beschreiben Zielbilder, nicht den heutigen
+> `indexd`-Code. Kanonischer Ist-Stand: [`indexd-architecture.md`](indexd-architecture.md).
+
+
 HausKI bleibt das lokale Orchestrierungs-Gateway. semantAH ergänzt es als semantische Gedächtnis-Schicht. Dieser Leitfaden beschreibt, wie die neuen Komponenten (`indexd`, `embeddings`, Obsidian-Adapter) eingebunden werden und welche Policies greifen.
 
 ---

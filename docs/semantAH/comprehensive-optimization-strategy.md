@@ -2,7 +2,7 @@
 
 > **Historischer Konzeptstand:** Die folgenden Organismus- und Rollenbilder sind nicht normativ.
 > Aktuelle Systemzwecke und Beziehungen werden im [Systemkatalog](https://github.com/heimgewebe/systemkatalog) geführt; technische
-> Aussagen sind gegen den heutigen Repositoryzustand zu prüfen.
+> Aussagen sind gegen den heutigen Repositoryzustand zu prüfen. Die kanonische Ist-Beschreibung von `indexd` steht in [`../indexd-architecture.md`](../indexd-architecture.md).
 
 Dieses Dokument vereint die technische Architektur-Analyse mit den semantischen Optimierungsstrategien, um *semantAH* zu einem robusten, leistungsfähigen und „verständigen“ Wissens-Organ im Heimgewebe-Organismus zu entwickeln.
 
@@ -49,7 +49,7 @@ Alle Schema-Definitionen liegen kanonisch im `metarepo/contracts/`.
 ### Rust-Teil
 
 *   **Crate `embeddings`:** Definiert das `Embedder`-Trait mit asynchroner `embed`-Methode. Die vorhandene Ollama-Implementation ist modular und testgetrieben, validiert Dimensions-Mismatchs und verarbeitet Batches. Einschränkungen sind die Beschränkung auf Ollama und rudimentäre Fehlerbehandlung.
-*   **Crate `indexd`:** Implementiert einen Axum-HTTP-Service (Upsert, Delete, Search, Embed Text). Die API validiert JSON-Payloads und nutzt einen in-memory `VectorStore`. Die Suche erfolgt linear über normalisierte Vektoren (Cosinus-Ähnlichkeit). Es fehlen Persistenz und Approximate-Nearest-Neighbour-Indizes (ANN).
+*   **Crate `indexd`:** Implementiert einen Axum-HTTP-Service (Upsert, Delete, Search, Embed Text). Die API validiert JSON-Payloads und nutzt einen In-memory-`VectorStore`. Die Suche erfolgt exakt und linear über normalisierte Vektoren. JSONL-Laden beim Start und atomisches Speichern beim geordneten Shutdown sind optional über `INDEXD_DB_PATH` implementiert. ANN, kontinuierliche Durability und Metadatenfilter sind nicht implementiert.
 
 ### Python-Teil
 
@@ -65,8 +65,8 @@ Alle Schema-Definitionen liegen kanonisch im `metarepo/contracts/`.
 
 ### 3.2 Leistungsfähiger Vektorindex
 
-*   **ANN-Algorithmen:** Integration von HNSWlib oder Faiss (via `hnsw_rs` o.ä.) für logarithmische Skalierbarkeit statt linearer Suche.
-*   **Persistenz:** Speichern des Index als JSONL oder Binärformat (z. B. `.gewebe/indexd/store.jsonl`) mit asynchronem Laden/Speichern und optionalem Write-Ahead-Log.
+*   **ANN-Algorithmen (bedingt):** HNSW, Faiss oder ein anderer ANN-Pfad darf erst nach einem recall-, latenz-, speicher- und rebuildgebundenen Vergleich gegen die exakte Ground Truth aktiviert werden. Die Aktivierungsschwelle ist noch nicht definiert.
+*   **Persistenz:** JSONL-Start-/Shutdown-Persistenz ist implementiert. Offen sind ein belastbarer Crash-Durability-Vertrag, optionales Write-Ahead-Logging, inkrementelle Sicherung und ein migrationsfähiges Format für einen möglichen ANN-Index.
 *   **Parallelisierung:** Sharding nach Namespaces oder Hash-Bereichen für Multi-Core-Nutzung.
 *   **Trennung von Logik & Index:** Filter- und Ranking-Logiken (Zeit-Boosts, Tags) sollten strukturell vom reinen Index getrennt sein.
 

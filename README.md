@@ -30,6 +30,8 @@ SemantAH ist eine lokal laufende Wissensgraph- und Semantik-Pipeline für Obsidi
 > Eine Übersicht zu Config, API und Betrieb findest du ergänzend in:
 > - [`docs/config-reference.md`](docs/config-reference.md)
 > - [`docs/indexd-api.md`](docs/indexd-api.md)
+> - [`docs/indexd-architecture.md`](docs/indexd-architecture.md)
+> - [`docs/indexd-performance.md`](docs/indexd-performance.md)
 > - [`docs/runbook.observability.md`](docs/runbook.observability.md)
 > - [`docs/runbooks/semantics-intake.md`](docs/runbooks/semantics-intake.md)
 

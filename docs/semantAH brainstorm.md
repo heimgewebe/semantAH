@@ -1,5 +1,10 @@
 mega–ja. wir bauen das selbst – aber so, dass es perfekt in dein repo passt. hier ist der konkrete blueprint für “semantische suche / vektor-index” als hauski-dienst + dünnes obsidian-plugin-frontend.
 
+> **Status: historischer Entwurf.** HNSW-, Sled/SQLite-, HausKI-Mounting- und
+> Persistenzangaben in diesem Dokument beschreiben Zielbilder, nicht den heutigen
+> `indexd`-Code. Kanonischer Ist-Stand: [`indexd-architecture.md`](indexd-architecture.md).
+
+
 (ich beziehe mich dabei auf deine repo-struktur, configs und bereits vorhandene core-server-grundlagen wie /health, /metrics, CORS, „safe_mode“, egress-guard usw. – die sehen schon sehr solide aus.  ￼)
 
 zielbild (kompakt)
