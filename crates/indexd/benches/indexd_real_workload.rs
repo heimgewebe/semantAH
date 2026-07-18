@@ -294,7 +294,7 @@ async fn main() -> Result<()> {
             search_path: match SEARCH_LOCK_MODE {
                 "held-read-lock" => "in-process Axum /index/search request using the production handler, Tokio RwLock read guard held through spawn_blocking ranking and snippet materialization".to_string(),
                 "namespace-snapshot" => "in-process Axum /index/search request using the production handler, O(1) Arc-backed namespace snapshot under a short Tokio RwLock read guard and spawn_blocking ranking".to_string(),
-                _ => unreachable!("search lock mode validated by parse_options"),
+                _ => unreachable!("invalid binary-owned search lock mode"),
             },
             writer_path: "direct VectorStore upsert under the same Tokio RwLock, with lock-wait and end-to-end durations reported separately".to_string(),
             allocation_scope: "process-global counting allocator sampled around isolated in-process API dispatch; concurrent metrics do not claim per-request allocation isolation".to_string(),
@@ -973,8 +973,7 @@ fn required_value(arguments: &mut impl Iterator<Item = String>, flag: &str) -> R
 fn print_help() {
     println!(
         "indexd real-workload benchmark\n\n\
-         Usage:\n  cargo bench -p indexd --bench indexd_real_workload -- \\\n         --profile smoke|standard|full [--output PATH] [--baseline PATH] \\\n         [--source-commit SHA] [--environment-id STABLE_HOST_ID] \\
-         [--search-lock-mode held-read-lock|namespace-snapshot]\n\n\
+         Usage:\n  cargo bench -p indexd --bench indexd_real_workload -- \\\n         --profile smoke|standard|full [--output PATH] [--baseline PATH] \\\n         [--source-commit SHA] [--environment-id STABLE_HOST_ID]\n\n\
          A failed baseline comparison exits with status 2 after writing the report."
     );
 }
