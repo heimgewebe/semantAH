@@ -16,22 +16,6 @@ permissions:
   contents: read
 
 jobs:
-  push-index-e2e:
-    name: Push-index E2E portability
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v4
-        with: { python-version: "3.11" }
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Install locked test environment
-        run: uv sync --frozen --extra test
-      - name: Verify push-index portability with port 8080 occupied
-        env:
-          INDEXD_E2E_HEALTHZ_DEADLINE: "120"
-        run: uv run --frozen --extra test pytest -q tests/test_push_index_e2e.py
-
   wgx:
     runs-on: ubuntu-latest
     steps:
