@@ -16,7 +16,6 @@ use crate::AppState;
 /// return JSON format `{"error": "..."}` instead of plain text.
 pub struct ApiJson<T>(pub T);
 
-#[axum::async_trait]
 impl<S, T> axum::extract::FromRequest<S> for ApiJson<T>
 where
     T: serde::de::DeserializeOwned,
