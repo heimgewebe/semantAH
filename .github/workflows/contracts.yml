@@ -59,19 +59,29 @@ jobs:
           # Extract the value of 'uses:' (single-quoted, double-quoted, or unquoted)
           extract_pair() {
             local line="$1"
+            local value first last
             line="${line%%#*}"
             line="${line##+([[:space:]])}"
             line="${line%%+([[:space:]])}"
-            if [[ "$line" =~ ^(-[[:space:]]*)?uses:[[:space:]]*'([^']+)' ]]; then
-              echo "${BASH_REMATCH[2]}"; return 0
+            if [[ "$line" == -* ]]; then
+              line="${line#-}"
+              line="${line##+([[:space:]])}"
             fi
-            if [[ "$line" =~ ^(-[[:space:]]*)?uses:[[:space:]]*"([^"]+)" ]]; then
-              echo "${BASH_REMATCH[2]}"; return 0
+            [[ "$line" == uses:* ]] || return 1
+            value="${line#uses:}"
+            value="${value##+([[:space:]])}"
+            value="${value%%+([[:space:]])}"
+            [[ -n "$value" ]] || return 1
+            if (( ${#value} >= 2 )); then
+              first="${value:0:1}"
+              last="${value: -1}"
+              if [[ "$first" == '"' && "$last" == '"' ]] || [[ "$first" == "'" && "$last" == "'" ]]; then
+                value="${value:1:${#value}-2}"
+              fi
             fi
-            if [[ "$line" =~ ^(-[[:space:]]*)?uses:[[:space:]]*([^[:space:]#]+) ]]; then
-              echo "${BASH_REMATCH[2]}"; return 0
-            fi
-            return 1
+            [[ -n "$value" ]] || return 1
+            printf '%s
+' "$value"
           }
 
           # Validate repo, forbid dynamic refs, enforce exact pin
