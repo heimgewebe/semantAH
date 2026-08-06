@@ -44,8 +44,8 @@ jobs:
 
       - name: Verify 'uses:' pins for heimgewebe/contracts
         env:
-          REQUIRED_REPO: "heimgewebe/contracts/.github/workflows/contracts-ajv-reusable.yml"
-          REQUIRED_REF: "contracts-v1"
+          REQUIRED_REPO: "heimgewebe/contracts-mirror/.github/workflows/contracts-ajv-reusable.yml"
+          REQUIRED_REF: "79343b9dae739c33a0432da41aed2c0dbade3289"
         run: |
           set -euo pipefail
           shopt -s extglob  # enable +([[:space:]]) trimming
@@ -59,19 +59,28 @@ jobs:
           # Extract the value of 'uses:' (single-quoted, double-quoted, or unquoted)
           extract_pair() {
             local line="$1"
+            local value first last
             line="${line%%#*}"
             line="${line##+([[:space:]])}"
             line="${line%%+([[:space:]])}"
-            if [[ "$line" =~ ^(-[[:space:]]*)?uses:[[:space:]]*'([^']+)' ]]; then
-              echo "${BASH_REMATCH[2]}"; return 0
+            if [[ "$line" == -* ]]; then
+              line="${line#-}"
+              line="${line##+([[:space:]])}"
             fi
-            if [[ "$line" =~ ^(-[[:space:]]*)?uses:[[:space:]]*"([^"]+)" ]]; then
-              echo "${BASH_REMATCH[2]}"; return 0
+            [[ "$line" == uses:* ]] || return 1
+            value="${line#uses:}"
+            value="${value##+([[:space:]])}"
+            value="${value%%+([[:space:]])}"
+            [[ -n "$value" ]] || return 1
+            if (( ${#value} >= 2 )); then
+              first="${value:0:1}"
+              last="${value: -1}"
+              if [[ "$first" == '"' && "$last" == '"' ]] || [[ "$first" == "'" && "$last" == "'" ]]; then
+                value="${value:1:${#value}-2}"
+              fi
             fi
-            if [[ "$line" =~ ^(-[[:space:]]*)?uses:[[:space:]]*([^[:space:]#]+) ]]; then
-              echo "${BASH_REMATCH[2]}"; return 0
-            fi
-            return 1
+            [[ -n "$value" ]] || return 1
+            printf '%s\n' "$value"
           }
 
           # Validate repo, forbid dynamic refs, enforce exact pin
@@ -188,8 +197,9 @@ jobs:
   validate:
     name: "Validate fixtures via reusable workflow"
     needs: [version-sync-check, guard]
-    uses: heimgewebe/contracts/.github/workflows/contracts-ajv-reusable.yml@contracts-v1
+    uses: heimgewebe/contracts-mirror/.github/workflows/contracts-ajv-reusable.yml@79343b9dae739c33a0432da41aed2c0dbade3289
     secrets: inherit
     with:
       fixtures_glob: ${{ vars.FIXTURES_GLOB || 'fixtures/valid/**/*.jsonl' }}
-      schemas_glob: 'contracts/**/*.schema.json'
+      contracts_ref: 79343b9dae739c33a0432da41aed2c0dbade3289
+      fail_on_missing_schema: true
