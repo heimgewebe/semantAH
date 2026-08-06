@@ -80,8 +80,7 @@ jobs:
               fi
             fi
             [[ -n "$value" ]] || return 1
-            printf '%s
-' "$value"
+            printf '%s\n' "$value"
           }
 
           # Validate repo, forbid dynamic refs, enforce exact pin
