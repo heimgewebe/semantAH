@@ -7,10 +7,10 @@ permissions:
   contents: read
 jobs:
   ajv:
-    uses: heimgewebe/metarepo/.github/workflows/reusable-validate-jsonl.yml@contracts-v1
+    uses: heimgewebe/metarepo/.github/workflows/reusable-validate-jsonl.yml@9c4caedec6f9e0fef4d1132838c8d8c24c0ba859
     with:
       jsonl_paths_list: |
         fixtures/intent/*.jsonl
-      schema_url: https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/os.context.intent.schema.json
+      schema_url: https://raw.githubusercontent.com/heimgewebe/metarepo/9c4caedec6f9e0fef4d1132838c8d8c24c0ba859/contracts/os.context.intent.schema.json
       strict: false
       validate_formats: true
