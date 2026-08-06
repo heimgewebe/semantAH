@@ -202,3 +202,4 @@ jobs:
     with:
       fixtures_glob: ${{ vars.FIXTURES_GLOB || 'fixtures/valid/**/*.jsonl' }}
       contracts_ref: 79343b9dae739c33a0432da41aed2c0dbade3289
+      fail_on_missing_schema: true
