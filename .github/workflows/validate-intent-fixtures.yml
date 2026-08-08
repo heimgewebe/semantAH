@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   ajv:
-    uses: heimgewebe/metarepo/.github/workflows/reusable-validate-jsonl.yml@1e1dc53db419b3223d46ec279d389962bbcdc592
+    uses: heimgewebe/metarepo/.github/workflows/reusable-validate-jsonl.yml@fe6950616b2d06343e284a56a8944e0a36f1f972
     with:
       jsonl_paths_list: |
         fixtures/intent/*.jsonl
