@@ -2,7 +2,7 @@
 
 ## Overview
 
-This PR implements the stable embedding service and knowledge observatory tracking as specified in issue #[number]. The implementation follows the principle of **contract-driven minimality**: observing and counting, not interpreting.
+This PR implements the stable embedding service and knowledge observatory tracking as specified in issue #207. The implementation follows the principle of **contract-driven minimality**: observing and counting, not interpreting.
 
 ## What Was Implemented
 
