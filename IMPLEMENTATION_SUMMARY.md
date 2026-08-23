@@ -235,7 +235,7 @@ No migration needed. Existing functionality unchanged.
 
 ## References
 
-- Issue: #[number]
+- Issue: #207
 - Contract: `contracts/knowledge.observatory.schema.json`
 - Embedding Schema: `contracts/os.context.text.embed.schema.json`
 - Documentation: `docs/semantAH/observatory.md`
