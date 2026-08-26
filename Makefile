@@ -65,6 +65,7 @@ test-integration:
 #   reports/coverage-unit.xml (Cobertura/XML)
 #   reports/.coverage         (sqlite)
 coverage: | coverage-clean
+	uv sync --extra test
 	mkdir -p reports
 	uv run pytest $(PYTEST_ADDOPTS) -m "not integration" \
 	  --junitxml=reports/unit-junit.xml \
