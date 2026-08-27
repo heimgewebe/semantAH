@@ -4,7 +4,10 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use tokio::sync::OnceCell;
+use std::{future::Future, sync::Arc, time::Duration, time::Instant};
+use tokio::sync::Mutex;
+
+const UNKNOWN_VERSION_RETRY_BACKOFF: Duration = Duration::from_secs(30);
 
 /// Public trait that every embedder implementation must fulfill.
 #[async_trait]
@@ -37,7 +40,13 @@ pub struct OllamaEmbedder {
     url: String,
     model: String,
     dim: usize,
-    version_cache: OnceCell<String>,
+    version_cache: Arc<Mutex<VersionCache>>,
+}
+
+enum VersionCache {
+    Empty,
+    Unknown { retry_after: Instant },
+    Digest(String),
 }
 
 impl OllamaEmbedder {
@@ -53,8 +62,85 @@ impl OllamaEmbedder {
             url: base_url,
             model,
             dim,
-            version_cache: OnceCell::new(),
+            version_cache: Arc::new(Mutex::new(VersionCache::Empty)),
         }
+    }
+
+    async fn fetch_version_digest(&self) -> Option<String> {
+        // Try /api/show first to get model details.
+        let response = self
+            .client
+            .post(format!("{}/api/show", self.url))
+            .json(&OllamaShowRequest { name: &self.model })
+            .send()
+            .await;
+
+        if let Ok(resp) = response {
+            if resp.status().is_success() {
+                if let Ok(body) = resp.json::<serde_json::Value>().await {
+                    // Some Ollama versions return the digest directly from /api/show.
+                    if let Some(digest) = body.get("digest").and_then(|s| s.as_str()) {
+                        return Some(digest.to_string());
+                    }
+                }
+            }
+        }
+
+        // Fallback: list all tags and find our model.
+        let response = self
+            .client
+            .get(format!("{}/api/tags", self.url))
+            .send()
+            .await;
+
+        if let Ok(resp) = response {
+            if resp.status().is_success() {
+                if let Ok(body) = resp.json::<serde_json::Value>().await {
+                    if let Some(models) = body.get("models").and_then(|v| v.as_array()) {
+                        let latest_model = format!("{}:latest", self.model);
+                        for model in models {
+                            if let Some(name) = model.get("name").and_then(|s| s.as_str()) {
+                                if name == self.model || name == latest_model {
+                                    if let Some(digest) =
+                                        model.get("digest").and_then(|s| s.as_str())
+                                    {
+                                        return Some(digest.to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    async fn resolve_version<F, Fut>(&self, fetch_digest: F) -> String
+    where
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = Option<String>>,
+    {
+        // Keep the lock while querying so concurrent callers cannot trigger duplicate retries.
+        let mut cache = self.version_cache.lock().await;
+        match &*cache {
+            VersionCache::Digest(digest) => return digest.clone(),
+            VersionCache::Unknown { retry_after } if Instant::now() < *retry_after => {
+                return format!("{}:unknown", self.model);
+            }
+            VersionCache::Empty | VersionCache::Unknown { .. } => {}
+        }
+
+        if let Some(digest) = fetch_digest().await {
+            *cache = VersionCache::Digest(digest.clone());
+            return digest;
+        }
+
+        *cache = VersionCache::Unknown {
+            retry_after: Instant::now() + UNKNOWN_VERSION_RETRY_BACKOFF,
+        };
+        format!("{}:unknown", self.model)
     }
 }
 
@@ -154,76 +240,37 @@ impl Embedder for OllamaEmbedder {
     }
 
     async fn version(&self) -> Result<String> {
-        let version = self
-            .version_cache
-            .get_or_init(|| async {
-                // Try /api/show first to get model details
-                let response = self
-                    .client
-                    .post(format!("{}/api/show", self.url))
-                    .json(&OllamaShowRequest { name: &self.model })
-                    .send()
-                    .await;
-
-                if let Ok(resp) = response {
-                    if resp.status().is_success() {
-                        if let Ok(body) = resp.json::<serde_json::Value>().await {
-                            // Check for details.parent_model (often contains the hash/digest concept in some form)
-                            // but standard API returns `details` object.
-                            // However, `digest` is usually in /api/tags.
-                            // Some versions of Ollama return `digest` in /api/show response.
-                            if let Some(digest) = body.get("digest").and_then(|s| s.as_str()) {
-                                return digest.to_string();
-                            }
-                        }
-                    }
-                }
-
-                // Fallback: list all tags and find our model
-                let response = self
-                    .client
-                    .get(format!("{}/api/tags", self.url))
-                    .send()
-                    .await;
-
-                if let Ok(resp) = response {
-                    if resp.status().is_success() {
-                        if let Ok(body) = resp.json::<serde_json::Value>().await {
-                            if let Some(models) = body.get("models").and_then(|v| v.as_array()) {
-                                for model in models {
-                                    if let Some(name) = model.get("name").and_then(|s| s.as_str()) {
-                                        // Match exact name or name:latest
-                                        if name == self.model
-                                            || name == format!("{}:latest", self.model)
-                                        {
-                                            if let Some(digest) =
-                                                model.get("digest").and_then(|s| s.as_str())
-                                            {
-                                                return digest.to_string();
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // If we can't find the hash, return a fallback that indicates checked but unknown
-                // This maintains the previous behavior effectively but allows upgrade.
-                // Note: We cache this "unknown" result to avoid flapping on transient errors;
-                // a service restart is required to refresh the cache.
-                format!("{}:unknown", self.model)
-            })
-            .await;
-
-        Ok(version.clone())
+        Ok(self.resolve_version(|| self.fetch_version_digest()).await)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    fn test_embedder() -> OllamaEmbedder {
+        OllamaEmbedder::new(OllamaConfig {
+            base_url: "http://localhost:11434".to_string(),
+            model: "nomic-embed-text".to_string(),
+            dim: 768,
+        })
+    }
+
+    async fn expire_unknown_backoff(embedder: &OllamaEmbedder) {
+        let mut cache = embedder.version_cache.lock().await;
+        match &mut *cache {
+            VersionCache::Unknown { retry_after } => {
+                *retry_after = Instant::now()
+                    .checked_sub(Duration::from_secs(1))
+                    .expect("test instant should support subtracting one second");
+            }
+            VersionCache::Empty => panic!("expected an unknown version, cache was empty"),
+            VersionCache::Digest(digest) => {
+                panic!("expected an unknown version, cache held {digest}")
+            }
+        }
+    }
 
     #[test]
     fn parses_single_embedding_response() {
@@ -264,6 +311,91 @@ mod tests {
 
         let result = embedder.embed(&[]).await.unwrap();
         assert!(result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn unknown_version_recovers_to_digest_after_backoff() {
+        let embedder = test_embedder();
+        let provider_checks = AtomicUsize::new(0);
+
+        assert_eq!(
+            embedder
+                .resolve_version(|| async {
+                    provider_checks.fetch_add(1, Ordering::SeqCst);
+                    None
+                })
+                .await,
+            "nomic-embed-text:unknown"
+        );
+        assert_eq!(provider_checks.load(Ordering::SeqCst), 1);
+
+        expire_unknown_backoff(&embedder).await;
+
+        assert_eq!(
+            embedder
+                .resolve_version(|| async {
+                    provider_checks.fetch_add(1, Ordering::SeqCst);
+                    Some("sha256:recovered".to_string())
+                })
+                .await,
+            "sha256:recovered"
+        );
+        assert_eq!(provider_checks.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn unknown_version_backoff_suppresses_repeated_provider_queries() {
+        let embedder = test_embedder();
+        let provider_checks = AtomicUsize::new(0);
+
+        assert_eq!(
+            embedder
+                .resolve_version(|| async {
+                    provider_checks.fetch_add(1, Ordering::SeqCst);
+                    None
+                })
+                .await,
+            "nomic-embed-text:unknown"
+        );
+        for _ in 0..5 {
+            assert_eq!(
+                embedder
+                    .resolve_version(|| async {
+                        provider_checks.fetch_add(1, Ordering::SeqCst);
+                        None
+                    })
+                    .await,
+                "nomic-embed-text:unknown"
+            );
+        }
+
+        assert_eq!(provider_checks.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn successful_version_digest_remains_cached() {
+        let embedder = test_embedder();
+        let provider_checks = AtomicUsize::new(0);
+
+        assert_eq!(
+            embedder
+                .resolve_version(|| async {
+                    provider_checks.fetch_add(1, Ordering::SeqCst);
+                    Some("sha256:stable".to_string())
+                })
+                .await,
+            "sha256:stable"
+        );
+        assert_eq!(
+            embedder
+                .resolve_version(|| async {
+                    provider_checks.fetch_add(1, Ordering::SeqCst);
+                    Some("sha256:changed".to_string())
+                })
+                .await,
+            "sha256:stable"
+        );
+        assert_eq!(provider_checks.load(Ordering::SeqCst), 1);
     }
 
     #[test]
