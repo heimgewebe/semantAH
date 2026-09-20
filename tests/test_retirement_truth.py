@@ -7,7 +7,7 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
-RETIRED = {"hausKI", "heimgeist", "heimlern"}
+RETIRED = {"hauski", "heimgeist", "heimlern"}
 
 
 def _json(relative: str) -> dict:
@@ -31,13 +31,18 @@ def test_contract_consumers_do_not_reactivate_retired_repositories() -> None:
 
     for relative, expected_consumers in cases.items():
         contract = _json(relative)
-        consumers = set(contract["x-consumers"])
-        retired = set(contract.get("x-retired-consumers", []))
+        consumers = {value.casefold() for value in contract.get("x-consumers", [])}
 
         assert consumers == expected_consumers
         assert consumers.isdisjoint(RETIRED)
-        assert retired <= RETIRED
-        assert retired
+
+
+def test_legacy_hauski_source_value_is_explicitly_non_current() -> None:
+    source = _json("contracts/insights.schema.json")["properties"]["source"]
+
+    assert "hauski" in {value.casefold() for value in source["enum"]}
+    assert "legacy serialized source value" in source["description"]
+    assert "does not establish a current repository or service" in source["description"]
 
 
 def test_feedback_loop_has_no_retired_escalation_target() -> None:

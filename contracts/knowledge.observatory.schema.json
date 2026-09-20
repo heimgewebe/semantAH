@@ -4,7 +4,6 @@
   "title": "KnowledgeObservatory",
   "x-producers": ["semantAH"],
   "x-consumers": ["leitstand"],
-  "x-retired-consumers": ["hausKI", "heimlern"],
   "description": "Snapshot des semantischen Observatoriums.",
   "type": "object",
   "properties": {
