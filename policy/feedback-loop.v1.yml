@@ -59,16 +59,8 @@ actions:
         schlägt einen Teil-Rescan für Ordner/Namespaces mit vielen verwaisten
         Knoten vor.
 
-  # Aktionen, die andere Organe (z. B. HausKI/Heimlern) auslösen sollen
-  escalate:
-    - id: notify_heimlern_on_critical_search_health
-      when:
-        signal: search_health
-        condition: critical
-      target: heimlern
-      effect: >
-        markiert den aktuellen Policy-Zustand als Lernbeispiel für Heimlern
-        (z. B. um bessere Default-Parameter oder Rescan-Strategien zu finden).
+  # Gelöschte Retirement-Consumer werden nicht mehr als Eskalationsziele geführt.
+  escalate: []
 
 export:
   # Zielbild für Event-Typen, die in chronik landen könnten.

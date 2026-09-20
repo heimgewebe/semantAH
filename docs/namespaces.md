@@ -35,8 +35,8 @@ namespaces:
 - Der Default-Namespace wird aus `namespaces.default` gelesen; falls der Block fehlt, wird
   `vault` angenommen.
 - Weitere Namespaces können (z. B. durch Automatisierungen) in derselben Struktur
-  angelegt werden. Die HausKI-Integration spiegelt das, indem sie unter
-  `~/.local/state/hauski/index/<namespace>/` getrennte Stores anlegt (siehe
+  angelegt werden. Die frühere HausKI-Integration nutzte dafür
+  `~/.local/state/hauski/index/<namespace>/` getrennte Stores; dieser Pfad ist historisch (siehe
   `docs/hauski.md`, Abschnitt „Index-Struktur“).
 - Die optionalen Flags (z. B. `namespaces.web.enabled`) dienen aktuell der Dokumentation
   und haben noch keine direkte Auswertung im Code.
