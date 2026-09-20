@@ -6,16 +6,16 @@
 > Automatisierte Coverage- und Testintegration:
 > Der Badge aktualisiert sich nach jedem Merge-Job (Codecov Upload). Mindest-Thresholds siehe `codecov.yml`; Uploads sind nur aktiv, wenn `CODECOV_UPLOAD=true` gesetzt ist.
 
-**semantAH** ist der semantische Index- und Graph-Ableger von [HausKI](https://github.com/heimgewebe/hausKI).
+**semantAH** ist ein eigenständiger semantischer Index- und Graphdienst im Heimgewebe.
 Es zerlegt Notizen (z. B. aus Obsidian), erstellt **Embeddings**, baut daraus einen **Index und Wissensgraphen** und schreibt „Related“-Blöcke direkt in die Markdown-Dateien zurück.
 
-- **Einbettung in HausKI:** dient dort als semantische Gedächtnis-Schicht (Memory Layer).
+- **Retirement:** Es besteht keine aktive HausKI-Abhängigkeit; die frühere Einbettung ist nur noch historischer Entwurf.
 - **Eigenständig nutzbar:** Skript-Pipeline (`tools/`, `Makefile`) oder Rust-Dienst (`/index/*`).
 - **Artefakte:** `.gewebe/embeddings.parquet`, `nodes.jsonl`, `edges.jsonl`, Reports.
 - **KPIs:** Index-Suche top-k=20 in < 60 ms (p95).
 - **Integrationen:** Obsidian Canvas (Auto-Links), systemd-Timer, WGX-Recipes.
 
-Mehr zur Integration: [docs/hauski.md](docs/hauski.md). Ergänzend:
+Historischer HausKI-Entwurf: [docs/hauski.md](docs/hauski.md). Aktuelle Dokumentation:
 - Embeddings: siehe [`docs/embeddings.md`](docs/embeddings.md)
 - Namespaces: siehe [`docs/namespaces.md`](docs/namespaces.md)
 
