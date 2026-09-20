@@ -10,11 +10,16 @@ ROOT = Path(__file__).resolve().parents[1]
 RETIRED = {"hauski", "heimgeist", "heimlern", "mitschreiber"}
 ACTIVE_DOCS = (
     "docs/contracts/output.md",
+    "docs/embeddings.md",
     "docs/semantAH/observatory.md",
 )
 HISTORICAL_DOCS = (
+    "docs/blueprint.md",
+    "docs/hauski.md",
     "docs/mitschreiber-index.md",
+    "docs/semantAH-feedback-loop.md",
     "docs/semantAH.md",
+    "docs/semantAH/comprehensive-optimization-strategy.md",
 )
 
 
@@ -52,12 +57,52 @@ def test_active_docs_do_not_claim_retired_consumers() -> None:
             assert retired not in text, f"{relative} still presents retired name {retired}"
 
 
+
+
+def test_readme_current_docs_do_not_use_historical_sources_as_current_truth() -> None:
+    readme_lines = (ROOT / "README.md").read_text(encoding="utf-8").splitlines()
+    marker = next(
+        index
+        for index, line in enumerate(readme_lines)
+        if "Aktuelle Dokumentation:" in line
+    )
+    current_docs: list[str] = []
+    for line in readme_lines[marker + 1 :]:
+        if not line.startswith("- "):
+            break
+        start = line.find("(docs/")
+        if start == -1:
+            continue
+        start += 1
+        end = line.find(")", start)
+        current_docs.append(line[start:end])
+
+    assert set(current_docs) == {"docs/embeddings.md", "docs/namespaces.md"}
+
+    for relative in current_docs:
+        lines = (ROOT / relative).read_text(encoding="utf-8").splitlines()
+        for index, line in enumerate(lines):
+            for historical in HISTORICAL_DOCS:
+                if historical not in line:
+                    continue
+                context = " ".join(
+                    lines[max(0, index - 2) : min(len(lines), index + 3)]
+                ).casefold()
+                assert any(
+                    marker in context
+                    for marker in ("histor", "früher", "entwurf", "legacy")
+                ), (
+                    f"{relative} uses historical source {historical} "
+                    "without marking the reference as historical"
+                )
+
+
 def test_legacy_docs_are_explicitly_historical() -> None:
     for relative in HISTORICAL_DOCS:
         head = "\n".join(
             (ROOT / relative).read_text(encoding="utf-8").splitlines()[:8]
         ).casefold()
-        assert "historischer entwurf" in head
+        assert "historisch" in head
 
 
 def test_legacy_hauski_source_value_is_explicitly_non_current() -> None:
