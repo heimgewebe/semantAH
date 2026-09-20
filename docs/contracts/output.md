@@ -16,7 +16,6 @@ Primäre Konsumenten:
 - leitstand (UI / Visualisierung)
 
 Optionale/sekundäre Konsumenten:
-- hausKI (KI-gestützte Auswertung)
 - chronik (Persistenz von Tageszuständen / Audits)
 
 ---
@@ -101,7 +100,7 @@ Nicht garantiert (kein Teil der öffentlichen API):
 
 Der Index ist damit **primär ein interner Cache** von semantAH:
 
-- leitstand, hausKI und chronik **dürfen sich nicht** auf bestimmte Dateien
+- leitstand und chronik **dürfen sich nicht** auf bestimmte Dateien
   oder Strukturen unter `.gewebe/index/*` verlassen.
 - Zulässige Annahme für Konsumenten:
   - Index kann jederzeit regeneriert werden (z. B. durch semantAH-CLI).
@@ -143,11 +142,7 @@ semantAH stellt sicher, dass diese Dateien:
     erst nach vollständigem Schreiben ist die Datei für Konsumenten sichtbar,
     z. B. durch Schreiben in eine temporäre Datei und anschließendes Umbenennen).
 
-## 5. Beziehung zu hausKI und chronik
-
-- hausKI **kann** `insights.daily` als zusätzlichen Kontext oder als
-  Trainings-/Evaluationssignal verwenden, sollte aber robust gegenüber
-  fehlenden Dateien und neuen Feldern bleiben (Schema-Versionierung beachten).
+## 5. Beziehung zu chronik
 
 - chronik **kann** Snapshots von `insights.daily` persistieren, um
   zeitliche Verläufe und historische Zustände nachzuvollziehen.

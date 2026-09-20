@@ -7,7 +7,15 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
-RETIRED = {"hauski", "heimgeist", "heimlern"}
+RETIRED = {"hauski", "heimgeist", "heimlern", "mitschreiber"}
+ACTIVE_DOCS = (
+    "docs/contracts/output.md",
+    "docs/semantAH/observatory.md",
+)
+HISTORICAL_DOCS = (
+    "docs/mitschreiber-index.md",
+    "docs/semantAH.md",
+)
 
 
 def _json(relative: str) -> dict:
@@ -35,6 +43,21 @@ def test_contract_consumers_do_not_reactivate_retired_repositories() -> None:
 
         assert consumers == expected_consumers
         assert consumers.isdisjoint(RETIRED)
+
+
+def test_active_docs_do_not_claim_retired_consumers() -> None:
+    for relative in ACTIVE_DOCS:
+        text = (ROOT / relative).read_text(encoding="utf-8").casefold()
+        for retired in RETIRED:
+            assert retired not in text, f"{relative} still presents retired name {retired}"
+
+
+def test_legacy_docs_are_explicitly_historical() -> None:
+    for relative in HISTORICAL_DOCS:
+        head = "\n".join(
+            (ROOT / relative).read_text(encoding="utf-8").splitlines()[:8]
+        ).casefold()
+        assert "historischer entwurf" in head
 
 
 def test_legacy_hauski_source_value_is_explicitly_non_current() -> None:

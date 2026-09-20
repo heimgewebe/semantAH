@@ -81,21 +81,11 @@ Das Observatory verfolgt Embeddings über fünf kanonische Namespaces:
 - Aktive Modellrevision pro Namespace
 - Fehlende Namespaces (Leerräume)
 
-**Wichtig**: Das Observatory wertet **nicht**, ob diese Zahlen "gut" oder "schlecht" sind. Downstream-Systeme (hausKI, heimgeist, leitstand) ziehen ihre eigenen Schlüsse.
+**Wichtig**: Das Observatory wertet **nicht**, ob diese Zahlen "gut" oder "schlecht" sind. Downstream-Systeme wie leitstand ziehen ihre eigenen Schlüsse.
 
 ## Konsumenten
 
-**Hinweis**: Die folgenden Konsumenten-Beschreibungen beschreiben das Zielbild. Aktuell (MVP) liefert das Observatory nur Gesamtstatistiken.
-
-### hausKI (Index)
-- Verwendet Observatory zur Index-Koordination
-- Prüft auf Modell-Drift vor Re-Indexing
-- (Geplant) Identifiziert Namespaces mit fehlenden Embeddings
-
-### heimgeist (Reflexion)
-- Nutzt Observatory für Meta-Analysen
-- Erkennt Muster in Signal-Historie
-- Generiert Fragen aus `suggested_questions`
+**Hinweis**: Aktuell (MVP) liefert das Observatory nur Gesamtstatistiken. Die aktive Consumer-Wahrheit steht im Schema `contracts/knowledge.observatory.schema.json`.
 
 ### leitstand (UI)
 - Zeigt Observatory-Daten in Dashboard
@@ -253,7 +243,7 @@ curl -L https://github.com/heimgewebe/semantAH/releases/download/knowledge-obser
    uv run scripts/observatory_mvp.py
    ```
 
-3. **Konsumieren** (hausKI):
+3. **Konsumieren** (leitstand oder anderer aktueller Schema-Consumer):
    ```python
    import requests
    # Replace {owner}/{repo} with actual values
