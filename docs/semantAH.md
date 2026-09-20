@@ -1,3 +1,5 @@
+> **Status: historischer Entwurf.** Diese Blaupause bewahrt den früheren Vault-/HausKI-Konzeptstand. Sie beschreibt keine aktuelle Repository-, Runtime- oder Consumer-Beziehung. Maßgeblich sind README, aktuelle Contracts und Systemkatalog.
+
 Alles klar – ich setze dir jetzt die finale, maximal umfassende Blaupause für dein vault-gewebe auf. Damit hast du einen selbstvernetzenden Wissensspeicher, der semantische Suche, Clustering, Graph, Backlinks, MOCs, Canvas-Integration und Qualitätssicherung kombiniert – alles lokal, reproduzierbar und mit Reports.
 
 ⸻

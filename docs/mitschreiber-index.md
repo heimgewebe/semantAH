@@ -1,5 +1,7 @@
 # semantAH: Mitschreiber-Index
 
+> **Status: historischer Entwurf.** Das frühere Repository Mitschreiber ist physisch gelöscht. Diese Datei dokumentiert nur den damaligen Integrationsentwurf und keine aktuelle Ingest-, Realtime- oder Consumer-Beziehung.
+
 Semantische Suche über Kontext-Embeddings aus mitschreiber.
 
 ## Index
