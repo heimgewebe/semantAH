@@ -1,7 +1,7 @@
 # CONTRIBUTING
 
 ## Dev-Setup
-1. Rust ≥ 1.75, Python ≥ 3.10
+1. Rust ≥ 1.88, Python ≥ 3.10
 2. `make venv` (oder `uv sync`)
 3. `make all`, `cargo run -p indexd`
 

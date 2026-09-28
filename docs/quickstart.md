@@ -1,7 +1,7 @@
 # semantAH · Quickstart
 
 ## Voraussetzungen
-- Rust (stable), Python ≥ 3.10
+- Rust ≥ 1.88 (stable), Python ≥ 3.10
 - Optional: `uv` (für schnelle Envs)
 
 ## Installation (lokal)
