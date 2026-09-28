@@ -3,6 +3,7 @@ name = "embeddings"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
+rust-version.workspace = true
 description = "Abstractions and clients for semantic embedding providers"
 
 [dependencies]

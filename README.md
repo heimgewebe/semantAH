@@ -64,7 +64,7 @@ SemantAH ist eine lokal laufende Wissensgraph- und Semantik-Pipeline für Obsidi
 Für ein ausführliches Step-by-Step siehe **docs/quickstart.md**. Kurzform:
 
 1. **Rust & Python bereitstellen**
-   - Rust ≥ 1.75 (rustup), Python ≥ 3.10
+   - Rust ≥ 1.88 (rustup), Python ≥ 3.10
    - Optional: `uv` für schnelles Python-Lock/Env
 2. **Python-Env & Tools**
    - `make venv` (oder `uv sync`)
